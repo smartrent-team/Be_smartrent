@@ -7,6 +7,12 @@ import sharp from 'sharp'
 
 import { Users } from './collections/Users'
 import { Media } from './collections/Media'
+import { Rooms } from './collections/Rooms'
+import { Tenants } from './collections/Tenants'
+import { Invoices } from './collections/Invoices'
+import { Contracts } from './collections/Contracts'
+import { MaintenanceTickets } from './collections/MaintenanceTickets'
+import { processKYC } from './endpoints/process-kyc'
 
 const filename = fileURLToPath(import.meta.url)
 const dirname = path.dirname(filename)
@@ -18,7 +24,18 @@ export default buildConfig({
       baseDir: path.resolve(dirname),
     },
   },
-  collections: [Users, Media],
+  cors: [
+    'http://localhost:3000',
+    'https://your-mobile-app-domain.com', // Replace with real Flutter app domain if needed
+  ],
+  endpoints: [
+    {
+      path: '/process-kyc',
+      method: 'post',
+      handler: processKYC,
+    },
+  ],
+  collections: [Users, Media, Rooms, Tenants, Invoices, Contracts, MaintenanceTickets],
   editor: lexicalEditor(),
   secret: process.env.PAYLOAD_SECRET || '',
   typescript: {

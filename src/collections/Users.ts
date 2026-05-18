@@ -7,7 +7,21 @@ export const Users: CollectionConfig = {
   },
   auth: true,
   fields: [
-    // Email added by default
-    // Add more fields as needed
+    {
+      name: 'fullName',
+      type: 'text',
+      label: 'Họ và tên',
+    },
+    {
+      name: 'role',
+      type: 'select',
+      defaultValue: 'tenant',
+      required: true,
+      options: [
+        { label: 'Chủ nhà (Landlord)', value: 'landlord' },
+        { label: 'Cư dân (Tenant)', value: 'tenant' },
+      ],
+      saveToJWT: true,
+    },
   ],
 }
