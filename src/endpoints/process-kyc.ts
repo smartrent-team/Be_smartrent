@@ -8,7 +8,11 @@ export const processKYC: PayloadHandler = async (req) => {
     }
 
     // 2. Nhận dữ liệu từ request (Flutter gửi ảnh)
+    if (!req.formData) {
+      return Response.json({ error: 'FormData is not supported on this request' }, { status: 400 })
+    }
     const formData = await req.formData()
+
     const file = formData.get('file')
 
     if (!file) {
