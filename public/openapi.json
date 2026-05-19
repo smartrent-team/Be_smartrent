@@ -1,0 +1,187 @@
+{
+  "openapi": "3.0.0",
+  "info": {
+    "title": "Smart Rent Management System (RMS) API",
+    "description": "Tài liệu OpenAPI 3.0 hoàn chỉnh cho Backend quản lý chuỗi nhà trọ thông minh (RMS) tích hợp Payload CMS 3.x và RLS Supabase.",
+    "version": "1.0.0"
+  },
+  "servers": [
+    {
+      "url": "http://localhost:3000",
+      "description": "Local Development Server"
+    }
+  ],
+  "paths": {
+    "/api/users/login": {
+      "post": {
+        "summary": "Đăng nhập hệ thống",
+        "description": "Xác thực tài khoản và nhận mã JWT Token.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "email": { "type": "string", "example": "manager1@rms.com" },
+                  "password": { "type": "string", "example": "Ttai140999!!" }
+                },
+                "required": ["email", "password"]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Đăng nhập thành công",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "message": { "type": "string", "example": "Auth Passed" },
+                    "user": {
+                      "type": "object",
+                      "properties": {
+                        "id": { "type": "integer", "example": 1 },
+                        "email": { "type": "string", "example": "manager1@rms.com" },
+                        "fullName": { "type": "string", "example": "Nguyễn Văn A" },
+                        "role": { "type": "string", "example": "manager" }
+                      }
+                    },
+                    "token": { "type": "string", "example": "eyJhbGciOiJI..." }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/rooms": {
+      "get": {
+        "summary": "Lấy danh sách phòng",
+        "security": [{ "JWTAuth": [] }],
+        "responses": {
+          "200": {
+            "description": "Thành công",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "docs": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": { "type": "integer", "example": 1 },
+                          "roomNumber": { "type": "string", "example": "P.201" },
+                          "price": { "type": "number", "example": 3500000 },
+                          "status": { "type": "string", "example": "vacant" }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "summary": "Tạo phòng mới",
+        "security": [{ "JWTAuth": [] }],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "roomNumber": { "type": "string", "example": "P.202" },
+                  "branch": { "type": "integer", "example": 1 },
+                  "price": { "type": "number", "example": 3600000 },
+                  "status": { "type": "string", "example": "vacant" }
+                },
+                "required": ["roomNumber", "branch", "price"]
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": { "description": "Tạo thành công" }
+        }
+      }
+    },
+    "/api/invoices": {
+      "get": {
+        "summary": "Lấy danh sách hóa đơn",
+        "security": [{ "JWTAuth": [] }],
+        "responses": {
+          "200": { "description": "Thành công" }
+        }
+      },
+      "post": {
+        "summary": "Tạo hóa đơn mới (Liên kết cổng PayOS)",
+        "security": [{ "JWTAuth": [] }],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "tenant": { "type": "integer", "example": 1 },
+                  "amount": { "type": "number", "example": 3500000 },
+                  "status": { "type": "string", "example": "unpaid" }
+                },
+                "required": ["tenant", "amount"]
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": { "description": "Tạo thành công" }
+        }
+      }
+    },
+    "/api/process-kyc": {
+      "post": {
+        "summary": "Nhận diện định danh ảnh CCCD (OCR)",
+        "security": [{ "JWTAuth": [] }],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "idCardImage": {
+                    "type": "string",
+                    "format": "binary",
+                    "description": "File ảnh CCCD cần scan"
+                  }
+                },
+                "required": ["idCardImage"]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": { "description": "Nhận diện thành công" }
+        }
+      }
+    }
+  },
+  "components": {
+    "securitySchemes": {
+      "JWTAuth": {
+        "type": "apiKey",
+        "in": "header",
+        "name": "Authorization",
+        "description": "Định dạng truyền token: 'JWT <TOKEN_CỦA_BẠN>'"
+      }
+    }
+  }
+}
