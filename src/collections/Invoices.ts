@@ -1,5 +1,6 @@
 import { CollectionConfig } from 'payload'
 import { isAdminOrLandlord, tenantOwnsData } from '../access'
+import { payos } from '../utils/payos'
 
 export const Invoices: CollectionConfig = {
   slug: 'invoices',
@@ -29,6 +30,7 @@ export const Invoices: CollectionConfig = {
       defaultValue: 'unpaid',
     },
     { name: 'qrPayload', type: 'text', label: 'Dữ liệu VietQR' },
+    { name: 'checkoutUrl', type: 'text', label: 'Link thanh toán PayOS' },
   ],
   hooks: {
     beforeChange: [
@@ -56,6 +58,43 @@ export const Invoices: CollectionConfig = {
           }
 
           data.invoiceNumber = `INV-${yearMonth}-${String(nextNumber).padStart(4, '0')}`
+        }
+      },
+    ],
+    afterChange: [
+      async ({ doc, req, operation, context }) => {
+        // Tránh vòng lặp vô hạn
+        if (context.skipPayOSHooks) return
+
+        // Chỉ tạo link thanh toán khi hóa đơn chưa thanh toán (unpaid) và chưa có checkoutUrl
+        if (doc.status === 'unpaid' && !doc.checkoutUrl) {
+          try {
+            const returnUrl = process.env.PAYOS_RETURN_URL || `${process.env.APP_URL || 'http://localhost:3000'}/payment-success`
+            const cancelUrl = process.env.PAYOS_CANCEL_URL || `${process.env.APP_URL || 'http://localhost:3000'}/payment-cancel`
+
+            // Tạo link thanh toán PayOS. orderCode phải là kiểu number (ID hóa đơn)
+            const paymentLink = await payos.paymentRequests.create({
+              orderCode: doc.id,
+              amount: doc.amount,
+              description: `TT Phong ${doc.id}`,
+              returnUrl,
+              cancelUrl,
+            })
+
+            // Cập nhật lại hóa đơn với checkoutUrl và qrPayload
+            await req.payload.update({
+              collection: 'invoices',
+              id: doc.id,
+              data: {
+                checkoutUrl: paymentLink.checkoutUrl,
+                qrPayload: paymentLink.qrCode,
+              },
+              context: { skipPayOSHooks: true },
+              req,
+            })
+          } catch (error) {
+            console.error('Failed to create PayOS payment link:', error)
+          }
         }
       },
     ],
