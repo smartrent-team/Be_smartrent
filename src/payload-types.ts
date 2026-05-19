@@ -69,6 +69,7 @@ export interface Config {
   collections: {
     users: User;
     media: Media;
+    branches: Branch;
     rooms: Room;
     tenants: Tenant;
     invoices: Invoice;
@@ -83,6 +84,7 @@ export interface Config {
   collectionsSelect: {
     users: UsersSelect<false> | UsersSelect<true>;
     media: MediaSelect<false> | MediaSelect<true>;
+    branches: BranchesSelect<false> | BranchesSelect<true>;
     rooms: RoomsSelect<false> | RoomsSelect<true>;
     tenants: TenantsSelect<false> | TenantsSelect<true>;
     invoices: InvoicesSelect<false> | InvoicesSelect<true>;
@@ -134,7 +136,11 @@ export interface UserAuthOperations {
 export interface User {
   id: number;
   fullName?: string | null;
-  role: 'landlord' | 'tenant';
+  role: 'super_admin' | 'manager' | 'tenant';
+  /**
+   * Cơ sở mà Manager này được phân công quản lý
+   */
+  branch?: (number | null) | Branch;
   updatedAt: string;
   createdAt: string;
   email: string;
@@ -153,6 +159,19 @@ export interface User {
     | null;
   password?: string | null;
   collection: 'users';
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "branches".
+ */
+export interface Branch {
+  id: number;
+  name: string;
+  address?: string | null;
+  phone?: string | null;
+  description?: string | null;
+  updatedAt: string;
+  createdAt: string;
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema
@@ -179,6 +198,10 @@ export interface Media {
  */
 export interface Room {
   id: number;
+  /**
+   * Cơ sở chứa phòng này
+   */
+  branch: number | Branch;
   roomNumber: string;
   price: number;
   status?: ('available' | 'occupied' | 'maintenance') | null;
@@ -212,6 +235,7 @@ export interface Invoice {
   amount: number;
   status?: ('unpaid' | 'paid') | null;
   qrPayload?: string | null;
+  checkoutUrl?: string | null;
   updatedAt: string;
   createdAt: string;
 }
@@ -276,6 +300,10 @@ export interface PayloadLockedDocument {
     | ({
         relationTo: 'media';
         value: number | Media;
+      } | null)
+    | ({
+        relationTo: 'branches';
+        value: number | Branch;
       } | null)
     | ({
         relationTo: 'rooms';
@@ -346,6 +374,7 @@ export interface PayloadMigration {
 export interface UsersSelect<T extends boolean = true> {
   fullName?: T;
   role?: T;
+  branch?: T;
   updatedAt?: T;
   createdAt?: T;
   email?: T;
@@ -383,9 +412,22 @@ export interface MediaSelect<T extends boolean = true> {
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "branches_select".
+ */
+export interface BranchesSelect<T extends boolean = true> {
+  name?: T;
+  address?: T;
+  phone?: T;
+  description?: T;
+  updatedAt?: T;
+  createdAt?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
  * via the `definition` "rooms_select".
  */
 export interface RoomsSelect<T extends boolean = true> {
+  branch?: T;
   roomNumber?: T;
   price?: T;
   status?: T;
@@ -417,6 +459,7 @@ export interface InvoicesSelect<T extends boolean = true> {
   amount?: T;
   status?: T;
   qrPayload?: T;
+  checkoutUrl?: T;
   updatedAt?: T;
   createdAt?: T;
 }

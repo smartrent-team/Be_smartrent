@@ -7,12 +7,14 @@ import sharp from 'sharp'
 
 import { Users } from './collections/Users'
 import { Media } from './collections/Media'
+import { Branches } from './collections/Branches'
 import { Rooms } from './collections/Rooms'
 import { Tenants } from './collections/Tenants'
 import { Invoices } from './collections/Invoices'
 import { Contracts } from './collections/Contracts'
 import { MaintenanceTickets } from './collections/MaintenanceTickets'
 import { processKYC } from './endpoints/process-kyc'
+import { payOSWebhook } from './endpoints/payos-webhook'
 
 const filename = fileURLToPath(import.meta.url)
 const dirname = path.dirname(filename)
@@ -34,8 +36,13 @@ export default buildConfig({
       method: 'post',
       handler: processKYC,
     },
+    {
+      path: '/payos-webhook',
+      method: 'post',
+      handler: payOSWebhook,
+    },
   ],
-  collections: [Users, Media, Rooms, Tenants, Invoices, Contracts, MaintenanceTickets],
+  collections: [Users, Media, Branches, Rooms, Tenants, Invoices, Contracts, MaintenanceTickets],
   editor: lexicalEditor(),
   secret: process.env.PAYLOAD_SECRET || '',
   typescript: {
