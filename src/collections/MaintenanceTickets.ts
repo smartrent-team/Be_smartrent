@@ -95,16 +95,33 @@ export const MaintenanceTickets: CollectionConfig = {
       async ({ doc, operation, req }) => {
         if (operation === 'create') {
           try {
+            // Gửi cho tất cả Manager/Super Admin
             const tokens = await req.payload.find({
               collection: 'device-tokens',
               where: { user: { exists: true } },
             })
+            
+            const title = 'Yêu cầu sửa chữa mới!'
+            const body = `Có báo cáo lỗi mới: ${doc.title}`
+            
+            // Bắn FCM
             for (const item of tokens.docs) {
-              await sendPushNotification(
-                item.token,
-                'Yêu cầu sửa chữa mới!',
-                `Có báo cáo lỗi mới: ${doc.title}`
-              )
+              await sendPushNotification(item.token, title, body)
+            }
+            
+            // Lấy danh sách manager users để lưu vào bảng Notifications
+            const managerIds = [...new Set(tokens.docs.map(t => typeof t.user === 'object' ? t.user?.id : t.user).filter(Boolean))]
+            for (const mId of managerIds) {
+              await req.payload.create({
+                collection: 'notifications',
+                data: {
+                  user: mId as string,
+                  title,
+                  body,
+                  type: 'maintenance',
+                  isRead: false
+                }
+              })
             }
           } catch (error) {
             console.error('Lỗi notification create:', error)
@@ -115,19 +132,40 @@ export const MaintenanceTickets: CollectionConfig = {
           try {
             if (doc.tenant) {
               const tenantId = typeof doc.tenant === 'object' ? doc.tenant.id : doc.tenant
-              // Wait, the device-tokens collection uses `user` not `tenant` now. 
-              // We should fix this, but I'll leave it as `tenant` for now or update it.
-              // Assuming device-tokens has a way to link to the tenant's user.
+              
+              // Tìm user id của tenant này
+              const tenantDoc = await req.payload.findByID({
+                collection: 'tenants',
+                id: tenantId,
+              })
+              const tenantUserId = typeof tenantDoc.user === 'object' ? tenantDoc.user.id : tenantDoc.user
+
+              // Tìm device token của riêng tenant này
               const tokens = await req.payload.find({
                 collection: 'device-tokens',
-                where: { user: { exists: true } }, // Simple fallback
+                where: { tenant: { equals: tenantId } },
               })
+              
+              const title = 'Cập nhật yêu cầu sửa chữa'
+              const body = `Yêu cầu "${doc.title}" đã chuyển trạng thái thành: ${doc.status}`
+
+              // Bắn FCM
               for (const item of tokens.docs) {
-                await sendPushNotification(
-                  item.token,
-                  'Cập nhật yêu cầu sửa chữa',
-                  `Yêu cầu "${doc.title}" đã chuyển trạng thái thành: ${doc.status}`
-                )
+                await sendPushNotification(item.token, title, body)
+              }
+              
+              // Lưu vào bảng Notifications cho cư dân
+              if (tenantUserId) {
+                await req.payload.create({
+                  collection: 'notifications',
+                  data: {
+                    user: tenantUserId as string,
+                    title,
+                    body,
+                    type: 'maintenance',
+                    isRead: false
+                  }
+                })
               }
             }
           } catch (error) {

@@ -94,7 +94,7 @@ export default buildConfig({
       },
     }),
     swaggerUI({
-      path: '/api/docs',
+      docsUrl: '/api/docs',
     }),
   ],
 })
