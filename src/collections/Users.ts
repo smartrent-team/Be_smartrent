@@ -1,21 +1,218 @@
-import type { CollectionConfig, FieldAccess } from 'payload'
+import type { CollectionConfig, FieldAccess, PayloadRequest, Where } from 'payload'
 import { isSuperAdmin, isSuperAdminOrManager } from '../access'
 
 export const Users: CollectionConfig = {
   slug: 'users',
   admin: {
-    useAsTitle: 'email',
-    defaultColumns: ['email', 'fullName', 'role', 'branch'],
+    useAsTitle: 'phone', 
+    defaultColumns: ['phone', 'email', 'fullName', 'role', 'branch'],
     group: 'Quản lý người dùng',
   },
   auth: true,
-  // Chỉ super_admin mới được tạo/xóa/phân quyền user.
-  // Các user khác chỉ đọc/sửa thông tin của chính mình (xử lý ở cấp field).
   access: {
-    create: isSuperAdmin,
+    // create: manager có thể tạo tenant, super admin tạo tất cả
+    create: ({ req: { user } }) => {
+      if (!user) return false
+      return (user as any).role === 'super_admin' || (user as any).role === 'manager'
+    },
+    // read: manager chỉ thấy tenant thuộc chi nhánh mình hoặc user là chính mình
+    read: ({ req: { user } }) => {
+      if (!user) return false
+      const u = user as any
+      if (u.role === 'super_admin') return true
+      if (u.role === 'manager') {
+        const branchId = typeof u.branch === 'object' ? u.branch?.id : u.branch
+        if (!branchId) return { id: { equals: user.id } } as Where // fallback just own user
+        return {
+          or: [
+            { id: { equals: user.id } },
+            {
+              and: [
+                { role: { equals: 'tenant' } },
+                { branch: { equals: branchId } }
+              ]
+            }
+          ]
+        } as Where
+      }
+      // tenant sees only themselves
+      return { id: { equals: user.id } } as Where
+    },
+    update: ({ req: { user } }) => {
+      if (!user) return false
+      const u = user as any
+      if (u.role === 'super_admin') return true
+      if (u.role === 'manager') {
+        const branchId = typeof u.branch === 'object' ? u.branch?.id : u.branch
+        if (!branchId) return { id: { equals: user.id } } as Where 
+        return {
+          or: [
+            { id: { equals: user.id } },
+            {
+              and: [
+                { role: { equals: 'tenant' } },
+                { branch: { equals: branchId } }
+              ]
+            }
+          ]
+        } as Where
+      }
+      return { id: { equals: user.id } } as Where
+    },
     delete: isSuperAdmin,
   },
+  endpoints: [
+    {
+      path: '/send-otp',
+      method: 'post',
+      handler: async (req: PayloadRequest) => {
+        try {
+          const body = typeof req.json === 'function' ? await req.json() : req.data
+          const phone = body?.phone
+          if (!phone) {
+            return Response.json({ error: 'Thiếu số điện thoại' }, { status: 400 })
+          }
+          
+          const users = await req.payload.find({
+            collection: 'users',
+            where: { phone: { equals: phone } }
+          })
+
+          if (users.docs.length === 0) {
+            return Response.json({ error: 'Tài khoản không tồn tại. Vui lòng liên hệ quản lý để tạo tài khoản.' }, { status: 404 })
+          }
+
+          // Generate 6 digit OTP
+          const otpCode = Math.floor(100000 + Math.random() * 900000).toString()
+          
+          await req.payload.create({
+            collection: 'otp-verifications',
+            data: {
+              phone,
+              otpCode,
+              purpose: 'login',
+              expiredAt: new Date(Date.now() + 5 * 60 * 1000).toISOString() // 5 minutes
+            }
+          })
+
+          // TODO: Call SMS provider here. For now, just log it.
+          console.log(`\n\n[OTP] Gửi mã ${otpCode} đến SĐT ${phone}\n\n`)
+
+          return Response.json({ message: 'Đã gửi mã OTP' })
+        } catch (error) {
+          console.error(error)
+          return Response.json({ error: 'Lỗi server' }, { status: 500 })
+        }
+      }
+    },
+    {
+      path: '/verify-otp',
+      method: 'post',
+      handler: async (req: PayloadRequest) => {
+        try {
+          const body = typeof req.json === 'function' ? await req.json() : req.data
+          const phone = body?.phone
+          const otp = body?.otp
+          if (!phone || !otp) {
+            return Response.json({ error: 'Thiếu số điện thoại hoặc OTP' }, { status: 400 })
+          }
+
+          const otpRecords = await req.payload.find({
+            collection: 'otp-verifications',
+            where: {
+              phone: { equals: phone },
+              otpCode: { equals: otp },
+              verifiedAt: { exists: false }
+            },
+            sort: '-createdAt',
+            limit: 1
+          })
+
+          if (otpRecords.docs.length === 0) {
+            return Response.json({ error: 'Mã OTP không hợp lệ' }, { status: 400 })
+          }
+
+          const otpRecord = otpRecords.docs[0]
+          if (new Date(otpRecord.expiredAt) < new Date()) {
+            return Response.json({ error: 'Mã OTP đã hết hạn' }, { status: 400 })
+          }
+
+          // Mark as verified
+          await req.payload.update({
+            collection: 'otp-verifications',
+            id: otpRecord.id,
+            data: { verifiedAt: new Date().toISOString() }
+          })
+
+          const users = await req.payload.find({
+            collection: 'users',
+            where: { phone: { equals: phone } }
+          })
+
+          const user = users.docs[0]
+          
+          const jwt = require('jsonwebtoken')
+          const token = jwt.sign(
+            { id: user.id, collection: 'users' },
+            req.payload.secret,
+            { expiresIn: '30d' }
+          )
+
+          return Response.json({
+            message: 'Đăng nhập thành công',
+            token,
+            user: {
+              id: user.id,
+              phone: user.phone,
+              role: user.role,
+              fullName: user.fullName,
+              branch: user.branch
+            }
+          })
+        } catch (error) {
+          console.error(error)
+          return Response.json({ error: 'Lỗi server' }, { status: 500 })
+        }
+      }
+    }
+  ],
+  hooks: {
+    beforeValidate: [
+      ({ data, req, operation }) => {
+        if (!data) return data
+        // Enforce rules when manager creates a tenant
+        if (operation === 'create' && req.user && (req.user as any).role === 'manager') {
+          if (data?.role !== 'tenant') {
+            throw new Error('Manager chỉ được tạo tài khoản Cư dân (tenant).')
+          }
+          const managerBranch = typeof (req.user as any).branch === 'object' ? (req.user as any).branch?.id : (req.user as any).branch
+          if (data?.branch !== managerBranch) {
+            throw new Error('Manager chỉ được gán Cư dân vào chi nhánh của mình.')
+          }
+        }
+        
+        // Auto generate dummy email if not provided, because Payload auth requires it
+        if (operation === 'create' && data?.phone && !data?.email) {
+          data.email = `${data.phone}@user.local`
+        }
+        
+        // Random password for dummy users if missing
+        if (operation === 'create' && !data?.password) {
+          data.password = Math.random().toString(36).slice(-10)
+        }
+        
+        return data
+      }
+    ]
+  },
   fields: [
+    {
+      name: 'phone',
+      type: 'text',
+      label: 'Số điện thoại',
+      unique: true,
+      index: true,
+    },
     {
       name: 'fullName',
       type: 'text',
@@ -26,30 +223,25 @@ export const Users: CollectionConfig = {
       type: 'select',
       defaultValue: 'tenant',
       required: true,
-      // saveToJWT: true cho phép đọc role từ JWT mà không cần query DB
       saveToJWT: true,
       options: [
         { label: 'Quản trị hệ thống (Super Admin)', value: 'super_admin' },
         { label: 'Quản lý cơ sở (Manager)', value: 'manager' },
         { label: 'Cư dân (Tenant)', value: 'tenant' },
       ],
-      // Chỉ super_admin mới được thay đổi role của người khác
       access: {
-        update: (({ req: { user } }) => !!(user as any && (user as any).role === 'super_admin')) as FieldAccess,
+        update: ({ req: { user } }) => !!(user && (user as any).role === 'super_admin'),
       },
     },
     {
       name: 'branch',
       type: 'relationship',
       relationTo: 'branches',
-      label: 'Cơ sở quản lý',
-      // Chỉ hiển thị trường này khi role là manager
-      admin: {
-        condition: (data) => data?.role === 'manager',
-        description: 'Cơ sở mà Manager này được phân công quản lý',
-      },
-      // Lưu branch_id vào JWT để dùng trong RLS và access control
+      label: 'Cơ sở quản lý / Thuê',
       saveToJWT: true,
+      admin: {
+        description: 'Cơ sở mà User này trực thuộc',
+      },
     },
   ],
 }

@@ -131,21 +131,16 @@ Tất cả các API dưới đây đều yêu cầu truyền kèm Header `Author
 ### 🛠️ 6. Báo Hỏng & Sửa Chữa (MaintenanceTickets)
 *   **Lấy danh sách báo hỏng:** `GET /api/maintenance-tickets`
 *   **Gửi báo hỏng mới:** `POST /api/maintenance-tickets`
+    *   *Lưu ý: Để đính kèm hình ảnh sự cố, Cư dân cần Upload ảnh lên `POST /api/media` trước để lấy Media ID. Sau đó truyền mảng ID này vào trường `images` (Ví dụ: `{"images": [{"image": 1}]}`).*
 *   **Cập nhật trạng thái sửa chữa:** `PATCH /api/maintenance-tickets/{id}`
 
 ---
 
 ## 5. Các Custom API Đặc Biệt
 
-### 🤖 A. Xử lý Định Danh CCCD bằng AI/OCR (KYC API)
-*   **Endpoint:** `/api/process-kyc`
-*   **Method:** `POST`
-*   **Headers:** `Content-Type: multipart/form-data`, `Authorization: JWT <TOKEN>`
-*   **Body (Form Data):**
-    *   `idCardImage`: File ảnh chụp CCCD tải lên.
-*   **Mô tả:** API này sẽ xử lý ảnh, nhận diện thông tin cá nhân trên CCCD bằng AI OCR và trả về thông tin dạng văn bản có cấu trúc để điền tự động vào hồ sơ cư dân.
 
-### 🔔 B. Webhook Nhận Thông Báo Từ PayOS
+
+### 🔔 A. Webhook Nhận Thông Báo Từ PayOS
 *   **Endpoint:** `/api/payos-webhook`
 *   **Method:** `POST`
 *   **Headers:** `Content-Type: application/json`

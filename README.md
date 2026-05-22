@@ -16,8 +16,7 @@ Hệ thống quản lý chuỗi nhà trọ thông minh (RMS) được xây dựn
 *   **💳 Sinh Mã VietQR Động (PayOS Integration):**
     *   Tự động tạo mã thanh toán VietQR động và liên kết PayOS ngay khi xuất hóa đơn chưa thanh toán (`unpaid`).
     *   Tự động đồng bộ cập nhật trạng thái hóa đơn thành "Đã thanh toán" (`paid`) theo thời gian thực thông qua hệ thống bảo mật **Webhook Callback**.
-*   **🤖 Định Danh Điện Tử (KYC OCR):**
-    *   Hỗ trợ Endpoint AI OCR quét và tự động trích xuất thông tin cá nhân từ ảnh chụp CCCD của cư dân.
+
 *   **📖 Swagger UI Tích Hợp Sẵn:**
     *   Tài liệu đặc tả API chuẩn hóa trực quan và chạy test trực tiếp ngay trên server thông qua đường dẫn `/docs`.
 
@@ -84,7 +83,7 @@ Sau khi khởi chạy thành công:
 │   │   ├── Rooms.ts         # Phòng trọ
 │   │   ├── Invoices.ts      # Hóa đơn & Hooks PayOS
 │   │   └── ...              # Các collections khác (Tenants, Contracts...)
-│   ├── endpoints/           # Các Custom API Handlers (KYC, Webhook PayOS)
+│   ├── endpoints/           # Các Custom API Handlers (Webhook PayOS)
 │   ├── utils/               # Công cụ hỗ trợ (Khởi tạo PayOS client)
 │   └── payload.config.ts    # File cấu hình trung tâm Payload CMS
 ├── flutter_integration/     # Mã nguồn mẫu tích hợp xác thực & API cho Flutter

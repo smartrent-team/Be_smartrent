@@ -75,6 +75,8 @@ export interface Config {
     invoices: Invoice;
     contracts: Contract;
     'maintenance-tickets': MaintenanceTicket;
+    'device-tokens': DeviceToken;
+    'otp-verifications': OtpVerification;
     'payload-kv': PayloadKv;
     'payload-locked-documents': PayloadLockedDocument;
     'payload-preferences': PayloadPreference;
@@ -90,6 +92,8 @@ export interface Config {
     invoices: InvoicesSelect<false> | InvoicesSelect<true>;
     contracts: ContractsSelect<false> | ContractsSelect<true>;
     'maintenance-tickets': MaintenanceTicketsSelect<false> | MaintenanceTicketsSelect<true>;
+    'device-tokens': DeviceTokensSelect<false> | DeviceTokensSelect<true>;
+    'otp-verifications': OtpVerificationsSelect<false> | OtpVerificationsSelect<true>;
     'payload-kv': PayloadKvSelect<false> | PayloadKvSelect<true>;
     'payload-locked-documents': PayloadLockedDocumentsSelect<false> | PayloadLockedDocumentsSelect<true>;
     'payload-preferences': PayloadPreferencesSelect<false> | PayloadPreferencesSelect<true>;
@@ -135,10 +139,11 @@ export interface UserAuthOperations {
  */
 export interface User {
   id: number;
+  phone?: string | null;
   fullName?: string | null;
   role: 'super_admin' | 'manager' | 'tenant';
   /**
-   * Cơ sở mà Manager này được phân công quản lý
+   * Cơ sở mà User này trực thuộc
    */
   branch?: (number | null) | Branch;
   updatedAt: string;
@@ -266,6 +271,45 @@ export interface MaintenanceTicket {
   status?: ('open' | 'in-progress' | 'resolved') | null;
   tenant: number | Tenant;
   room: number | Room;
+  images?:
+    | {
+        image: number | Media;
+        id?: string | null;
+      }[]
+    | null;
+  updatedAt: string;
+  createdAt: string;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "device-tokens".
+ */
+export interface DeviceToken {
+  id: number;
+  token: string;
+  /**
+   * Điền nếu đây là thiết bị của Quản lý
+   */
+  user?: (number | null) | User;
+  /**
+   * Điền nếu đây là thiết bị của Cư dân
+   */
+  tenant?: (number | null) | Tenant;
+  platform?: ('ios' | 'android' | 'web') | null;
+  updatedAt: string;
+  createdAt: string;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "otp-verifications".
+ */
+export interface OtpVerification {
+  id: number;
+  phone: string;
+  otpCode: string;
+  purpose?: ('login' | 'register') | null;
+  expiredAt: string;
+  verifiedAt?: string | null;
   updatedAt: string;
   createdAt: string;
 }
@@ -324,6 +368,14 @@ export interface PayloadLockedDocument {
     | ({
         relationTo: 'maintenance-tickets';
         value: number | MaintenanceTicket;
+      } | null)
+    | ({
+        relationTo: 'device-tokens';
+        value: number | DeviceToken;
+      } | null)
+    | ({
+        relationTo: 'otp-verifications';
+        value: number | OtpVerification;
       } | null);
   globalSlug?: string | null;
   user: {
@@ -372,6 +424,7 @@ export interface PayloadMigration {
  * via the `definition` "users_select".
  */
 export interface UsersSelect<T extends boolean = true> {
+  phone?: T;
   fullName?: T;
   role?: T;
   branch?: T;
@@ -488,6 +541,37 @@ export interface MaintenanceTicketsSelect<T extends boolean = true> {
   status?: T;
   tenant?: T;
   room?: T;
+  images?:
+    | T
+    | {
+        image?: T;
+        id?: T;
+      };
+  updatedAt?: T;
+  createdAt?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "device-tokens_select".
+ */
+export interface DeviceTokensSelect<T extends boolean = true> {
+  token?: T;
+  user?: T;
+  tenant?: T;
+  platform?: T;
+  updatedAt?: T;
+  createdAt?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "otp-verifications_select".
+ */
+export interface OtpVerificationsSelect<T extends boolean = true> {
+  phone?: T;
+  otpCode?: T;
+  purpose?: T;
+  expiredAt?: T;
+  verifiedAt?: T;
   updatedAt?: T;
   createdAt?: T;
 }

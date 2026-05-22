@@ -13,7 +13,9 @@ import { Tenants } from './collections/Tenants'
 import { Invoices } from './collections/Invoices'
 import { Contracts } from './collections/Contracts'
 import { MaintenanceTickets } from './collections/MaintenanceTickets'
-import { processKYC } from './endpoints/process-kyc'
+import { DeviceTokens } from './collections/DeviceTokens'
+import { OtpVerifications } from './collections/OtpVerifications'
+
 import { payOSWebhook } from './endpoints/payos-webhook'
 
 const filename = fileURLToPath(import.meta.url)
@@ -31,18 +33,14 @@ export default buildConfig({
     'https://your-mobile-app-domain.com', // Replace with real Flutter app domain if needed
   ],
   endpoints: [
-    {
-      path: '/process-kyc',
-      method: 'post',
-      handler: processKYC,
-    },
+
     {
       path: '/payos-webhook',
       method: 'post',
       handler: payOSWebhook,
     },
   ],
-  collections: [Users, Media, Branches, Rooms, Tenants, Invoices, Contracts, MaintenanceTickets],
+  collections: [Users, Media, Branches, Rooms, Tenants, Invoices, Contracts, MaintenanceTickets, DeviceTokens, OtpVerifications],
   editor: lexicalEditor(),
   secret: process.env.PAYLOAD_SECRET || '',
   typescript: {

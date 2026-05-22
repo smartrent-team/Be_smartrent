@@ -145,33 +145,6 @@
           "201": { "description": "Tạo thành công" }
         }
       }
-    },
-    "/api/process-kyc": {
-      "post": {
-        "summary": "Nhận diện định danh ảnh CCCD (OCR)",
-        "security": [{ "JWTAuth": [] }],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "multipart/form-data": {
-              "schema": {
-                "type": "object",
-                "properties": {
-                  "idCardImage": {
-                    "type": "string",
-                    "format": "binary",
-                    "description": "File ảnh CCCD cần scan"
-                  }
-                },
-                "required": ["idCardImage"]
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": { "description": "Nhận diện thành công" }
-        }
-      }
     }
   },
   "components": {
