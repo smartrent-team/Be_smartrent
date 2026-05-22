@@ -115,7 +115,7 @@ export const MaintenanceTickets: CollectionConfig = {
               await req.payload.create({
                 collection: 'notifications',
                 data: {
-                  user: mId as string,
+                  user: mId as number,
                   title,
                   body,
                   type: 'maintenance',
@@ -159,7 +159,7 @@ export const MaintenanceTickets: CollectionConfig = {
                 await req.payload.create({
                   collection: 'notifications',
                   data: {
-                    user: tenantUserId as string,
+                    user: tenantUserId as number,
                     title,
                     body,
                     type: 'maintenance',
