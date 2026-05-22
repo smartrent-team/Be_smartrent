@@ -10,6 +10,11 @@ export const Users: CollectionConfig = {
   },
   auth: true,
   access: {
+    // admin: Chỉ super_admin mới được đăng nhập vào giao diện Web CMS
+    admin: ({ req: { user } }) => {
+      if (!user) return false
+      return (user as any).role === 'super_admin'
+    },
     // create: manager có thể tạo tenant, super admin tạo tất cả
     create: ({ req: { user } }) => {
       if (!user) return false
@@ -75,7 +80,8 @@ export const Users: CollectionConfig = {
           
           const users = await req.payload.find({
             collection: 'users',
-            where: { phone: { equals: phone } }
+            where: { phone: { equals: phone } },
+            overrideAccess: true,
           })
 
           if (users.docs.length === 0) {
@@ -92,7 +98,8 @@ export const Users: CollectionConfig = {
               otpCode,
               purpose: 'login',
               expiredAt: new Date(Date.now() + 5 * 60 * 1000).toISOString() // 5 minutes
-            }
+            },
+            overrideAccess: true,
           })
 
           // TODO: Call SMS provider here. For now, just log it.
@@ -125,7 +132,8 @@ export const Users: CollectionConfig = {
               verifiedAt: { exists: false }
             },
             sort: '-createdAt',
-            limit: 1
+            limit: 1,
+            overrideAccess: true,
           })
 
           if (otpRecords.docs.length === 0) {
@@ -141,12 +149,14 @@ export const Users: CollectionConfig = {
           await req.payload.update({
             collection: 'otp-verifications',
             id: otpRecord.id,
-            data: { verifiedAt: new Date().toISOString() }
+            data: { verifiedAt: new Date().toISOString() },
+            overrideAccess: true,
           })
 
           const users = await req.payload.find({
             collection: 'users',
-            where: { phone: { equals: phone } }
+            where: { phone: { equals: phone } },
+            overrideAccess: true,
           })
 
           const user = users.docs[0]

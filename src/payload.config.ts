@@ -4,6 +4,7 @@ import path from 'path'
 import { buildConfig } from 'payload'
 import { fileURLToPath } from 'url'
 import sharp from 'sharp'
+import { openapi, swaggerUI } from 'payload-oapi'
 
 import { Users } from './collections/Users'
 import { Media } from './collections/Media'
@@ -31,6 +32,16 @@ export default buildConfig({
     user: Users.slug,
     importMap: {
       baseDir: path.resolve(dirname),
+    },
+    components: {
+      beforeNavLinks: [
+        '@/components/DashboardLink#DashboardLink',
+      ],
+      views: {
+        dashboard: {
+          Component: '@/components/Dashboard#default',
+        },
+      },
     },
   },
   cors: [
@@ -73,5 +84,17 @@ export default buildConfig({
     },
   }),
   sharp,
-  plugins: [],
+  plugins: [
+    openapi({
+      openapiVersion: '3.0',
+      metadata: {
+        title: 'Smart Rent API',
+        description: 'Tài liệu API cho ứng dụng Quản lý phòng trọ',
+        version: '1.0.0',
+      },
+    }),
+    swaggerUI({
+      path: '/api/docs',
+    }),
+  ],
 })

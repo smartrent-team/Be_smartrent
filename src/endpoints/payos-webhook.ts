@@ -22,12 +22,8 @@ export const payOSWebhook: PayloadHandler = async (req) => {
         req,
       })
 
-      if (!invoice) {
-        return Response.json({ error: `Invoice with ID ${invoiceId} not found` }, { status: 404 })
-      }
-
-      if (invoice.status === 'paid') {
-        return Response.json({ message: 'Invoice already marked as paid' }, { status: 200 })
+      if (!invoice || invoice.paymentStatus === 'paid') {
+        return Response.json({ message: 'Invoice not found or already paid' }, { status: 200 })
       }
 
       // Update invoice status to 'paid'
@@ -35,7 +31,8 @@ export const payOSWebhook: PayloadHandler = async (req) => {
         collection: 'invoices',
         id: invoiceId,
         data: {
-          status: 'paid',
+          paymentStatus: 'paid',
+          paidAt: new Date().toISOString(),
         },
         context: { skipPayOSHooks: true }, // prevent infinite loops
         req, // Thread transaction
