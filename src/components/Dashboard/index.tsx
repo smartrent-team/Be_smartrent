@@ -2,15 +2,47 @@ import React from 'react'
 import { getPayload } from 'payload'
 import configPromise from '../../payload.config'
 import { ClientCharts } from './ClientCharts'
+import { redis } from '../../utils/redis'
 
 export default async function CustomDashboard({ user }: { user: any }) {
-  const payload = await getPayload({ config: configPromise })
-
   // Xác định điều kiện query theo quyền User
   let branchId = null
   if (user?.role === 'manager' && user?.branch) {
     branchId = typeof user.branch === 'object' ? user.branch.id : user.branch
   }
+
+  const cacheKey = branchId ? `dashboard:branch:${branchId}` : 'dashboard:super_admin'
+
+  // KIỂM TRA REDIS CACHE
+  if (redis) {
+    try {
+      const cached = await redis.get(cacheKey)
+      if (cached) {
+        console.log(`[Redis] HIT - Tải dữ liệu Dashboard từ Cache (${cacheKey})`)
+        const data = JSON.parse(cached)
+        return (
+          <div style={{ padding: '40px 24px' }}>
+            <div style={{ marginBottom: '24px', paddingLeft: '24px' }}>
+              <h1 style={{ fontSize: '28px', fontWeight: 'bold', margin: 0 }}>Tổng quan Cơ sở</h1>
+              <p style={{ color: '#6b7280', margin: '8px 0 0' }}>Xem thống kê doanh thu và hoạt động của các phòng trọ <span style={{ color: '#10b981', fontSize: '12px' }}>(⚡ Cached)</span>.</p>
+            </div>
+            <ClientCharts 
+              revenueData={data.revenueData} 
+              occupancyData={data.occupancyData} 
+              totalDebt={data.totalDebt} 
+              totalRevenue={data.totalRevenue} 
+            />
+          </div>
+        )
+      }
+    } catch (e) {
+      console.warn('[Redis] Lỗi đọc cache:', e)
+    }
+  }
+
+  console.log(`[Redis] MISS - Đang Query DB cho ${cacheKey}...`)
+
+  const payload = await getPayload({ config: configPromise })
 
   // 1. Query Rooms cho Tỷ lệ lấp đầy
   const roomsQuery: any = branchId ? { branch: { equals: branchId } } : {}
@@ -79,6 +111,22 @@ export default async function CustomDashboard({ user }: { user: any }) {
     total: monthlyRevenueMap[key]
   }))
 
+  const resultData = {
+    revenueData,
+    occupancyData,
+    totalDebt,
+    totalRevenue
+  }
+
+  // LƯU KẾT QUẢ VÀO REDIS CACHE (TTL 5 PHÚT = 300s)
+  if (redis) {
+    try {
+      await redis.setex(cacheKey, 300, JSON.stringify(resultData))
+    } catch (e) {
+      console.warn('[Redis] Lỗi ghi cache:', e)
+    }
+  }
+
   return (
     <div style={{ padding: '40px 24px' }}>
       <div style={{ marginBottom: '24px', paddingLeft: '24px' }}>
@@ -87,10 +135,10 @@ export default async function CustomDashboard({ user }: { user: any }) {
       </div>
 
       <ClientCharts 
-        revenueData={revenueData} 
-        occupancyData={occupancyData} 
-        totalDebt={totalDebt} 
-        totalRevenue={totalRevenue} 
+        revenueData={resultData.revenueData} 
+        occupancyData={resultData.occupancyData} 
+        totalDebt={resultData.totalDebt} 
+        totalRevenue={resultData.totalRevenue} 
       />
     </div>
   )

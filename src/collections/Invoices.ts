@@ -1,6 +1,7 @@
 import { CollectionConfig } from 'payload'
 import { isSuperAdminOrManager, tenantOwnsData } from '../access'
 import { payos } from '../utils/payos'
+import { sendPushNotification } from '../utils/sendPushNotification'
 
 export const Invoices: CollectionConfig = {
   slug: 'invoices',
@@ -134,7 +135,7 @@ export const Invoices: CollectionConfig = {
       },
     ],
     afterChange: [
-      async ({ doc, req, operation, context }) => {
+      async ({ doc, req, operation, previousDoc, context }) => {
         if (context.skipPayOSHooks) return
 
         if (doc.paymentStatus === 'unpaid' && !doc.checkoutUrl && doc.totalAmount > 0) {
@@ -162,6 +163,52 @@ export const Invoices: CollectionConfig = {
             })
           } catch (error) {
             console.error('Failed to create PayOS payment link:', error)
+          }
+        }
+
+        // Tự động bắn thông báo khi hóa đơn chuyển trạng thái sang "Đã thanh toán"
+        if (doc.paymentStatus === 'paid' && previousDoc?.paymentStatus !== 'paid' && operation === 'update') {
+          try {
+            if (doc.tenant) {
+              const tenantId = typeof doc.tenant === 'object' ? doc.tenant.id : doc.tenant
+              
+              const tenantDoc = await req.payload.findByID({
+                collection: 'tenants',
+                id: tenantId,
+                req,
+              })
+
+              const tenantUserId = typeof tenantDoc.user === 'object' ? tenantDoc.user.id : tenantDoc.user
+
+              if (tenantUserId) {
+                const tokens = await req.payload.find({
+                  collection: 'device-tokens',
+                  where: { tenant: { equals: tenantId } },
+                  req,
+                })
+
+                const title = '✅ Đã nhận tiền phòng'
+                const body = `Cảm ơn bạn! Hóa đơn ${doc.invoiceCode} số tiền ${doc.totalAmount?.toLocaleString('vi-VN')}đ đã được thanh toán thành công.`
+
+                for (const item of tokens.docs) {
+                  await sendPushNotification(item.token, title, body)
+                }
+
+                await req.payload.create({
+                  collection: 'notifications',
+                  data: {
+                    user: tenantUserId as number,
+                    title,
+                    body,
+                    type: 'invoice',
+                    isRead: false,
+                  },
+                  req,
+                })
+              }
+            }
+          } catch (error) {
+            console.error('Lỗi khi bắn thông báo thanh toán thành công:', error)
           }
         }
       },
