@@ -1,17 +1,13 @@
-// collections/Rooms.ts
 import { CollectionConfig } from 'payload'
 import { isSuperAdmin, isSuperAdminOrManager, managerOwnsData } from '../access'
 
 export const Rooms: CollectionConfig = {
-  slug: 'rooms', // Tên định danh trong database và API
+  slug: 'rooms',
   admin: {
-    useAsTitle: 'roomNumber',
-    defaultColumns: ['roomNumber', 'branch', 'price', 'status'],
+    useAsTitle: 'roomCode',
+    defaultColumns: ['roomCode', 'branch', 'basePrice', 'status'],
     group: 'Quản lý cơ sở',
   },
-  // super_admin: toàn quyền
-  // manager: chỉ thấy phòng thuộc branch của mình (lọc qua managerOwnsData)
-  // tenant: không được thêm/sửa/xóa phòng
   access: {
     read: managerOwnsData('branch'),
     create: isSuperAdminOrManager,
@@ -20,28 +16,46 @@ export const Rooms: CollectionConfig = {
   },
   fields: [
     {
-      // Trường branch được đặt lên đầu — đây là cột cốt lõi của RLS
       name: 'branch',
       type: 'relationship',
       relationTo: 'branches',
       required: true,
       label: 'Cơ sở',
-      // Manager chỉ thấy branch của mình trong dropdown (xử lý phía access)
       admin: {
         description: 'Cơ sở chứa phòng này',
       },
     },
     {
-      name: 'roomNumber',
+      name: 'roomCode',
       type: 'text',
       required: true,
-      label: 'Số phòng',
+      label: 'Mã phòng',
     },
     {
-      name: 'price',
+      name: 'floor',
+      type: 'number',
+      label: 'Tầng',
+    },
+    {
+      name: 'area',
+      type: 'number',
+      label: 'Diện tích (m2)',
+    },
+    {
+      name: 'basePrice',
       type: 'number',
       required: true,
-      label: 'Giá thuê',
+      label: 'Giá thuê cơ bản',
+    },
+    {
+      name: 'electricPrice',
+      type: 'number',
+      label: 'Đơn giá điện (đ/kWh)',
+    },
+    {
+      name: 'waterPrice',
+      type: 'number',
+      label: 'Đơn giá nước (đ/khối)',
     },
     {
       name: 'status',

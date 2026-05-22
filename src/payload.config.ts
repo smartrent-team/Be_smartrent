@@ -15,6 +15,11 @@ import { Contracts } from './collections/Contracts'
 import { MaintenanceTickets } from './collections/MaintenanceTickets'
 import { DeviceTokens } from './collections/DeviceTokens'
 import { OtpVerifications } from './collections/OtpVerifications'
+import { UtilityLogs } from './collections/UtilityLogs'
+import { UtilityAnomalies } from './collections/UtilityAnomalies'
+import { Payments } from './collections/Payments'
+import { Notifications } from './collections/Notifications'
+import { AuditLogs } from './collections/AuditLogs'
 
 import { payOSWebhook } from './endpoints/payos-webhook'
 
@@ -40,7 +45,23 @@ export default buildConfig({
       handler: payOSWebhook,
     },
   ],
-  collections: [Users, Media, Branches, Rooms, Tenants, Invoices, Contracts, MaintenanceTickets, DeviceTokens, OtpVerifications],
+  collections: [
+    Users,
+    Media,
+    Branches,
+    Rooms,
+    Tenants,
+    Invoices,
+    Contracts,
+    MaintenanceTickets,
+    DeviceTokens,
+    OtpVerifications,
+    UtilityLogs,
+    UtilityAnomalies,
+    Payments,
+    Notifications,
+    AuditLogs,
+  ],
   editor: lexicalEditor(),
   secret: process.env.PAYLOAD_SECRET || '',
   typescript: {

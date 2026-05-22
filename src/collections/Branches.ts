@@ -5,11 +5,9 @@ export const Branches: CollectionConfig = {
   slug: 'branches',
   admin: {
     useAsTitle: 'name',
-    defaultColumns: ['name', 'address', 'createdAt'],
+    defaultColumns: ['name', 'address', 'status', 'createdAt'],
     group: 'Quản lý cơ sở',
   },
-  // Chỉ super_admin mới được tạo/xóa cơ sở.
-  // Manager chỉ đọc cơ sở của mình (được lọc qua access function).
   access: {
     read: isSuperAdminOrManager,
     create: isSuperAdmin,
@@ -37,6 +35,35 @@ export const Branches: CollectionConfig = {
       name: 'description',
       type: 'textarea',
       label: 'Mô tả',
+    },
+    {
+      name: 'status',
+      type: 'select',
+      defaultValue: 'active',
+      options: [
+        { label: 'Hoạt động', value: 'active' },
+        { label: 'Ngừng hoạt động', value: 'inactive' },
+      ],
+      label: 'Trạng thái',
+    },
+    {
+      name: 'createdBy',
+      type: 'relationship',
+      relationTo: 'users',
+      label: 'Người tạo',
+      admin: {
+        readOnly: true,
+      },
+      hooks: {
+        beforeChange: [
+          ({ req, operation, value }) => {
+            if (operation === 'create' && req.user) {
+              return req.user.id
+            }
+            return value
+          },
+        ],
+      },
     },
   ],
 }

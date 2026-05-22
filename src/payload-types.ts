@@ -77,6 +77,11 @@ export interface Config {
     'maintenance-tickets': MaintenanceTicket;
     'device-tokens': DeviceToken;
     'otp-verifications': OtpVerification;
+    'utility-logs': UtilityLog;
+    'utility-anomalies': UtilityAnomaly;
+    payments: Payment;
+    notifications: Notification;
+    'audit-logs': AuditLog;
     'payload-kv': PayloadKv;
     'payload-locked-documents': PayloadLockedDocument;
     'payload-preferences': PayloadPreference;
@@ -94,6 +99,11 @@ export interface Config {
     'maintenance-tickets': MaintenanceTicketsSelect<false> | MaintenanceTicketsSelect<true>;
     'device-tokens': DeviceTokensSelect<false> | DeviceTokensSelect<true>;
     'otp-verifications': OtpVerificationsSelect<false> | OtpVerificationsSelect<true>;
+    'utility-logs': UtilityLogsSelect<false> | UtilityLogsSelect<true>;
+    'utility-anomalies': UtilityAnomaliesSelect<false> | UtilityAnomaliesSelect<true>;
+    payments: PaymentsSelect<false> | PaymentsSelect<true>;
+    notifications: NotificationsSelect<false> | NotificationsSelect<true>;
+    'audit-logs': AuditLogsSelect<false> | AuditLogsSelect<true>;
     'payload-kv': PayloadKvSelect<false> | PayloadKvSelect<true>;
     'payload-locked-documents': PayloadLockedDocumentsSelect<false> | PayloadLockedDocumentsSelect<true>;
     'payload-preferences': PayloadPreferencesSelect<false> | PayloadPreferencesSelect<true>;
@@ -175,6 +185,8 @@ export interface Branch {
   address?: string | null;
   phone?: string | null;
   description?: string | null;
+  status?: ('active' | 'inactive') | null;
+  createdBy?: (number | null) | User;
   updatedAt: string;
   createdAt: string;
 }
@@ -207,8 +219,12 @@ export interface Room {
    * Cơ sở chứa phòng này
    */
   branch: number | Branch;
-  roomNumber: string;
-  price: number;
+  roomCode: string;
+  floor?: number | null;
+  area?: number | null;
+  basePrice: number;
+  electricPrice?: number | null;
+  waterPrice?: number | null;
   status?: ('available' | 'occupied' | 'maintenance') | null;
   updatedAt: string;
   createdAt: string;
@@ -219,12 +235,15 @@ export interface Room {
  */
 export interface Tenant {
   id: number;
-  fullName: string;
-  idNumber: string;
-  phoneNumber?: string | null;
-  dob?: string | null;
-  address?: string | null;
-  room?: (number | null) | Room;
+  /**
+   * Tài khoản đăng nhập của khách thuê này
+   */
+  user: number | User;
+  room: number | Room;
+  identityNumber: string;
+  emergencyContact?: string | null;
+  moveInDate: string;
+  moveOutDate?: string | null;
   idCardImage?: (number | null) | Media;
   updatedAt: string;
   createdAt: string;
@@ -235,12 +254,39 @@ export interface Tenant {
  */
 export interface Invoice {
   id: number;
-  invoiceNumber: string;
-  tenant: number | Tenant;
-  amount: number;
-  status?: ('unpaid' | 'paid') | null;
+  invoiceCode: string;
+  room: number | Room;
+  tenant?: (number | null) | Tenant;
+  utilityLog?: (number | null) | UtilityLog;
+  roomPrice: number;
+  electricCost?: number | null;
+  waterCost?: number | null;
+  serviceCost?: number | null;
+  totalAmount: number;
+  paymentStatus?: ('unpaid' | 'partial' | 'paid') | null;
+  issuedAt?: string | null;
+  paidAt?: string | null;
   qrPayload?: string | null;
   checkoutUrl?: string | null;
+  updatedAt: string;
+  createdAt: string;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "utility-logs".
+ */
+export interface UtilityLog {
+  id: number;
+  room: number | Room;
+  month: number;
+  year: number;
+  electricOld: number;
+  electricNew: number;
+  electricUsage?: number | null;
+  waterOld: number;
+  waterNew: number;
+  waterUsage?: number | null;
+  recordedBy?: (number | null) | User;
   updatedAt: string;
   createdAt: string;
 }
@@ -255,8 +301,16 @@ export interface Contract {
   room: number | Room;
   startDate: string;
   endDate?: string | null;
-  deposit?: number | null;
-  contractFile?: (number | null) | Media;
+  depositAmount?: number | null;
+  monthlyPrice?: number | null;
+  status?: ('active' | 'expired' | 'terminated') | null;
+  images?:
+    | {
+        image: number | Media;
+        pageNumber?: number | null;
+        id?: string | null;
+      }[]
+    | null;
   updatedAt: string;
   createdAt: string;
 }
@@ -268,9 +322,11 @@ export interface MaintenanceTicket {
   id: number;
   title: string;
   description: string;
+  priority?: ('low' | 'medium' | 'high' | 'urgent') | null;
   status?: ('open' | 'in-progress' | 'resolved') | null;
   tenant: number | Tenant;
   room: number | Room;
+  assignedManager?: (number | null) | User;
   images?:
     | {
         image: number | Media;
@@ -310,6 +366,88 @@ export interface OtpVerification {
   purpose?: ('login' | 'register') | null;
   expiredAt: string;
   verifiedAt?: string | null;
+  updatedAt: string;
+  createdAt: string;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "utility-anomalies".
+ */
+export interface UtilityAnomaly {
+  id: number;
+  utilityLog: number | UtilityLog;
+  type: 'electric' | 'water';
+  severity: 'warning' | 'critical';
+  message?: string | null;
+  resolved?: boolean | null;
+  updatedAt: string;
+  createdAt: string;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "payments".
+ */
+export interface Payment {
+  id: number;
+  invoice: number | Invoice;
+  bankCode?: string | null;
+  transactionCode?: string | null;
+  amount: number;
+  paidAt: string;
+  rawPayload?:
+    | {
+        [k: string]: unknown;
+      }
+    | unknown[]
+    | string
+    | number
+    | boolean
+    | null;
+  updatedAt: string;
+  createdAt: string;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "notifications".
+ */
+export interface Notification {
+  id: number;
+  user: number | User;
+  title: string;
+  body?: string | null;
+  type?: ('invoice' | 'maintenance' | 'system') | null;
+  isRead?: boolean | null;
+  updatedAt: string;
+  createdAt: string;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "audit-logs".
+ */
+export interface AuditLog {
+  id: number;
+  user?: (number | null) | User;
+  action: 'create' | 'update' | 'delete' | 'login';
+  entityType?: string | null;
+  entityId?: string | null;
+  oldData?:
+    | {
+        [k: string]: unknown;
+      }
+    | unknown[]
+    | string
+    | number
+    | boolean
+    | null;
+  newData?:
+    | {
+        [k: string]: unknown;
+      }
+    | unknown[]
+    | string
+    | number
+    | boolean
+    | null;
   updatedAt: string;
   createdAt: string;
 }
@@ -376,6 +514,26 @@ export interface PayloadLockedDocument {
     | ({
         relationTo: 'otp-verifications';
         value: number | OtpVerification;
+      } | null)
+    | ({
+        relationTo: 'utility-logs';
+        value: number | UtilityLog;
+      } | null)
+    | ({
+        relationTo: 'utility-anomalies';
+        value: number | UtilityAnomaly;
+      } | null)
+    | ({
+        relationTo: 'payments';
+        value: number | Payment;
+      } | null)
+    | ({
+        relationTo: 'notifications';
+        value: number | Notification;
+      } | null)
+    | ({
+        relationTo: 'audit-logs';
+        value: number | AuditLog;
       } | null);
   globalSlug?: string | null;
   user: {
@@ -472,6 +630,8 @@ export interface BranchesSelect<T extends boolean = true> {
   address?: T;
   phone?: T;
   description?: T;
+  status?: T;
+  createdBy?: T;
   updatedAt?: T;
   createdAt?: T;
 }
@@ -481,8 +641,12 @@ export interface BranchesSelect<T extends boolean = true> {
  */
 export interface RoomsSelect<T extends boolean = true> {
   branch?: T;
-  roomNumber?: T;
-  price?: T;
+  roomCode?: T;
+  floor?: T;
+  area?: T;
+  basePrice?: T;
+  electricPrice?: T;
+  waterPrice?: T;
   status?: T;
   updatedAt?: T;
   createdAt?: T;
@@ -492,12 +656,12 @@ export interface RoomsSelect<T extends boolean = true> {
  * via the `definition` "tenants_select".
  */
 export interface TenantsSelect<T extends boolean = true> {
-  fullName?: T;
-  idNumber?: T;
-  phoneNumber?: T;
-  dob?: T;
-  address?: T;
+  user?: T;
   room?: T;
+  identityNumber?: T;
+  emergencyContact?: T;
+  moveInDate?: T;
+  moveOutDate?: T;
   idCardImage?: T;
   updatedAt?: T;
   createdAt?: T;
@@ -507,10 +671,18 @@ export interface TenantsSelect<T extends boolean = true> {
  * via the `definition` "invoices_select".
  */
 export interface InvoicesSelect<T extends boolean = true> {
-  invoiceNumber?: T;
+  invoiceCode?: T;
+  room?: T;
   tenant?: T;
-  amount?: T;
-  status?: T;
+  utilityLog?: T;
+  roomPrice?: T;
+  electricCost?: T;
+  waterCost?: T;
+  serviceCost?: T;
+  totalAmount?: T;
+  paymentStatus?: T;
+  issuedAt?: T;
+  paidAt?: T;
   qrPayload?: T;
   checkoutUrl?: T;
   updatedAt?: T;
@@ -526,8 +698,16 @@ export interface ContractsSelect<T extends boolean = true> {
   room?: T;
   startDate?: T;
   endDate?: T;
-  deposit?: T;
-  contractFile?: T;
+  depositAmount?: T;
+  monthlyPrice?: T;
+  status?: T;
+  images?:
+    | T
+    | {
+        image?: T;
+        pageNumber?: T;
+        id?: T;
+      };
   updatedAt?: T;
   createdAt?: T;
 }
@@ -538,9 +718,11 @@ export interface ContractsSelect<T extends boolean = true> {
 export interface MaintenanceTicketsSelect<T extends boolean = true> {
   title?: T;
   description?: T;
+  priority?: T;
   status?: T;
   tenant?: T;
   room?: T;
+  assignedManager?: T;
   images?:
     | T
     | {
@@ -572,6 +754,78 @@ export interface OtpVerificationsSelect<T extends boolean = true> {
   purpose?: T;
   expiredAt?: T;
   verifiedAt?: T;
+  updatedAt?: T;
+  createdAt?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "utility-logs_select".
+ */
+export interface UtilityLogsSelect<T extends boolean = true> {
+  room?: T;
+  month?: T;
+  year?: T;
+  electricOld?: T;
+  electricNew?: T;
+  electricUsage?: T;
+  waterOld?: T;
+  waterNew?: T;
+  waterUsage?: T;
+  recordedBy?: T;
+  updatedAt?: T;
+  createdAt?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "utility-anomalies_select".
+ */
+export interface UtilityAnomaliesSelect<T extends boolean = true> {
+  utilityLog?: T;
+  type?: T;
+  severity?: T;
+  message?: T;
+  resolved?: T;
+  updatedAt?: T;
+  createdAt?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "payments_select".
+ */
+export interface PaymentsSelect<T extends boolean = true> {
+  invoice?: T;
+  bankCode?: T;
+  transactionCode?: T;
+  amount?: T;
+  paidAt?: T;
+  rawPayload?: T;
+  updatedAt?: T;
+  createdAt?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "notifications_select".
+ */
+export interface NotificationsSelect<T extends boolean = true> {
+  user?: T;
+  title?: T;
+  body?: T;
+  type?: T;
+  isRead?: T;
+  updatedAt?: T;
+  createdAt?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "audit-logs_select".
+ */
+export interface AuditLogsSelect<T extends boolean = true> {
+  user?: T;
+  action?: T;
+  entityType?: T;
+  entityId?: T;
+  oldData?: T;
+  newData?: T;
   updatedAt?: T;
   createdAt?: T;
 }
