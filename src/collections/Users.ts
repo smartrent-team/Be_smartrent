@@ -16,9 +16,38 @@ export const Users: CollectionConfig = {
       return (user as any).role === 'super_admin'
     },
     // create: manager có thể tạo tenant, super admin tạo tất cả
-    create: ({ req: { user } }) => {
-      if (!user) return false
-      return (user as any).role === 'super_admin' || (user as any).role === 'manager'
+    create: async ({ req }) => {
+      let user = req.user
+      
+      // Nếu Payload bị rớt token, ta tự phân tích JWT từ Header
+      if (!user) {
+        const authHeader = req.headers.get('authorization')
+        if (authHeader && authHeader.startsWith('JWT ')) {
+          const token = authHeader.replace('JWT ', '')
+          try {
+            const jwt = require('jsonwebtoken')
+            const decoded = jwt.verify(token, req.payload.secret)
+            const users = await req.payload.find({ 
+              collection: 'users', 
+              where: { id: { equals: decoded.id } },
+              overrideAccess: true 
+            })
+            if (users.docs.length > 0) {
+              user = users.docs[0]
+              req.user = user // Gán ngược lại vào req để các bước sau dùng
+            }
+          } catch (e) {
+            console.error('=> Lỗi xác thực token thủ công:', e.message)
+          }
+        }
+      }
+
+      if (!user) {
+        return false
+      }
+
+      const role = (user as any).role
+      return role === 'super_admin' || role === 'manager'
     },
     // read: manager chỉ thấy tenant thuộc chi nhánh mình hoặc user là chính mình
     read: ({ req: { user } }) => {
@@ -159,9 +188,19 @@ export const Users: CollectionConfig = {
           const user = users.docs[0]
 
           const jwt = require('jsonwebtoken')
-          const token = jwt.sign({ id: user.id, collection: 'users' }, req.payload.secret, {
-            expiresIn: '30d',
-          })
+          const token = jwt.sign(
+            { 
+              id: String(user.id), 
+              collection: 'users',
+              email: user.email 
+            }, 
+            req.payload.secret, 
+            {
+              expiresIn: '30d',
+            }
+          )
+          console.log('====== DEBUG GENERATE TOKEN ======')
+          console.log('Generated Token for ID:', user.id, 'Email:', user.email)
 
           return Response.json({
             message: 'Đăng nhập thành công',
@@ -194,7 +233,7 @@ export const Users: CollectionConfig = {
             typeof (req.user as any).branch === 'object'
               ? (req.user as any).branch?.id
               : (req.user as any).branch
-          if (data?.branch !== managerBranch) {
+          if (String(data?.branch) !== String(managerBranch)) {
             throw new Error('Manager chỉ được gán Cư dân vào chi nhánh của mình.')
           }
         }
