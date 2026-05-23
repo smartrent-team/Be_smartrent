@@ -50,9 +50,58 @@ Nếu bạn muốn test qua mạng 4G hoặc thiết bị ở xa:
 
 ## 3. Hướng Dẫn Cơ Chế Xác Thực (Authentication API)
 
-Payload CMS tích hợp sẵn hệ thống xác thực bảo mật dựa trên **JWT (JSON Web Token)**.
+Payload CMS tích hợp sẵn hệ thống xác thực bảo mật dựa trên **JWT (JSON Web Token)**. Tùy thuộc vào nền tảng (Web Admin hay Mobile App), FE sẽ sử dụng luồng đăng nhập tương ứng:
 
-### 🔑 Đăng Nhập (Login)
+### 📱 3.1. Đăng Nhập Bằng Mã OTP (Dành Cho Cư Dân - Mobile App)
+
+Hệ thống **không cho phép tự đăng ký**. Tài khoản cư dân phải được tạo sẵn bởi Quản lý. Luồng đăng nhập diễn ra qua 2 bước:
+
+**Bước 1: Yêu cầu gửi mã OTP**
+*   **Endpoint:** `/api/users/send-otp`
+*   **Method:** `POST`
+*   **Headers:** `Content-Type: application/json`
+*   **Body:**
+    ```json
+    {
+      "phone": "0987654321"
+    }
+    ```
+*   **Phản hồi thành công (200 OK):**
+    ```json
+    { "message": "Đã gửi mã OTP" }
+    ```
+*   **Lỗi 404:** `{ "error": "Tài khoản không tồn tại. Vui lòng liên hệ quản lý để tạo tài khoản." }`
+
+**Bước 2: Xác thực mã OTP và Lấy Token**
+Mã OTP gồm 6 số và có hiệu lực trong 5 phút.
+*   **Endpoint:** `/api/users/verify-otp`
+*   **Method:** `POST`
+*   **Headers:** `Content-Type: application/json`
+*   **Body:**
+    ```json
+    {
+      "phone": "0987654321",
+      "otp": "123456"
+    }
+    ```
+*   **Phản hồi thành công (200 OK):**
+    Mobile App cần lưu lại giá trị `token` để gọi các API khác.
+    ```json
+    {
+      "message": "Đăng nhập thành công",
+      "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
+      "user": {
+        "id": 1,
+        "phone": "0987654321",
+        "role": "tenant",
+        "fullName": "Nguyễn Văn A",
+        "branch": 1
+      }
+    }
+    ```
+*   **Lỗi 400:** Mật khẩu OTP không đúng hoặc đã hết hạn.
+
+### 💻 3.2. Đăng Nhập Bằng Email/Password (Dành Cho Quản Lý - Web Admin)
 *   **Endpoint:** `/api/users/login`
 *   **Method:** `POST`
 *   **Headers:** `Content-Type: application/json`
@@ -64,22 +113,9 @@ Payload CMS tích hợp sẵn hệ thống xác thực bảo mật dựa trên *
     }
     ```
 *   **Phản hồi thành công (200 OK):**
-    Hệ thống sẽ trả về cookie xác thực và một JSON chứa thông tin người dùng kèm trường **`token`**:
-    ```json
-    {
-      "message": "Auth Passed",
-      "user": {
-        "id": 1,
-        "email": "manager1@rms.com",
-        "fullName": "Nguyễn Văn A",
-        "role": "manager",
-        "branch": 1
-      },
-      "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
-    }
-    ```
+    Hệ thống sẽ trả về cookie xác thực và một JSON chứa thông tin người dùng kèm trường **`token`**.
 
-### 🛡️ Cách Gửi Token Cho Các Request Tiếp Theo
+### 🛡️ 3.3. Cách Gửi Token Cho Các Request Tiếp Theo (Quan trọng)
 Để gọi các API được bảo mật (bao gồm tất cả các bảng được cấu hình RLS), ứng dụng Flutter / Frontend phải gửi kèm Token trong **Header** của mỗi request:
 *   **Header Name:** `Authorization`
 *   **Value Format:** `JWT <TOKEN>` (Lưu ý: Payload sử dụng từ khóa **`JWT`** thay vì `Bearer`).
@@ -87,7 +123,7 @@ Payload CMS tích hợp sẵn hệ thống xác thực bảo mật dựa trên *
     Authorization: JWT eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
     ```
 
-### 🚪 Đăng Xuất (Logout)
+### 🚪 3.4. Đăng Xuất (Logout)
 *   **Endpoint:** `/api/users/logout`
 *   **Method:** `POST`
 *   **Headers:** `Authorization: JWT <TOKEN>`

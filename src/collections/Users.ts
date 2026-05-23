@@ -4,7 +4,7 @@ import { isSuperAdmin, isSuperAdminOrManager } from '../access'
 export const Users: CollectionConfig = {
   slug: 'users',
   admin: {
-    useAsTitle: 'phone', 
+    useAsTitle: 'phone',
     defaultColumns: ['phone', 'email', 'fullName', 'role', 'branch'],
     group: 'Quản lý người dùng',
   },
@@ -32,12 +32,9 @@ export const Users: CollectionConfig = {
           or: [
             { id: { equals: user.id } },
             {
-              and: [
-                { role: { equals: 'tenant' } },
-                { branch: { equals: branchId } }
-              ]
-            }
-          ]
+              and: [{ role: { equals: 'tenant' } }, { branch: { equals: branchId } }],
+            },
+          ],
         } as Where
       }
       // tenant sees only themselves
@@ -49,17 +46,14 @@ export const Users: CollectionConfig = {
       if (u.role === 'super_admin') return true
       if (u.role === 'manager') {
         const branchId = typeof u.branch === 'object' ? u.branch?.id : u.branch
-        if (!branchId) return { id: { equals: user.id } } as Where 
+        if (!branchId) return { id: { equals: user.id } } as Where
         return {
           or: [
             { id: { equals: user.id } },
             {
-              and: [
-                { role: { equals: 'tenant' } },
-                { branch: { equals: branchId } }
-              ]
-            }
-          ]
+              and: [{ role: { equals: 'tenant' } }, { branch: { equals: branchId } }],
+            },
+          ],
         } as Where
       }
       return { id: { equals: user.id } } as Where
@@ -77,7 +71,7 @@ export const Users: CollectionConfig = {
           if (!phone) {
             return Response.json({ error: 'Thiếu số điện thoại' }, { status: 400 })
           }
-          
+
           const users = await req.payload.find({
             collection: 'users',
             where: { phone: { equals: phone } },
@@ -85,19 +79,22 @@ export const Users: CollectionConfig = {
           })
 
           if (users.docs.length === 0) {
-            return Response.json({ error: 'Tài khoản không tồn tại. Vui lòng liên hệ quản lý để tạo tài khoản.' }, { status: 404 })
+            return Response.json(
+              { error: 'Tài khoản không tồn tại. Vui lòng liên hệ quản lý để tạo tài khoản.' },
+              { status: 404 },
+            )
           }
 
           // Generate 6 digit OTP
           const otpCode = Math.floor(100000 + Math.random() * 900000).toString()
-          
+
           await req.payload.create({
             collection: 'otp-verifications',
             data: {
               phone,
               otpCode,
               purpose: 'login',
-              expiredAt: new Date(Date.now() + 5 * 60 * 1000).toISOString() // 5 minutes
+              expiredAt: new Date(Date.now() + 5 * 60 * 1000).toISOString(), // 5 minutes
             },
             overrideAccess: true,
           })
@@ -110,7 +107,7 @@ export const Users: CollectionConfig = {
           console.error(error)
           return Response.json({ error: 'Lỗi server' }, { status: 500 })
         }
-      }
+      },
     },
     {
       path: '/verify-otp',
@@ -129,7 +126,7 @@ export const Users: CollectionConfig = {
             where: {
               phone: { equals: phone },
               otpCode: { equals: otp },
-              verifiedAt: { exists: false }
+              verifiedAt: { exists: false },
             },
             sort: '-createdAt',
             limit: 1,
@@ -160,13 +157,11 @@ export const Users: CollectionConfig = {
           })
 
           const user = users.docs[0]
-          
+
           const jwt = require('jsonwebtoken')
-          const token = jwt.sign(
-            { id: user.id, collection: 'users' },
-            req.payload.secret,
-            { expiresIn: '30d' }
-          )
+          const token = jwt.sign({ id: user.id, collection: 'users' }, req.payload.secret, {
+            expiresIn: '30d',
+          })
 
           return Response.json({
             message: 'Đăng nhập thành công',
@@ -176,15 +171,15 @@ export const Users: CollectionConfig = {
               phone: user.phone,
               role: user.role,
               fullName: user.fullName,
-              branch: user.branch
-            }
+              branch: user.branch,
+            },
           })
         } catch (error) {
           console.error(error)
           return Response.json({ error: 'Lỗi server' }, { status: 500 })
         }
-      }
-    }
+      },
+    },
   ],
   hooks: {
     beforeValidate: [
@@ -195,25 +190,28 @@ export const Users: CollectionConfig = {
           if (data?.role !== 'tenant') {
             throw new Error('Manager chỉ được tạo tài khoản Cư dân (tenant).')
           }
-          const managerBranch = typeof (req.user as any).branch === 'object' ? (req.user as any).branch?.id : (req.user as any).branch
+          const managerBranch =
+            typeof (req.user as any).branch === 'object'
+              ? (req.user as any).branch?.id
+              : (req.user as any).branch
           if (data?.branch !== managerBranch) {
             throw new Error('Manager chỉ được gán Cư dân vào chi nhánh của mình.')
           }
         }
-        
+
         // Auto generate dummy email if not provided, because Payload auth requires it
         if (operation === 'create' && data?.phone && !data?.email) {
           data.email = `${data.phone}@user.local`
         }
-        
+
         // Random password for dummy users if missing
         if (operation === 'create' && !data?.password) {
           data.password = Math.random().toString(36).slice(-10)
         }
-        
+
         return data
-      }
-    ]
+      },
+    ],
   },
   fields: [
     {
