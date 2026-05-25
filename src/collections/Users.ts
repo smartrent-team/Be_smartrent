@@ -36,7 +36,7 @@ export const Users: CollectionConfig = {
               user = users.docs[0]
               req.user = user // Gán ngược lại vào req để các bước sau dùng
             }
-          } catch (e) {
+          } catch (e: any) {
             console.error('=> Lỗi xác thực token thủ công:', e.message)
           }
         }
@@ -192,7 +192,9 @@ export const Users: CollectionConfig = {
             { 
               id: String(user.id), 
               collection: 'users',
-              email: user.email 
+              email: user.email,
+              role: user.role,
+              branch: user.branch,
             }, 
             req.payload.secret, 
             {

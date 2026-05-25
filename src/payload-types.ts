@@ -218,7 +218,7 @@ export interface Media {
 export interface Room {
   id: number;
   /**
-   * Cơ sở chứa phòng này
+   * Co so chua phong nay
    */
   branch: number | Branch;
   roomCode: string;
