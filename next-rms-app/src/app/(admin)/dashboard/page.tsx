@@ -3,6 +3,7 @@ import { Skeleton } from "@/components/ui/skeleton"
 import DashboardStats from "./_components/DashboardStats"
 import RecentActivities from "./_components/RecentActivities"
 import PendingTickets from "./_components/PendingTickets"
+import RevenueChart from "./_components/RevenueChart"
 
 // Skeletons cho loading state
 function StatsSkeleton() {
@@ -20,6 +21,22 @@ function StatsSkeleton() {
           </div>
         </div>
       ))}
+    </div>
+  )
+}
+
+function ChartSkeleton() {
+  return (
+    <div className="rounded-xl border bg-card text-card-foreground shadow p-6 h-[350px] flex flex-col gap-4">
+      <div className="flex flex-col gap-2">
+        <Skeleton className="h-6 w-48" />
+        <Skeleton className="h-4 w-32" />
+      </div>
+      <div className="flex-1 flex items-end gap-4 px-2">
+        {Array(6).fill(0).map((_, i) => (
+          <Skeleton key={i} className="w-full" style={{ height: `${20 + i * 15}%` }} />
+        ))}
+      </div>
     </div>
   )
 }
@@ -77,8 +94,15 @@ export default function DashboardPage() {
         <DashboardStats />
       </Suspense>
 
+      {/* Revenue Chart */}
+      <div className="mt-2">
+        <Suspense fallback={<ChartSkeleton />}>
+          <RevenueChart />
+        </Suspense>
+      </div>
+
       {/* Recent Activities & Tickets */}
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-7 mt-4">
+      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-7">
         <Suspense fallback={<ActivitiesSkeleton />}>
           <RecentActivities />
         </Suspense>
