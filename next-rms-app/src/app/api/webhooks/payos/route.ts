@@ -11,14 +11,14 @@ export async function POST(request: NextRequest) {
     const webhookData = payos.verifyPaymentWebhookData(body)
 
     if (webhookData.code === '00') {
-      const invoiceId = webhookData.orderCode // This must match an invoice ID in your DB (usually an integer)
+      const paymentLinkId = webhookData.paymentLinkId
       const supabase = createAdminClient()
 
-      // 1. Fetch invoice to verify it exists and is unpaid
+      // 1. Tìm hóa đơn bằng ID link thanh toán (hoặc ID trực tiếp làm phương án dự phòng)
       const { data: invoice, error: fetchError } = await supabase
         .from('invoices')
         .select('id, payment_status, total_amount, invoice_code, tenant:tenant_id(id, user_id)')
-        .eq('id', invoiceId)
+        .or(`payment_link_id.eq.${paymentLinkId},id.eq.${webhookData.orderCode}`)
         .single()
 
       if (fetchError || !invoice) {
@@ -29,14 +29,14 @@ export async function POST(request: NextRequest) {
         return NextResponse.json({ message: 'Invoice already paid' }, { status: 200 })
       }
 
-      // 2. Update invoice status to 'paid'
+      // 2. Cập nhật trạng thái hóa đơn sang 'paid'
       const { error: updateError } = await supabase
         .from('invoices')
         .update({
           payment_status: 'paid',
           paid_at: new Date().toISOString(),
         })
-        .eq('id', invoiceId)
+        .eq('id', invoice.id)
 
       if (updateError) {
         throw updateError

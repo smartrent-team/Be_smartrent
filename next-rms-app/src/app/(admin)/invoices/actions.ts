@@ -74,21 +74,29 @@ export async function createInvoice(data: {
 
     // 2. Tạo link thanh toán PayOS
     if (totalAmount > 0) {
+      if (totalAmount < 2000) {
+        throw new Error('Số tiền thanh toán tối thiểu qua cổng PayOS là 2,000đ')
+      }
+
       const returnUrl = process.env.PAYOS_RETURN_URL || 'http://localhost:3000/payment-success'
       const cancelUrl = process.env.PAYOS_CANCEL_URL || 'http://localhost:3000/payment-cancel'
 
+      // Tạo orderCode độc nhất dựa trên timestamp + ID hóa đơn để tránh trùng lặp trên cổng PayOS
+      const uniqueOrderCode = Number(Date.now().toString().slice(-6) + String(invoice.id % 1000).padStart(3, '0'))
+
       const paymentLink = await payos.createPaymentLink({
-        orderCode: invoice.id, // Supabase int4/int8 ID
+        orderCode: uniqueOrderCode,
         amount: totalAmount,
         description: `TT Phong ${data.room_id}`,
         returnUrl,
         cancelUrl,
       })
 
-      // Cập nhật lại invoice với link thanh toán
+      // Cập nhật lại invoice với ID link thanh toán và link checkout
       await supabase
         .from('invoices')
         .update({
+          payment_link_id: paymentLink.paymentLinkId,
           checkoutUrl: paymentLink.checkoutUrl,
           qrPayload: paymentLink.qrCode,
         })
