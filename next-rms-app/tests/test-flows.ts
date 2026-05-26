@@ -69,11 +69,11 @@ async function runQATests() {
     console.log(`${BOLD}${BLUE}[Flow 1] Kiểm tra kết nối cơ sở dữ liệu & Cấu trúc bảng${RESET}`)
     
     // Test branches connection
-    const { data: bTable, error: bErr } = await supabaseAdmin.from('branches').select('*').limit(1)
+    const { error: bErr } = await supabaseAdmin.from('branches').select('*').limit(1)
     assert(!bErr, 'Bảng `branches` tồn tại và có thể truy vấn')
 
     // Test users connection
-    const { data: uTable, error: uErr } = await supabaseAdmin.from('users').select('*').limit(1)
+    const { error: uErr } = await supabaseAdmin.from('users').select('*').limit(1)
     assert(!uErr, 'Bảng `users` tồn tại và có thể truy vấn')
 
     // ==========================================
@@ -97,7 +97,7 @@ async function runQATests() {
       .select()
 
     assert(!insertBranchErr, 'Thêm chi nhánh vào DB thành công')
-    assert(newBranch && newBranch.length > 0, 'Dữ liệu trả về sau khi tạo chi nhánh hợp lệ')
+    assert(!!(newBranch && newBranch.length > 0), 'Dữ liệu trả về sau khi tạo chi nhánh hợp lệ')
     
     testBranchId = newBranch![0].id
     console.log(`     Branch ID đã tạo: ${CYAN}${testBranchId}${RESET}`)
@@ -196,8 +196,9 @@ async function runQATests() {
     assert(Array.isArray(testRooms), 'Phòng thuộc chi nhánh được truy vấn hợp lệ')
     console.log(`     Số phòng thuộc chi nhánh mới: ${CYAN}${testRooms?.length || 0}${RESET}`)
 
-  } catch (error: any) {
-    console.log(`\n${BOLD}${RED}🚨 CẢNH BÁO: Lỗi nghiêm trọng phát hiện trong kịch bản QA:${RESET} ${error.message}`)
+  } catch (error: unknown) {
+    const errMsg = error instanceof Error ? error.message : String(error)
+    console.log(`\n${BOLD}${RED}🚨 CẢNH BÁO: Lỗi nghiêm trọng phát hiện trong kịch bản QA:${RESET} ${errMsg}`)
   } finally {
     // ==========================================
     // CLEANUP FLOW: TO KEEP THE DB PRISTINE
