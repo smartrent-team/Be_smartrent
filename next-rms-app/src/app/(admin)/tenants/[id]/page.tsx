@@ -1,0 +1,165 @@
+import { createClient } from '@/lib/supabase/server'
+import { notFound } from 'next/navigation'
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { Badge } from '@/components/ui/badge'
+import Link from 'next/link'
+import { ArrowLeft, User, MapPin, FileText } from 'lucide-react'
+import { Button } from '@/components/ui/button'
+import { ContractImages } from '@/components/shared/ContractImages'
+
+export default async function TenantDetailPage({ params }: { params: Promise<{ id: string }> }) {
+  const { id } = await params
+  const supabase = await createClient()
+
+  const { data: tenant, error } = await supabase
+    .from('tenants')
+    .select(`
+      *,
+      user:users(*),
+      room:rooms(id, room_number, price),
+      invoices(id, invoice_code, total_amount, payment_status, issued_at),
+      contracts(id, contract_images, status)
+    `)
+    .eq('id', id)
+    .single()
+
+  interface ContractData {
+    id: string;
+    status: string;
+    contract_images?: string[];
+  }
+
+  // Lấy ảnh của hợp đồng đang active
+  const activeContract = (tenant?.contracts as unknown as ContractData[])?.find((c) => c.status === 'active')
+  const initialImages = activeContract?.contract_images || []
+
+  if (error || !tenant) {
+    notFound()
+  }
+
+  return (
+    <div className="flex flex-col gap-6 p-6">
+      <div className="flex items-center gap-4">
+        <Link href="/tenants">
+          <Button variant="outline" size="icon">
+            <ArrowLeft className="h-4 w-4" />
+          </Button>
+        </Link>
+        <div>
+          <h1 className="text-3xl font-bold tracking-tight">Hồ sơ khách thuê</h1>
+          <p className="text-muted-foreground mt-1">Chi tiết hợp đồng và lịch sử của khách hàng.</p>
+        </div>
+      </div>
+
+      <div className="grid gap-6 md:grid-cols-2">
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <User className="h-5 w-5" />
+              Thông tin cá nhân
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="space-y-2">
+              <p className="text-sm text-muted-foreground">Họ và tên</p>
+              <p className="font-medium text-lg">{tenant.user?.full_name || 'Chưa cập nhật'}</p>
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <p className="text-sm text-muted-foreground">Số điện thoại</p>
+                <p className="font-medium">{tenant.user?.phone || 'N/A'}</p>
+              </div>
+              <div>
+                <p className="text-sm text-muted-foreground">Trạng thái</p>
+                <Badge variant={tenant.move_out_date ? 'secondary' : 'default'} className={!tenant.move_out_date ? 'bg-green-600' : ''}>
+                  {tenant.move_out_date ? 'Đã trả phòng' : 'Đang thuê'}
+                </Badge>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <MapPin className="h-5 w-5" />
+              Chi tiết hợp đồng
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <p className="text-sm text-muted-foreground">Phòng đang thuê</p>
+                <Link href={`/rooms/${tenant.room?.id}`} className="font-medium text-blue-600 hover:underline">
+                  Phòng {tenant.room?.room_number || 'N/A'}
+                </Link>
+              </div>
+              <div>
+                <p className="text-sm text-muted-foreground">Tiền cọc</p>
+                <p className="font-medium">{tenant.deposit_amount?.toLocaleString('vi-VN')} đ</p>
+              </div>
+              <div>
+                <p className="text-sm text-muted-foreground">Ngày chuyển vào</p>
+                <p className="font-medium">{new Date(tenant.move_in_date).toLocaleDateString('vi-VN')}</p>
+              </div>
+              <div>
+                <p className="text-sm text-muted-foreground">Ngày chuyển ra</p>
+                <p className="font-medium">{tenant.move_out_date ? new Date(tenant.move_out_date).toLocaleDateString('vi-VN') : '---'}</p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card className="md:col-span-2">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <FileText className="h-5 w-5" />
+              Lịch sử hoá đơn
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            {tenant.invoices && tenant.invoices.length > 0 ? (
+              <div className="rounded-md border">
+                <table className="w-full text-sm text-left">
+                  <thead className="bg-muted/50 text-muted-foreground">
+                    <tr>
+                      <th className="p-3 font-medium">Mã HĐ</th>
+                      <th className="p-3 font-medium">Ngày lập</th>
+                      <th className="p-3 font-medium">Tổng tiền</th>
+                      <th className="p-3 font-medium">Trạng thái</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {(tenant.invoices as unknown as { id: string; invoice_code: string; issued_at: string; total_amount: number; payment_status: string }[]).map((inv) => (
+                      <tr key={inv.id} className="border-t">
+                        <td className="p-3">{inv.invoice_code || `HĐ ${inv.id}`}</td>
+                        <td className="p-3">{new Date(inv.issued_at).toLocaleDateString('vi-VN')}</td>
+                        <td className="p-3 font-medium">{inv.total_amount?.toLocaleString('vi-VN')} đ</td>
+                        <td className="p-3">
+                          <Badge variant={inv.payment_status === 'paid' ? 'default' : 'destructive'} className={inv.payment_status === 'paid' ? 'bg-green-100 text-green-800' : ''}>
+                            {inv.payment_status === 'paid' ? 'Đã thu' : 'Chưa thu'}
+                          </Badge>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            ) : (
+              <p className="text-sm text-muted-foreground text-center py-6">Khách thuê này chưa có hoá đơn nào.</p>
+            )}
+          </CardContent>
+        </Card>
+
+        {/* Component Quản lý Ảnh Hợp đồng */}
+        {tenant.room?.id && (
+          <ContractImages 
+            tenantId={tenant.id} 
+            roomId={tenant.room.id} 
+            initialImages={initialImages} 
+          />
+        )}
+      </div>
+    </div>
+  )
+}

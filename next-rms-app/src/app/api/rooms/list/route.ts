@@ -1,0 +1,118 @@
+import { NextResponse, type NextRequest } from 'next/server'
+import { verifyRole } from '@/lib/rbac'
+
+export async function GET(request: NextRequest) {
+  try {
+    const { searchParams } = new URL(request.url)
+    
+    // Extract query params
+    const statusParam = searchParams.get('status')
+    const branchParam = searchParams.get('branch_id')
+    const searchParam = searchParams.get('search')
+    const floorParam = searchParams.get('floor')
+    const pageParam = parseInt(searchParams.get('page') || '1', 10)
+    const limitParam = parseInt(searchParams.get('limit') || '10', 10)
+
+    const page = Number.isFinite(pageParam) ? Math.max(pageParam, 1) : 1
+    const limit = Number.isFinite(limitParam) ? Math.min(Math.max(limitParam, 1), 100) : 10
+    const offset = (page - 1) * limit
+
+    // 1. Dùng RBAC xác thực JWT
+    const auth = await verifyRole()
+    const supabase = auth.supabase!
+
+    // Start building query
+    let query = supabase
+      .from('rooms')
+      .select(`
+        *,
+        tenants (
+          id, name, phone, check_in_date
+        )
+      `, { count: 'exact' })
+
+    // 2. Phân quyền theo Role
+    if (auth.user && auth.role) {
+      if (auth.role === 'tenant') {
+        // Tenant không được xem danh sách tất cả phòng, chỉ nên lấy thông tin phòng của mình (Cần API riêng hoặc filter chặt ở đây)
+        // Để demo, chặn luôn tenant xem list
+        return NextResponse.json({ error: 'Tenant không có quyền xem danh sách phòng' }, { status: 403 })
+      } 
+      else if (auth.role === 'manager') {
+        if (!auth.branchId) {
+          return NextResponse.json({ error: 'Người dùng chưa được gán vào cơ sở nào' }, { status: 403 })
+        }
+        // Manager chỉ thấy phòng thuộc chi nhánh của mình
+        query = query.eq('branch_id', auth.branchId)
+      } 
+      else if (auth.role === 'super_admin' && branchParam) {
+        // Super Admin có thể lọc theo chi nhánh bất kỳ
+        query = query.eq('branch_id', branchParam)
+      }
+    } else {
+      // Unauthenticated users (Khách chưa đăng nhập) only see available rooms
+      query = query.eq('status', 'available')
+      if (branchParam) {
+        query = query.eq('branch_id', branchParam)
+      }
+    }
+
+    // Apply Filters
+    if (statusParam) {
+      query = query.eq('status', statusParam)
+    }
+    if (searchParam) {
+      query = query.ilike('room_number', `%${searchParam}%`)
+    }
+    if (floorParam) {
+      const floorNum = parseInt(floorParam, 10)
+      if (!Number.isNaN(floorNum)) {
+        query = query.eq('floor', floorNum)
+      }
+    }
+
+    // Apply pagination
+    query = query.range(offset, offset + limit - 1)
+
+    const { data: rooms, error, count } = await query
+
+    if (error) {
+      throw error
+    }
+
+    // Transform response to match legacy format if needed
+    const docs = rooms.map(room => {
+      // Assuming tenants array returns active tenants. Just picking the first one for simplicity.
+      const tenant = room.tenants && room.tenants.length > 0 ? room.tenants[0] : null
+      return {
+        id: room.id,
+        roomCode: room.room_number,
+        floor: room.floor,
+        area: room.area,
+        basePrice: room.price,
+        electricPrice: room.electricity_price,
+        waterPrice: room.water_price,
+        status: room.status,
+        branch: room.branch_id,
+        tenant
+      }
+    })
+
+    return NextResponse.json({
+      success: true,
+      docs,
+      totalDocs: count || 0,
+      limit,
+      page,
+      totalPages: count ? Math.ceil(count / limit) : 0,
+    })
+
+  } catch (error: unknown) {
+    console.error('Error fetching rooms:', error)
+    const errorMessage = error instanceof Error ? error.message : String(error)
+    return NextResponse.json(
+      { error: 'Lỗi máy chủ nội bộ', details: errorMessage },
+      { status: 500 }
+    )
+  }
+}

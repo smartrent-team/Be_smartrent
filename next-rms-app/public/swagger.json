@@ -1,0 +1,393 @@
+{
+  "openapi": "3.0.0",
+  "info": {
+    "title": "SmartRent API - Tài liệu API cho Mobile App",
+    "version": "1.0.0",
+    "description": "Tài liệu mô tả toàn bộ các API mà Mobile App (cho Manager và Tenant) cần kết nối. Tất cả các API cần xác thực đều phải gửi kèm `Authorization: Bearer <access_token>` trong header.\n\n## Cách lấy Access Token\nGọi API `POST /api/auth/login` với số điện thoại và mật khẩu. Token sẽ được trả về trong trường `access_token`.\n\n## Phân quyền (Roles)\n- **super_admin**: Toàn quyền.\n- **manager**: Chỉ xem/thao tác dữ liệu thuộc chi nhánh được gán.\n- **tenant**: Chỉ xem/thao tác dữ liệu của phòng mình đang thuê."
+  },
+  "servers": [
+    {
+      "url": "http://localhost:3000",
+      "description": "Môi trường phát triển (Local)"
+    }
+  ],
+  "components": {
+    "securitySchemes": {
+      "bearerAuth": {
+        "type": "http",
+        "scheme": "bearer",
+        "bearerFormat": "JWT",
+        "description": "Nhập Access Token (lấy từ API /api/auth/login)"
+      }
+    },
+    "schemas": {
+      "ErrorResponse": {
+        "type": "object",
+        "properties": {
+          "error": { "type": "string", "example": "Unauthorized" }
+        }
+      },
+      "SuccessResponse": {
+        "type": "object",
+        "properties": {
+          "success": { "type": "boolean", "example": true }
+        }
+      },
+      "Room": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "integer", "example": 1 },
+          "roomCode": { "type": "string", "example": "101" },
+          "floor": { "type": "integer", "example": 1 },
+          "area": { "type": "number", "example": 25.0 },
+          "basePrice": { "type": "integer", "example": 3500000 },
+          "electricPrice": { "type": "integer", "example": 4000 },
+          "waterPrice": { "type": "integer", "example": 15000 },
+          "status": { "type": "string", "enum": ["available", "occupied", "maintenance"], "example": "occupied" },
+          "branch": { "type": "integer", "example": 1 }
+        }
+      },
+      "Ticket": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "integer", "example": 5 },
+          "title": { "type": "string", "example": "Đèn phòng bị hỏng" },
+          "description": { "type": "string", "example": "Đèn phòng ngủ không sáng, cần thay bóng gấp." },
+          "status": { "type": "string", "enum": ["pending", "in-progress", "resolved"], "example": "pending" },
+          "priority": { "type": "string", "enum": ["low", "medium", "high"], "example": "high" },
+          "images": { "type": "array", "items": { "type": "string", "format": "uri" }, "example": ["https://res.cloudinary.com/..."] },
+          "created_at": { "type": "string", "format": "date-time" }
+        }
+      }
+    }
+  },
+  "security": [],
+  "paths": {
+    "/api/auth/login": {
+      "post": {
+        "tags": ["🔑 Xác thực (Auth)"],
+        "summary": "Đăng nhập",
+        "description": "Đăng nhập bằng số điện thoại và mật khẩu. Trả về `access_token` và `refresh_token` để dùng cho các API khác, cùng với thông tin `role` và `branch_id` của người dùng.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["phone", "password"],
+                "properties": {
+                  "phone": { "type": "string", "description": "Số điện thoại (định dạng 0xxx hoặc +84xxx)", "example": "0901234567" },
+                  "password": { "type": "string", "format": "password", "description": "Mật khẩu (tối thiểu 6 ký tự)", "example": "password123" }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Đăng nhập thành công",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": { "type": "boolean", "example": true },
+                    "access_token": { "type": "string", "example": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..." },
+                    "refresh_token": { "type": "string", "example": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..." },
+                    "user": {
+                      "type": "object",
+                      "properties": {
+                        "id": { "type": "string", "format": "uuid" },
+                        "phone": { "type": "string" },
+                        "role": { "type": "string", "enum": ["super_admin", "manager", "tenant"] },
+                        "branch_id": { "type": "integer", "nullable": true },
+                        "full_name": { "type": "string" }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": { "description": "Thiếu hoặc sai định dạng thông tin đầu vào", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ErrorResponse" } } } },
+          "401": { "description": "Sai số điện thoại hoặc mật khẩu", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ErrorResponse" } } } }
+        }
+      }
+    },
+    "/api/auth/change-password": {
+      "post": {
+        "tags": ["🔑 Xác thực (Auth)"],
+        "summary": "Đổi mật khẩu",
+        "description": "Đổi mật khẩu cho tài khoản hiện tại đang đăng nhập. Yêu cầu gửi `Authorization: Bearer <token>` trong header.",
+        "security": [{ "bearerAuth": [] }],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["new_password"],
+                "properties": {
+                  "new_password": { "type": "string", "format": "password", "description": "Mật khẩu mới (tối thiểu 6 ký tự)", "example": "newPassword456" }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": { "description": "Đổi mật khẩu thành công", "content": { "application/json": { "schema": { "type": "object", "properties": { "success": { "type": "boolean" }, "message": { "type": "string", "example": "Đổi mật khẩu thành công" } } } } } },
+          "400": { "description": "Mật khẩu mới không hợp lệ (quá ngắn)", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ErrorResponse" } } } },
+          "401": { "description": "Chưa đăng nhập", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ErrorResponse" } } } }
+        }
+      }
+    },
+    "/api/users/create": {
+      "post": {
+        "tags": ["👤 Quản lý Người dùng (Users)"],
+        "summary": "Tạo tài khoản mới (Manager/Tenant)",
+        "description": "Tạo tài khoản mới mà không cần xác thực OTP SMS. **Phân quyền:**\n- **super_admin** có thể tạo tài khoản `manager` và `tenant`.\n- **manager** chỉ có thể tạo tài khoản `tenant`, và tenant sẽ tự động được gán vào chi nhánh của Manager.",
+        "security": [{ "bearerAuth": [] }],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["phone", "password", "role"],
+                "properties": {
+                  "phone": { "type": "string", "example": "0912345678", "description": "Số điện thoại (0xxx hoặc +84xxx)" },
+                  "password": { "type": "string", "format": "password", "example": "initialPass123" },
+                  "full_name": { "type": "string", "example": "Nguyễn Văn A" },
+                  "role": { "type": "string", "enum": ["manager", "tenant"], "example": "tenant" },
+                  "branch_id": { "type": "integer", "nullable": true, "description": "ID chi nhánh (chỉ super_admin cần điền, manager bị bỏ qua)", "example": 1 }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": { "description": "Tạo tài khoản thành công", "content": { "application/json": { "schema": { "type": "object", "properties": { "success": { "type": "boolean" }, "message": { "type": "string" }, "user": { "type": "object", "properties": { "id": { "type": "string", "format": "uuid" }, "phone": { "type": "string" }, "role": { "type": "string" }, "branch_id": { "type": "integer", "nullable": true } } } } } } } },
+          "400": { "description": "Thiếu thông tin hoặc số điện thoại đã tồn tại" },
+          "401": { "description": "Chưa đăng nhập" },
+          "403": { "description": "Không có quyền tạo tài khoản với vai trò này" }
+        }
+      }
+    },
+    "/api/rooms/list": {
+      "get": {
+        "tags": ["🏠 Phòng (Rooms)"],
+        "summary": "Lấy danh sách phòng",
+        "description": "Trả về danh sách phòng có phân trang và nhiều bộ lọc. **Phân quyền:**\n- **super_admin**: Xem tất cả hoặc lọc theo `branch_id`.\n- **manager**: Chỉ thấy phòng thuộc chi nhánh của mình (không cần truyền `branch_id`).\n- **tenant**: Bị chặn, không được xem danh sách.",
+        "security": [{ "bearerAuth": [] }],
+        "parameters": [
+          { "name": "page", "in": "query", "description": "Số trang (mặc định: 1)", "schema": { "type": "integer", "default": 1 } },
+          { "name": "limit", "in": "query", "description": "Số lượng mỗi trang (mặc định: 10, tối đa: 100)", "schema": { "type": "integer", "default": 10 } },
+          { "name": "status", "in": "query", "description": "Lọc theo trạng thái phòng", "schema": { "type": "string", "enum": ["available", "occupied", "maintenance"] } },
+          { "name": "branch_id", "in": "query", "description": "Lọc theo chi nhánh (chỉ super_admin dùng được)", "schema": { "type": "integer" } },
+          { "name": "search", "in": "query", "description": "Tìm kiếm theo số phòng (hỗ trợ tìm kiếm mờ)", "schema": { "type": "string" } },
+          { "name": "floor", "in": "query", "description": "Lọc theo tầng", "schema": { "type": "integer" } }
+        ],
+        "responses": {
+          "200": {
+            "description": "Lấy danh sách thành công",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": { "type": "boolean" },
+                    "docs": { "type": "array", "items": { "$ref": "#/components/schemas/Room" } },
+                    "totalDocs": { "type": "integer", "example": 50 },
+                    "limit": { "type": "integer", "example": 10 },
+                    "page": { "type": "integer", "example": 1 },
+                    "totalPages": { "type": "integer", "example": 5 }
+                  }
+                }
+              }
+            }
+          },
+          "403": { "description": "Không có quyền xem danh sách phòng (Tenant bị chặn)" }
+        }
+      }
+    },
+    "/api/tickets": {
+      "get": {
+        "tags": ["🔧 Yêu cầu Bảo trì (Tickets)"],
+        "summary": "Lấy danh sách yêu cầu bảo trì",
+        "description": "**Phân quyền:**\n- **super_admin**: Xem tất cả tickets.\n- **manager**: Chỉ thấy tickets thuộc chi nhánh của mình.\n- **tenant**: Chỉ thấy tickets của phòng mình đang thuê.",
+        "security": [{ "bearerAuth": [] }],
+        "parameters": [
+          { "name": "roomId", "in": "query", "description": "Lọc theo ID phòng", "schema": { "type": "integer" } },
+          { "name": "status", "in": "query", "description": "Lọc theo trạng thái", "schema": { "type": "string", "enum": ["pending", "in-progress", "resolved"] } }
+        ],
+        "responses": {
+          "200": {
+            "description": "Thành công",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": { "type": "boolean" },
+                    "data": { "type": "array", "items": { "$ref": "#/components/schemas/Ticket" } }
+                  }
+                }
+              }
+            }
+          },
+          "401": { "description": "Chưa đăng nhập" }
+        }
+      },
+      "post": {
+        "tags": ["🔧 Yêu cầu Bảo trì (Tickets)"],
+        "summary": "Gửi yêu cầu bảo trì mới",
+        "description": "Tạo một yêu cầu bảo trì mới. Thường được gọi bởi **Tenant** khi phát hiện sự cố trong phòng.",
+        "security": [{ "bearerAuth": [] }],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["roomId", "title"],
+                "properties": {
+                  "roomId": { "type": "integer", "example": 1, "description": "ID phòng cần bảo trì" },
+                  "tenantId": { "type": "integer", "example": 5, "description": "ID khách thuê gửi yêu cầu" },
+                  "title": { "type": "string", "example": "Đèn phòng bị hỏng", "description": "Tóm tắt sự cố (tối đa 100 ký tự)" },
+                  "description": { "type": "string", "example": "Đèn phòng ngủ không sáng." },
+                  "priority": { "type": "string", "enum": ["low", "medium", "high"], "default": "medium" },
+                  "images": { "type": "array", "items": { "type": "string", "format": "uri" }, "description": "Mảng các URL ảnh đã được tải lên Cloudinary" }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": { "description": "Tạo ticket thành công", "content": { "application/json": { "schema": { "type": "object", "properties": { "success": { "type": "boolean" }, "data": { "$ref": "#/components/schemas/Ticket" } } } } } },
+          "400": { "description": "Thiếu thông tin bắt buộc hoặc sai định dạng" },
+          "401": { "description": "Chưa đăng nhập" }
+        }
+      }
+    },
+    "/api/utility/submit": {
+      "post": {
+        "tags": ["⚡ Điện nước (Utility)"],
+        "summary": "Ghi chỉ số điện nước",
+        "description": "Ghi nhận chỉ số điện và nước cho một phòng trong tháng. API sẽ tự động:\n1. So sánh với tháng trước để tính lượng tiêu thụ.\n2. Phát hiện bất thường nếu tăng đột biến >50%.\n\nThường được gọi bởi **Manager** khi đi chốt điện nước.",
+        "security": [{ "bearerAuth": [] }],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["roomId", "currentElectricity", "currentWater", "month", "year"],
+                "properties": {
+                  "roomId": { "type": "integer", "example": 1 },
+                  "currentElectricity": { "type": "number", "example": 1523, "description": "Chỉ số điện kế hiện tại (kWh)" },
+                  "currentWater": { "type": "number", "example": 45, "description": "Chỉ số nước hiện tại (m³)" },
+                  "month": { "type": "integer", "example": 5, "description": "Tháng (1-12)" },
+                  "year": { "type": "integer", "example": 2026, "description": "Năm (VD: 2026)" }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Ghi chỉ số thành công",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": { "type": "boolean" },
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "log": { "type": "object", "description": "Bản ghi vừa lưu vào database" },
+                        "usage": {
+                          "type": "object",
+                          "properties": {
+                            "electricity": { "type": "number", "example": 120, "description": "Số kWh tiêu thụ trong tháng" },
+                            "water": { "type": "number", "example": 5, "description": "Số m³ tiêu thụ trong tháng" }
+                          }
+                        },
+                        "anomaly": {
+                          "type": "object",
+                          "properties": {
+                            "detected": { "type": "boolean", "example": false },
+                            "messages": { "type": "array", "items": { "type": "string" }, "example": [] }
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": { "description": "Chỉ số mới nhỏ hơn tháng trước hoặc thiếu thông tin" },
+          "401": { "description": "Chưa đăng nhập" }
+        }
+      }
+    },
+    "/api/upload/signature": {
+      "get": {
+        "tags": ["📷 Tải ảnh (Upload)"],
+        "summary": "Lấy chữ ký bảo mật để tải ảnh lên Cloudinary",
+        "description": "Trả về thông tin xác thực (signature, timestamp, api_key) để client có thể tự upload ảnh trực tiếp lên Cloudinary mà không cần qua server. Dùng trước khi gọi API upload của Cloudinary.\n\n**Quy trình:**\n1. Gọi API này để lấy `signature`.\n2. Dùng các thông tin trả về để upload ảnh thẳng lên `https://api.cloudinary.com/v1_1/{cloud_name}/image/upload`.\n3. Lấy `secure_url` từ kết quả Cloudinary để lưu vào database.",
+        "security": [{ "bearerAuth": [] }],
+        "parameters": [
+          { "name": "folder", "in": "query", "description": "Tên thư mục lưu trên Cloudinary (mặc định: 'general')", "schema": { "type": "string", "example": "contracts_5" } }
+        ],
+        "responses": {
+          "200": {
+            "description": "Lấy chữ ký thành công",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": { "type": "boolean" },
+                    "signature": { "type": "string", "example": "a1b2c3d4e5f6..." },
+                    "timestamp": { "type": "integer", "example": 1716729600 },
+                    "folder": { "type": "string", "example": "contracts_5" },
+                    "cloud_name": { "type": "string", "example": "my-cloud" },
+                    "api_key": { "type": "string", "example": "123456789012345" }
+                  }
+                }
+              }
+            }
+          },
+          "401": { "description": "Chưa đăng nhập" }
+        }
+      }
+    },
+    "/api/webhooks/payos": {
+      "post": {
+        "tags": ["💳 Thanh toán (PayOS Webhook)"],
+        "summary": "[Chỉ dành cho PayOS] Cập nhật trạng thái thanh toán",
+        "description": "⚠️ **API này dành riêng cho PayOS server gọi vào, Mobile App KHÔNG gọi API này.** Khi người dùng thanh toán thành công, PayOS sẽ tự động gọi vào đây để:\n1. Cập nhật trạng thái hóa đơn thành `paid`.\n2. Bắn Push Notification về điện thoại của Tenant.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "description": "Payload do PayOS gửi tự động (xem tài liệu PayOS để biết chi tiết)",
+                "properties": {
+                  "code": { "type": "string", "example": "00" },
+                  "orderCode": { "type": "integer", "example": 12345 }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": { "description": "Xử lý thành công (luôn trả về 200 để PayOS không gửi lại)" }
+        }
+      }
+    }
+  }
+}
