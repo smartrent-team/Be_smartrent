@@ -11,6 +11,7 @@ ALTER TABLE device_tokens ENABLE ROW LEVEL SECURITY;
 ALTER TABLE notifications ENABLE ROW LEVEL SECURITY;
 ALTER TABLE contracts ENABLE ROW LEVEL SECURITY;
 ALTER TABLE utility_logs ENABLE ROW LEVEL SECURITY;
+ALTER TABLE branches ENABLE ROW LEVEL SECURITY;
 
 -- ==============================================================================
 -- 2. TẠO POLICIES (QUYỀN TRUY CẬP)
@@ -55,6 +56,13 @@ USING (auth.uid() IS NOT NULL);
 -- F. Dành cho bảng UTILITY LOGS (Chỉ số điện nước)
 CREATE POLICY "Cho phép đọc/ghi chỉ số điện nước nếu đã đăng nhập" 
 ON utility_logs 
+FOR ALL 
+TO authenticated 
+USING (auth.uid() IS NOT NULL);
+
+-- G. Dành cho bảng BRANCHES (Chi nhánh)
+CREATE POLICY "Cho phép đọc/ghi chi nhánh nếu đã đăng nhập" 
+ON branches 
 FOR ALL 
 TO authenticated 
 USING (auth.uid() IS NOT NULL);
