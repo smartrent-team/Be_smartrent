@@ -16,43 +16,64 @@ export const Tenants: CollectionConfig = {
   },
   fields: [
     {
-      name: 'user',
-      type: 'relationship',
-      relationTo: 'users',
-      required: true,
-      label: 'Tài khoản User',
-      admin: {
-        description: 'Tài khoản đăng nhập của khách thuê này',
-      },
+      type: 'row',
+      fields: [
+        {
+          name: 'user',
+          type: 'relationship',
+          relationTo: 'users',
+          required: true,
+          label: 'Tài khoản User',
+          admin: {
+            description: 'Tài khoản đăng nhập của khách thuê này',
+            width: '50%',
+          },
+        },
+        {
+          name: 'room',
+          type: 'relationship',
+          relationTo: 'rooms',
+          required: true,
+          label: 'Phòng đang thuê',
+          admin: { width: '50%' },
+        },
+      ],
     },
     {
-      name: 'room',
-      type: 'relationship',
-      relationTo: 'rooms',
-      required: true,
-      label: 'Phòng đang thuê',
+      type: 'row',
+      fields: [
+        {
+          name: 'identityNumber',
+          type: 'text',
+          required: true,
+          label: 'Số CCCD/CMND',
+          admin: { width: '50%' },
+        },
+        {
+          name: 'emergencyContact',
+          type: 'text',
+          label: 'Liên hệ khẩn cấp',
+          admin: { width: '50%' },
+        },
+      ],
     },
     {
-      name: 'identityNumber',
-      type: 'text',
-      required: true,
-      label: 'Số CCCD/CMND',
-    },
-    {
-      name: 'emergencyContact',
-      type: 'text',
-      label: 'Liên hệ khẩn cấp',
-    },
-    {
-      name: 'moveInDate',
-      type: 'date',
-      required: true,
-      label: 'Ngày chuyển vào',
-    },
-    {
-      name: 'moveOutDate',
-      type: 'date',
-      label: 'Ngày chuyển đi',
+      type: 'row',
+      fields: [
+        {
+          name: 'moveInDate',
+          type: 'date',
+          required: true,
+          label: 'Ngày chuyển vào',
+          admin: { width: '50%' },
+        },
+        {
+          name: 'moveOutDate',
+          type: 'date',
+          label: 'Ngày chuyển đi',
+          admin: { width: '50%' },
+        },
+      ],
     },
     {
       name: 'idCardImage',

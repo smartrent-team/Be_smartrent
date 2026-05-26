@@ -16,57 +16,80 @@ export const Rooms: CollectionConfig = {
   },
   fields: [
     {
-      name: 'branch',
-      type: 'relationship',
-      relationTo: 'branches',
-      required: true,
-      label: 'Cơ sở',
-      admin: {
-        description: 'Cơ sở chứa phòng này',
-      },
-    },
-    {
-      name: 'roomCode',
-      type: 'text',
-      required: true,
-      label: 'Mã phòng',
-    },
-    {
-      name: 'floor',
-      type: 'number',
-      label: 'Tầng',
-    },
-    {
-      name: 'area',
-      type: 'number',
-      label: 'Diện tích (m2)',
-    },
-    {
-      name: 'basePrice',
-      type: 'number',
-      required: true,
-      label: 'Giá thuê cơ bản',
-    },
-    {
-      name: 'electricPrice',
-      type: 'number',
-      label: 'Đơn giá điện (đ/kWh)',
-    },
-    {
-      name: 'waterPrice',
-      type: 'number',
-      label: 'Đơn giá nước (đ/khối)',
-    },
-    {
-      name: 'status',
-      type: 'select',
-      options: [
-        { label: 'Trống', value: 'available' },
-        { label: 'Đã thuê', value: 'occupied' },
-        { label: 'Bảo trì', value: 'maintenance' },
+      type: 'row',
+      fields: [
+        {
+          name: 'branch',
+          type: 'relationship',
+          relationTo: 'branches',
+          required: true,
+          label: 'Cơ sở',
+          admin: {
+            description: 'Cơ sở chứa phòng này',
+            width: '50%',
+          },
+        },
+        {
+          name: 'roomCode',
+          type: 'text',
+          required: true,
+          label: 'Mã phòng',
+          admin: { width: '50%' },
+        },
       ],
-      defaultValue: 'available',
-      label: 'Trạng thái',
+    },
+    {
+      type: 'row',
+      fields: [
+        {
+          name: 'floor',
+          type: 'number',
+          label: 'Tầng',
+          admin: { width: '33%' },
+        },
+        {
+          name: 'area',
+          type: 'number',
+          label: 'Diện tích (m2)',
+          admin: { width: '33%' },
+        },
+        {
+          name: 'status',
+          type: 'select',
+          options: [
+            { label: 'Trống', value: 'available' },
+            { label: 'Đã thuê', value: 'occupied' },
+            { label: 'Bảo trì', value: 'maintenance' },
+          ],
+          defaultValue: 'available',
+          label: 'Trạng thái',
+          admin: { width: '34%' },
+        },
+      ],
+    },
+    {
+      type: 'row',
+      fields: [
+        {
+          name: 'basePrice',
+          type: 'number',
+          required: true,
+          label: 'Giá thuê cơ bản',
+          admin: { width: '33%' },
+        },
+        {
+          name: 'electricPrice',
+          type: 'number',
+          label: 'Đơn giá điện (đ/kWh)',
+          admin: { width: '33%' },
+        },
+        {
+          name: 'waterPrice',
+          type: 'number',
+          label: 'Đơn giá nước (đ/khối)',
+          admin: { width: '34%' },
+        },
+      ],
     },
   ],
 }

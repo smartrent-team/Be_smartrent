@@ -224,10 +224,10 @@ export interface Room {
   roomCode: string;
   floor?: number | null;
   area?: number | null;
+  status?: ('available' | 'occupied' | 'maintenance') | null;
   basePrice: number;
   electricPrice?: number | null;
   waterPrice?: number | null;
-  status?: ('available' | 'occupied' | 'maintenance') | null;
   updatedAt: string;
   createdAt: string;
 }
@@ -257,19 +257,19 @@ export interface Tenant {
 export interface Invoice {
   id: number;
   invoiceCode: string;
+  utilityLog?: (number | null) | UtilityLog;
   room: number | Room;
   tenant?: (number | null) | Tenant;
-  utilityLog?: (number | null) | UtilityLog;
-  roomPrice: number;
-  electricCost?: number | null;
-  waterCost?: number | null;
-  serviceCost?: number | null;
-  totalAmount: number;
-  paymentStatus?: ('unpaid' | 'partial' | 'paid') | null;
   issuedAt?: string | null;
   paidAt?: string | null;
-  qrPayload?: string | null;
+  roomPrice: number;
+  serviceCost?: number | null;
+  electricCost?: number | null;
+  waterCost?: number | null;
+  totalAmount: number;
+  paymentStatus?: ('unpaid' | 'partial' | 'paid') | null;
   checkoutUrl?: string | null;
+  qrPayload?: string | null;
   updatedAt: string;
   createdAt: string;
 }
@@ -299,13 +299,13 @@ export interface UtilityLog {
 export interface Contract {
   id: number;
   contractCode: string;
+  status?: ('active' | 'expired' | 'terminated') | null;
   tenant: number | Tenant;
   room: number | Room;
   startDate: string;
   endDate?: string | null;
   depositAmount?: number | null;
   monthlyPrice?: number | null;
-  status?: ('active' | 'expired' | 'terminated') | null;
   images?:
     | {
         image: number | Media;
@@ -648,10 +648,10 @@ export interface RoomsSelect<T extends boolean = true> {
   roomCode?: T;
   floor?: T;
   area?: T;
+  status?: T;
   basePrice?: T;
   electricPrice?: T;
   waterPrice?: T;
-  status?: T;
   updatedAt?: T;
   createdAt?: T;
 }
@@ -676,19 +676,19 @@ export interface TenantsSelect<T extends boolean = true> {
  */
 export interface InvoicesSelect<T extends boolean = true> {
   invoiceCode?: T;
+  utilityLog?: T;
   room?: T;
   tenant?: T;
-  utilityLog?: T;
-  roomPrice?: T;
-  electricCost?: T;
-  waterCost?: T;
-  serviceCost?: T;
-  totalAmount?: T;
-  paymentStatus?: T;
   issuedAt?: T;
   paidAt?: T;
-  qrPayload?: T;
+  roomPrice?: T;
+  serviceCost?: T;
+  electricCost?: T;
+  waterCost?: T;
+  totalAmount?: T;
+  paymentStatus?: T;
   checkoutUrl?: T;
+  qrPayload?: T;
   updatedAt?: T;
   createdAt?: T;
 }
@@ -698,13 +698,13 @@ export interface InvoicesSelect<T extends boolean = true> {
  */
 export interface ContractsSelect<T extends boolean = true> {
   contractCode?: T;
+  status?: T;
   tenant?: T;
   room?: T;
   startDate?: T;
   endDate?: T;
   depositAmount?: T;
   monthlyPrice?: T;
-  status?: T;
   images?:
     | T
     | {

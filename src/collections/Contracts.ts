@@ -16,76 +16,73 @@ export const Contracts: CollectionConfig = {
   },
   fields: [
     {
-      name: 'contractCode',
-      type: 'text',
-      required: true,
-      label: 'Mã hợp đồng',
-    },
-    {
-      name: 'tenant',
-      type: 'relationship',
-      relationTo: 'tenants',
-      required: true,
-      label: 'Cư dân',
-    },
-    {
-      name: 'room',
-      type: 'relationship',
-      relationTo: 'rooms',
-      required: true,
-      label: 'Phòng',
-    },
-    {
-      name: 'startDate',
-      type: 'date',
-      required: true,
-      label: 'Ngày bắt đầu',
-    },
-    {
-      name: 'endDate',
-      type: 'date',
-      label: 'Ngày kết thúc',
-    },
-    {
-      name: 'depositAmount',
-      type: 'number',
-      label: 'Tiền cọc',
-    },
-    {
-      name: 'monthlyPrice',
-      type: 'number',
-      label: 'Giá thuê hàng tháng',
-    },
-    {
-      name: 'status',
-      type: 'select',
-      options: [
-        { label: 'Có hiệu lực', value: 'active' },
-        { label: 'Hết hạn', value: 'expired' },
-        { label: 'Đã chấm dứt', value: 'terminated' },
-      ],
-      defaultValue: 'active',
-      label: 'Trạng thái',
-    },
-    {
-      name: 'images',
-      type: 'array',
-      label: 'Ảnh chụp hợp đồng',
-      fields: [
+      type: 'tabs',
+      tabs: [
         {
-          name: 'image',
-          type: 'upload',
-          relationTo: 'media',
-          required: true,
-          label: 'Ảnh',
+          label: 'Thông tin hợp đồng',
+          fields: [
+            {
+              type: 'row',
+              fields: [
+                { name: 'contractCode', type: 'text', required: true, label: 'Mã hợp đồng', admin: { width: '50%' } },
+                {
+                  name: 'status',
+                  type: 'select',
+                  options: [
+                    { label: 'Có hiệu lực', value: 'active' },
+                    { label: 'Hết hạn', value: 'expired' },
+                    { label: 'Đã chấm dứt', value: 'terminated' },
+                  ],
+                  defaultValue: 'active',
+                  label: 'Trạng thái',
+                  admin: { width: '50%' },
+                },
+              ]
+            },
+            {
+              type: 'row',
+              fields: [
+                { name: 'tenant', type: 'relationship', relationTo: 'tenants', required: true, label: 'Cư dân', admin: { width: '50%' } },
+                { name: 'room', type: 'relationship', relationTo: 'rooms', required: true, label: 'Phòng', admin: { width: '50%' } },
+              ]
+            },
+            {
+              type: 'row',
+              fields: [
+                { name: 'startDate', type: 'date', required: true, label: 'Ngày bắt đầu', admin: { width: '50%' } },
+                { name: 'endDate', type: 'date', label: 'Ngày kết thúc', admin: { width: '50%' } },
+              ]
+            },
+            {
+              type: 'row',
+              fields: [
+                { name: 'depositAmount', type: 'number', label: 'Tiền cọc', admin: { width: '50%' } },
+                { name: 'monthlyPrice', type: 'number', label: 'Giá thuê hàng tháng', admin: { width: '50%' } },
+              ]
+            },
+          ]
         },
         {
-          name: 'pageNumber',
-          type: 'number',
-          label: 'Số trang',
-        },
-      ],
-    },
+          label: 'Tài liệu đính kèm',
+          fields: [
+            {
+              name: 'images',
+              type: 'array',
+              label: 'Ảnh chụp hợp đồng',
+              fields: [
+                {
+                  type: 'row',
+                  fields: [
+                    { name: 'image', type: 'upload', relationTo: 'media', required: true, label: 'Ảnh', admin: { width: '50%' } },
+                    { name: 'pageNumber', type: 'number', label: 'Số trang', admin: { width: '50%' } },
+                  ]
+                }
+              ],
+            },
+          ]
+        }
+      ]
+    }
   ],
   hooks: {
     afterChange: [

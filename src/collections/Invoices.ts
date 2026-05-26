@@ -18,90 +18,80 @@ export const Invoices: CollectionConfig = {
   },
   fields: [
     {
-      name: 'invoiceCode',
-      type: 'text',
-      required: true,
-      label: 'Mã hóa đơn',
-    },
-    {
-      name: 'room',
-      type: 'relationship',
-      relationTo: 'rooms',
-      required: true,
-      label: 'Phòng',
-    },
-    {
-      name: 'tenant',
-      type: 'relationship',
-      relationTo: 'tenants',
-      label: 'Khách thuê (Người nhận)',
-    },
-    {
-      name: 'utilityLog',
-      type: 'relationship',
-      relationTo: 'utility-logs',
-      label: 'Chỉ số điện nước',
-    },
-    {
-      name: 'roomPrice',
-      type: 'number',
-      required: true,
-      label: 'Tiền phòng',
-    },
-    {
-      name: 'electricCost',
-      type: 'number',
-      label: 'Tiền điện',
-    },
-    {
-      name: 'waterCost',
-      type: 'number',
-      label: 'Tiền nước',
-    },
-    {
-      name: 'serviceCost',
-      type: 'number',
-      label: 'Phí dịch vụ khác',
-    },
-    {
-      name: 'totalAmount',
-      type: 'number',
-      required: true,
-      label: 'Tổng thanh toán',
-    },
-    {
-      name: 'paymentStatus',
-      type: 'select',
-      options: [
-        { label: 'Chưa thanh toán', value: 'unpaid' },
-        { label: 'Thanh toán một phần', value: 'partial' },
-        { label: 'Đã thanh toán', value: 'paid' },
-      ],
-      defaultValue: 'unpaid',
-      label: 'Trạng thái thanh toán',
-    },
-    {
-      name: 'issuedAt',
-      type: 'date',
-      label: 'Ngày xuất hóa đơn',
-    },
-    {
-      name: 'paidAt',
-      type: 'date',
-      label: 'Ngày thanh toán xong',
-    },
-    {
-      name: 'qrPayload',
-      type: 'text',
-      label: 'Dữ liệu VietQR',
-      admin: { readOnly: true },
-    },
-    {
-      name: 'checkoutUrl',
-      type: 'text',
-      label: 'Link thanh toán PayOS',
-      admin: { readOnly: true },
-    },
+      type: 'tabs',
+      tabs: [
+        {
+          label: 'Thông tin chung',
+          fields: [
+            {
+              type: 'row',
+              fields: [
+                { name: 'invoiceCode', type: 'text', required: true, label: 'Mã hóa đơn', admin: { width: '50%' } },
+                { name: 'utilityLog', type: 'relationship', relationTo: 'utility-logs', label: 'Chỉ số điện nước', admin: { width: '50%' } },
+              ]
+            },
+            {
+              type: 'row',
+              fields: [
+                { name: 'room', type: 'relationship', relationTo: 'rooms', required: true, label: 'Phòng', admin: { width: '50%' } },
+                { name: 'tenant', type: 'relationship', relationTo: 'tenants', label: 'Khách thuê (Người nhận)', admin: { width: '50%' } },
+              ]
+            },
+            {
+              type: 'row',
+              fields: [
+                { name: 'issuedAt', type: 'date', label: 'Ngày xuất hóa đơn', admin: { width: '50%' } },
+                { name: 'paidAt', type: 'date', label: 'Ngày thanh toán xong', admin: { width: '50%' } },
+              ]
+            }
+          ]
+        },
+        {
+          label: 'Chi tiết thanh toán',
+          fields: [
+            {
+              type: 'row',
+              fields: [
+                { name: 'roomPrice', type: 'number', required: true, label: 'Tiền phòng', admin: { width: '50%' } },
+                { name: 'serviceCost', type: 'number', label: 'Phí dịch vụ khác', admin: { width: '50%' } },
+              ]
+            },
+            {
+              type: 'row',
+              fields: [
+                { name: 'electricCost', type: 'number', label: 'Tiền điện', admin: { width: '50%' } },
+                { name: 'waterCost', type: 'number', label: 'Tiền nước', admin: { width: '50%' } },
+              ]
+            },
+            {
+              type: 'row',
+              fields: [
+                { name: 'totalAmount', type: 'number', required: true, label: 'Tổng thanh toán', admin: { width: '50%' } },
+                {
+                  name: 'paymentStatus',
+                  type: 'select',
+                  options: [
+                    { label: 'Chưa thanh toán', value: 'unpaid' },
+                    { label: 'Thanh toán một phần', value: 'partial' },
+                    { label: 'Đã thanh toán', value: 'paid' },
+                  ],
+                  defaultValue: 'unpaid',
+                  label: 'Trạng thái thanh toán',
+                  admin: { width: '50%' }
+                },
+              ]
+            }
+          ]
+        },
+        {
+          label: 'Cổng thanh toán (PayOS)',
+          fields: [
+            { name: 'checkoutUrl', type: 'text', label: 'Link thanh toán PayOS', admin: { readOnly: true } },
+            { name: 'qrPayload', type: 'text', label: 'Dữ liệu VietQR', admin: { readOnly: true } },
+          ]
+        }
+      ]
+    }
   ],
   hooks: {
     beforeChange: [
