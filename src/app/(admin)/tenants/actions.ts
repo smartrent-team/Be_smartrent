@@ -120,12 +120,13 @@ export async function createTenantAction(data: {
     // 5. Cập nhật trạng thái phòng thành 'occupied' (Đã thuê)
     await adminSupabase.from('rooms').update({ status: 'occupied' }).eq('id', newRoomId)
 
-  } catch (error: supa) {
+  } catch (error: unknown) {
+    const err = error as Record<string, unknown>
     const errMsg = error instanceof Error 
       ? error.message 
-      : (error && typeof error === 'object' && 'message' in error)
-        ? `${error.message}${error.details ? ' - ' + error.details : ''}`
-        : JSON.stringify(error)
+      : (err && typeof err === 'object' && 'message' in err)
+        ? `${String(err.message)}${err.details ? ' - ' + String(err.details) : ''}`
+        : JSON.stringify(err)
     
     console.error('Rollback tạo khách thuê do lỗi chi tiết:', error)
     
