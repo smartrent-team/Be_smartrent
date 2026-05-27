@@ -86,7 +86,8 @@ export async function createTenantAction(data: {
       .insert({
         user_id: profileData.id,  // integer FK đến public.users.id
         room_id: newRoomId,
-        move_in_date: new Date(data.moveInDate).toISOString()
+        move_in_date: new Date(data.moveInDate).toISOString(),
+        identity_number: '000000000000' // Tránh lỗi NOT NULL của database
       })
       .select()
       .single()
@@ -119,9 +120,15 @@ export async function createTenantAction(data: {
     // 5. Cập nhật trạng thái phòng thành 'occupied' (Đã thuê)
     await adminSupabase.from('rooms').update({ status: 'occupied' }).eq('id', newRoomId)
 
-  } catch (error: unknown) {
-    const errMsg = error instanceof Error ? error.message : String(error)
-    console.error('Rollback tạo khách thuê do lỗi:', errMsg)
+  } catch (error: supa) {
+    const errMsg = error instanceof Error 
+      ? error.message 
+      : (error && typeof error === 'object' && 'message' in error)
+        ? `${error.message}${error.details ? ' - ' + error.details : ''}`
+        : JSON.stringify(error)
+    
+    console.error('Rollback tạo khách thuê do lỗi chi tiết:', error)
+    
     // Rollback
     if (newTenant?.id) {
       await adminSupabase.from('contracts').delete().eq('tenant_id', newTenant.id)
