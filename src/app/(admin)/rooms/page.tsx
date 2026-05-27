@@ -1,6 +1,7 @@
+
+
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
-import { addRoom } from './actions'
 import {
   Table,
   TableBody,
@@ -9,21 +10,11 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table'
-
 import { Badge } from '@/components/ui/badge'
-import { Button } from '@/components/ui/button'
-import { Plus } from 'lucide-react'
-import {
-  Sheet,
-  SheetContent,
-  SheetDescription,
-  SheetHeader,
-  SheetTitle,
-  SheetTrigger,
-} from "@/components/ui/sheet"
-import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
+import { buttonVariants } from '@/components/ui/button'
+import { Eye } from 'lucide-react'
 import Link from 'next/link'
+import { CreateRoomDialog } from './_components/CreateRoomDialog'
 
 export default async function RoomsPage({ searchParams }: { searchParams: Promise<{ [key: string]: string | string[] | undefined }> }) {
   const params = await searchParams
@@ -96,73 +87,33 @@ export default async function RoomsPage({ searchParams }: { searchParams: Promis
           <p className="text-muted-foreground mt-2">Xem và quản lý tất cả các phòng trong hệ thống.</p>
         </div>
         
-        <Sheet>
-          <SheetTrigger>
-            <Button className="gap-2">
-              <Plus className="h-4 w-4" />
-              Thêm phòng mới
-            </Button>
-          </SheetTrigger>
-          <SheetContent className="sm:max-w-md overflow-y-auto">
-            <SheetHeader>
-              <SheetTitle>Thêm phòng mới</SheetTitle>
-              <SheetDescription>
-                Nhập thông tin chi tiết để tạo phòng mới trong hệ thống.
-              </SheetDescription>
-            </SheetHeader>
-            <form action={addRoom}>
-              <div className="grid gap-4 py-6">
-                <div className="grid gap-2">
-                  <Label htmlFor="roomNumber">Số phòng / Tên phòng</Label>
-                  <Input id="roomNumber" name="roomNumber" required placeholder="VD: 101, 202A..." />
-                </div>
-                <div className="grid gap-2">
-                  <Label htmlFor="branch">Chi nhánh</Label>
-                  <select 
-                    id="branch" 
-                    name="branch" 
-                    required
-                    className="flex h-10 w-full items-center justify-between rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2"
-                  >
-                    <option value="">-- Chọn chi nhánh --</option>
-                    {branches.map((b) => (
-                      <option key={b.id} value={b.id.toString()}>{b.name}</option>
-                    ))}
-                  </select>
-                </div>
-                <div className="grid gap-2">
-                  <Label htmlFor="floor">Tầng</Label>
-                  <Input id="floor" name="floor" type="number" placeholder="1" defaultValue="1" />
-                </div>
-                <div className="grid gap-2">
-                  <Label htmlFor="price">Giá thuê (VND)</Label>
-                  <Input id="price" name="price" type="number" placeholder="3500000" />
-                </div>
-                <div className="grid gap-2">
-                  <Label htmlFor="area">Diện tích (m2)</Label>
-                  <Input id="area" name="area" type="number" placeholder="25" />
-                </div>
-              </div>
-              <div className="flex justify-end gap-3 mt-6">
-                <Button type="submit">Lưu thông tin</Button>
-              </div>
-            </form>
-          </SheetContent>
-        </Sheet>
+        <CreateRoomDialog branches={branches} />
       </div>
 
       <div className="flex items-center gap-2 mb-2">
-        <Link href="?status=all">
-          <Button variant={status === 'all' ? 'default' : 'outline'} size="sm">Tất cả</Button>
+        <Link 
+          href="?status=all" 
+          className={buttonVariants({ variant: status === 'all' ? 'default' : 'outline', size: 'sm' })}
+        >
+          Tất cả
         </Link>
-        <Link href="?status=available">
-          <Button variant={status === 'available' ? 'default' : 'outline'} size="sm">Trống</Button>
+        <Link 
+          href="?status=available" 
+          className={buttonVariants({ variant: status === 'available' ? 'default' : 'outline', size: 'sm' })}
+        >
+          Trống
         </Link>
-        <Link href="?status=occupied">
-          <Button variant={status === 'occupied' ? 'default' : 'outline'} size="sm">Đã thuê</Button>
+        <Link 
+          href="?status=occupied" 
+          className={buttonVariants({ variant: status === 'occupied' ? 'default' : 'outline', size: 'sm' })}
+        >
+          Đã thuê
         </Link>
-        <Link href="?status=maintenance">
-          <Button variant={status === 'maintenance' ? 'default' : 'outline'} size="sm">Bảo trì</Button>
+        <Link 
+          href="?status=maintenance" 
+          className={buttonVariants({ variant: status === 'maintenance' ? 'default' : 'outline', size: 'sm' })}
+        >
+          Bảo trì
         </Link>
       </div>
       
@@ -204,8 +155,15 @@ export default async function RoomsPage({ searchParams }: { searchParams: Promis
                   })()}
                 </TableCell>
                 <TableCell className="text-right">
-                  {/* Action buttons could go here */}
-                  <span className="text-sm text-blue-500 cursor-pointer">Chi tiết</span>
+                  <div className="flex items-center justify-end gap-1">
+                    <Link
+                      href={`/rooms/${room.id}`}
+                      className={buttonVariants({ variant: 'ghost', size: 'icon' }) + " text-teal-600 hover:text-teal-700 hover:bg-teal-50/50 rounded-lg h-9 w-9 flex items-center justify-center"}
+                      title="Xem chi tiết"
+                    >
+                      <Eye className="h-4 w-4" />
+                    </Link>
+                  </div>
                 </TableCell>
               </TableRow>
             ))}

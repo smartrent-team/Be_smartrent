@@ -7,7 +7,7 @@ export const phoneSchema = z.string().regex(phoneRegex, 'Số điện thoại ph
 // 2. Validate Room
 export const roomSchema = z.object({
   roomNumber: z.string().min(1, 'Vui lòng nhập tên/số phòng'),
-  branch: z.coerce.number().int().positive('Vui lòng chọn chi nhánh').optional().nullable(),
+  branch: z.coerce.number().int().positive('Vui lòng chọn chi nhánh'),
   price: z.coerce.number().int().min(0, 'Giá phòng không được âm'),
   area: z.coerce.number().int().min(0, 'Diện tích không được âm').optional(),
   floor: z.coerce.number().int().min(1, 'Tầng không hợp lệ').optional(),

@@ -4,16 +4,14 @@ import { createClient } from '@/lib/supabase/server'
 import { revalidatePath } from 'next/cache'
 import { roomSchema, formatZodError } from '@/lib/validations'
 
-export async function addRoom(formData: FormData) {
+export async function addRoom(data: {
+  roomNumber: string
+  branch: number
+  price: number
+  area?: number
+  floor?: number
+}) {
   const supabase = await createClient()
-
-  const data = {
-    roomNumber: formData.get('roomNumber'),
-    branch: formData.get('branch') || null,
-    price: formData.get('price') || 0,
-    area: formData.get('area') || 0,
-    floor: formData.get('floor') || 1,
-  }
 
   const parsed = roomSchema.safeParse(data)
   if (!parsed.success) {
@@ -29,8 +27,8 @@ export async function addRoom(formData: FormData) {
         room_code: roomNumber,
         branch_id: branch,
         base_price: price,
-        area: area,
-        floor: floor,
+        area: area || null,
+        floor: floor || null,
         status: 'available'
       }
     ])
