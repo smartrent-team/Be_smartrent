@@ -44,8 +44,12 @@ export async function createTenantAction(data: {
 
   const formattedPhone = data.phone.startsWith('0') ? `+84${data.phone.slice(1)}` : data.phone
 
-  // 1. Tạo tài khoản trong Supabase Auth
+  const dummyEmail = `${formattedPhone.replace('+', '')}@user.local`
+
+  // 1. Tạo tài khoản trong Supabase Auth với cả Email và SĐT
   const { data: authData, error: authError } = await adminSupabase.auth.admin.createUser({
+    email: dummyEmail,
+    email_confirm: true,
     phone: formattedPhone,
     password: data.password || '123456',
     phone_confirm: true,
@@ -181,10 +185,13 @@ export async function editTenantAction(
 
   // Cập nhật Auth User (tìm theo phone cũ)
   if (currentProfile?.phone) {
-    const updateAuthData: { phone?: string; phone_confirm?: boolean; password?: string } = {}
+    const updateAuthData: { phone?: string; phone_confirm?: boolean; password?: string; email?: string; email_confirm?: boolean } = {}
     if (formattedPhone && formattedPhone !== currentProfile.phone) {
       updateAuthData.phone = formattedPhone
       updateAuthData.phone_confirm = true
+      const newDummyEmail = `${formattedPhone.replace('+', '')}@user.local`
+      updateAuthData.email = newDummyEmail
+      updateAuthData.email_confirm = true
     }
     if (data.password && data.password.trim() !== '') {
       updateAuthData.password = data.password

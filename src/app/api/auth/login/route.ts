@@ -18,12 +18,14 @@ export async function POST(request: NextRequest) {
 
     const { phone, password } = parsed.data
 
-    // Đảm bảo số điện thoại bắt đầu bằng mã quốc gia, ví dụ +84
     const formattedPhone = phone.startsWith('0') ? `+84${phone.slice(1)}` : phone
+    // Để vượt qua giới hạn Supabase Phone provider bị tắt (Phone logins are disabled),
+    // chúng ta sẽ đăng nhập bằng Email ảo được tạo tự động dựa trên SĐT: [sđt_bỏ_dấu_cộng]@user.local
+    const dummyEmail = `${formattedPhone.replace('+', '')}@user.local`
 
     const supabase = await createApiClient()
     const { data, error } = await supabase.auth.signInWithPassword({
-      phone: formattedPhone,
+      email: dummyEmail,
       password,
     })
 
