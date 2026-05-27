@@ -22,6 +22,12 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Bạn không có quyền tạo tài khoản với vai trò này' }, { status: 403 })
     }
 
+    if (targetRole === 'manager' || targetRole === 'tenant') {
+      if (!targetBranchId) {
+        return NextResponse.json({ error: `Vai trò ${targetRole} yêu cầu bắt buộc phải chọn chi nhánh` }, { status: 400 })
+      }
+    }
+
     let finalBranchId = targetBranchId
     
     // Nếu là Manager, ép buộc branch_id phải là branch của Manager, không được tạo user cho chi nhánh khác

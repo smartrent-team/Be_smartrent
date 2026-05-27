@@ -26,9 +26,9 @@ export async function addRoom(formData: FormData) {
     .from('rooms')
     .insert([
       {
-        room_number: roomNumber,
+        room_code: roomNumber,
         branch_id: branch,
-        price: price,
+        base_price: price,
         area: area,
         floor: floor,
         status: 'available'

@@ -35,7 +35,7 @@ export async function POST(request: NextRequest) {
     const { data: profile } = await supabase
       .from('users')
       .select('*')
-      .eq('id', data.user.id)
+      .eq('phone', formattedPhone)
       .single()
 
     return NextResponse.json({

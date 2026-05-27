@@ -1,4 +1,5 @@
 import { createClient } from '@/lib/supabase/server'
+import { createAdminClient } from '@/lib/supabase/admin'
 import { notFound } from 'next/navigation'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
@@ -9,16 +10,21 @@ import { ContractImages } from '@/components/shared/ContractImages'
 
 export default async function TenantDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
+  // Verify auth
   const supabase = await createClient()
+  await supabase.auth.getUser()
 
-  const { data: tenant, error } = await supabase
+  // Dùng admin client để bypass RLS
+  const adminSupabase = createAdminClient()
+
+  const { data: tenant, error } = await adminSupabase
     .from('tenants')
     .select(`
       *,
       user:users(*),
-      room:rooms(id, room_number, price),
+      room:rooms(id, room_code, base_price),
       invoices(id, invoice_code, total_amount, payment_status, issued_at),
-      contracts(id, contract_images, status)
+      contracts(id, contract_images, status, deposit_amount)
     `)
     .eq('id', id)
     .single()
@@ -27,6 +33,7 @@ export default async function TenantDetailPage({ params }: { params: Promise<{ i
     id: string;
     status: string;
     contract_images?: string[];
+    deposit_amount?: number;
   }
 
   // Lấy ảnh của hợp đồng đang active
@@ -34,6 +41,7 @@ export default async function TenantDetailPage({ params }: { params: Promise<{ i
   const initialImages = activeContract?.contract_images || []
 
   if (error || !tenant) {
+    console.error('Tenant fetch error for id', id, ':', error);
     notFound()
   }
 
@@ -91,12 +99,12 @@ export default async function TenantDetailPage({ params }: { params: Promise<{ i
               <div>
                 <p className="text-sm text-muted-foreground">Phòng đang thuê</p>
                 <Link href={`/rooms/${tenant.room?.id}`} className="font-medium text-blue-600 hover:underline">
-                  Phòng {tenant.room?.room_number || 'N/A'}
+                  Phòng {tenant.room?.room_code || 'N/A'}
                 </Link>
               </div>
               <div>
                 <p className="text-sm text-muted-foreground">Tiền cọc</p>
-                <p className="font-medium">{tenant.deposit_amount?.toLocaleString('vi-VN')} đ</p>
+                <p className="font-medium">{activeContract?.deposit_amount?.toLocaleString('vi-VN') || '0'} đ</p>
               </div>
               <div>
                 <p className="text-sm text-muted-foreground">Ngày chuyển vào</p>

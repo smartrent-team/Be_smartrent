@@ -14,7 +14,7 @@ export async function verifyRole() {
   const { data: userProfile, error: profileError } = await supabase
     .from('users')
     .select('role, branch_id')
-    .eq('id', user.id)
+    .eq('email', user.email)
     .single()
 
   if (profileError || !userProfile) {

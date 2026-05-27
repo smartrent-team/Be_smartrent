@@ -23,6 +23,7 @@ import { Pagination } from '@/components/shared/Pagination'
 import Link from 'next/link'
 
 import { createClient } from '@/lib/supabase/server'
+import { createAdminClient } from '@/lib/supabase/admin'
 import { addInvoiceAction } from './actions'
 
 export default async function InvoicesPage({ searchParams }: { searchParams: Promise<{ [key: string]: string | string[] | undefined }> }) {
@@ -33,11 +34,16 @@ export default async function InvoicesPage({ searchParams }: { searchParams: Pro
   const from = (page - 1) * limit
   const to = from + limit - 1
 
+  // Verify auth
   const supabase = await createClient()
+  await supabase.auth.getUser()
 
-  let query = supabase
+  // Dùng admin client để bypass RLS
+  const adminSupabase = createAdminClient()
+
+  let query = adminSupabase
     .from('invoices')
-    .select('id, invoice_code, total_amount, payment_status, issued_at, room:rooms(room_number), tenant:tenants(user:users(full_name))', { count: 'exact' })
+    .select('id, invoice_code, total_amount, payment_status, issued_at, room:rooms(room_code), tenant:tenants(user:users(full_name))', { count: 'exact' })
     .order('created_at', { ascending: false })
 
   if (status !== 'all') {
@@ -54,20 +60,20 @@ export default async function InvoicesPage({ searchParams }: { searchParams: Pro
     total_amount?: number;
     payment_status?: string;
     issued_at?: string;
-    room?: { room_number: string };
+    room?: { room_code: string };
     tenant?: { user?: { full_name: string } };
   }
 
   const invoices = ((rawInvoices as unknown as InvoiceRaw[]) || []).map((inv) => ({
     id: inv.invoice_code || inv.id,
-    room: inv.room?.room_number || 'Trống',
+    room: inv.room?.room_code || 'Trống',
     amount: inv.total_amount || 0,
     status: inv.payment_status || 'unpaid',
     date: inv.issued_at ? new Date(inv.issued_at).toLocaleDateString('vi-VN') : 'N/A',
     tenant: inv.tenant?.user?.full_name || 'Khách vãng lai',
   }))
 
-  const { data: rooms } = await supabase.from('rooms').select('id, room_number').order('room_number')
+  const { data: rooms } = await adminSupabase.from('rooms').select('id, room_code').order('room_code')
 
   return (
     <div className="flex flex-col gap-6 p-6">
@@ -103,7 +109,7 @@ export default async function InvoicesPage({ searchParams }: { searchParams: Pro
                   >
                     <option value="">-- Chọn phòng --</option>
                     {rooms?.map((r) => (
-                      <option key={r.id} value={r.id}>Phòng {r.room_number}</option>
+                      <option key={r.id} value={r.id}>Phòng {r.room_code}</option>
                     ))}
                   </select>
                 </div>

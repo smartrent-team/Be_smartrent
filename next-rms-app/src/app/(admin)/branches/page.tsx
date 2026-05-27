@@ -1,4 +1,5 @@
 import { createClient } from '@/lib/supabase/server'
+import { createAdminClient } from '@/lib/supabase/admin'
 import {
   Table,
   TableBody,
@@ -10,26 +11,32 @@ import {
 import { Card, CardContent } from '@/components/ui/card'
 import { CreateBranchDialog } from './_components/CreateBranchDialog'
 import { DeleteBranchButton } from './_components/DeleteBranchButton'
+import { EditBranchDialog } from './_components/EditBranchDialog'
 import { Building2, ShieldAlert, Home, UserCheck, Percent, Phone, MapPin } from 'lucide-react'
 
 export default async function BranchesPage() {
+  // Verify auth
   const supabase = await createClient()
+  await supabase.auth.getUser()
+
+  // Dùng admin client để bypass RLS
+  const adminSupabase = createAdminClient()
 
   // 1. Fetch branches
-  const { data: rawBranches } = await supabase
+  const { data: rawBranches } = await adminSupabase
     .from('branches')
     .select('*')
     .order('created_at', { ascending: false })
   const branches = rawBranches || []
 
   // 2. Fetch rooms to calculate total rooms and occupancy rate per branch
-  const { data: rawRooms } = await supabase
+  const { data: rawRooms } = await adminSupabase
     .from('rooms')
     .select('id, branch_id, status')
   const rooms = rawRooms || []
 
   // 3. Fetch managers to map responsible manager per branch
-  const { data: rawManagers } = await supabase
+  const { data: rawManagers } = await adminSupabase
     .from('users')
     .select('id, full_name, phone, branch_id')
     .eq('role', 'manager')
@@ -217,7 +224,10 @@ export default async function BranchesPage() {
                       </div>
                     </TableCell>
                     <TableCell className="text-right py-4">
-                      <DeleteBranchButton id={branch.id} name={branch.name} />
+                      <div className="flex items-center justify-end gap-1">
+                        <EditBranchDialog branch={branch} />
+                        <DeleteBranchButton id={branch.id} name={branch.name} />
+                      </div>
                     </TableCell>
                   </TableRow>
                 ))}

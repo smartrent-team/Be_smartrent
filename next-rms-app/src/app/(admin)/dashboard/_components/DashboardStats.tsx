@@ -1,9 +1,10 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Home, DollarSign, FileWarning } from 'lucide-react'
-import { createClient } from '@/lib/supabase/server'
+import { createAdminClient } from '@/lib/supabase/admin'
+import Link from 'next/link'
 
 export default async function DashboardStats() {
-  const supabase = await createClient()
+  const supabase = createAdminClient()
 
   const [
     { count: totalRoomsCount },
@@ -25,10 +26,10 @@ export default async function DashboardStats() {
   const revenueThisMonth = (paidInvoices || []).reduce((sum, inv) => sum + (inv.total_amount || 0), 0)
 
   const stats = [
-    { title: 'Tổng số phòng', value: (totalRoomsCount || 0).toString(), icon: Home, description: 'Đang quản lý', colorClass: 'text-blue-600', bgClass: 'bg-blue-100' },
-    { title: 'Phòng trống', value: (emptyRooms > 0 ? emptyRooms : 0).toString(), icon: Home, description: 'Cần tìm khách', colorClass: 'text-green-600', bgClass: 'bg-green-100' },
-    { title: 'Doanh thu tháng', value: `${(revenueThisMonth / 1000000).toFixed(1)}M`, icon: DollarSign, description: 'Tháng hiện tại', colorClass: 'text-amber-600', bgClass: 'bg-amber-100' },
-    { title: 'Hoá đơn chưa thu', value: (unpaidInvoicesCount || 0).toString(), icon: FileWarning, description: 'Cần nhắc nhở', colorClass: 'text-red-600', bgClass: 'bg-red-100' },
+    { title: 'Tổng số phòng', value: (totalRoomsCount || 0).toString(), icon: Home, description: 'Đang quản lý', colorClass: 'text-blue-600', bgClass: 'bg-blue-100', href: '/rooms' },
+    { title: 'Phòng trống', value: (emptyRooms > 0 ? emptyRooms : 0).toString(), icon: Home, description: 'Cần tìm khách', colorClass: 'text-green-600', bgClass: 'bg-green-100', href: '/rooms?status=available' },
+    { title: 'Doanh thu tháng', value: `${(revenueThisMonth / 1000000).toFixed(1)}M`, icon: DollarSign, description: 'Tháng hiện tại', colorClass: 'text-amber-600', bgClass: 'bg-amber-100', href: '/invoices?status=paid' },
+    { title: 'Hoá đơn chưa thu', value: (unpaidInvoicesCount || 0).toString(), icon: FileWarning, description: 'Cần nhắc nhở', colorClass: 'text-red-600', bgClass: 'bg-red-100', href: '/invoices?status=unpaid' },
   ]
 
   return (
@@ -36,20 +37,22 @@ export default async function DashboardStats() {
       {stats.map((stat, i) => {
         const Icon = stat.icon
         return (
-          <Card key={i} className="hover:-translate-y-1 hover:shadow-lg transition-all duration-300">
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">{stat.title}</CardTitle>
-              <div className={`p-2 rounded-lg ${stat.bgClass}`}>
-                <Icon className={`h-4 w-4 ${stat.colorClass}`} />
-              </div>
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">{stat.value}</div>
-              <p className="text-xs text-muted-foreground mt-1">
-                {stat.description}
-              </p>
-            </CardContent>
-          </Card>
+          <Link href={stat.href} key={i} className="block group">
+            <Card className="hover:-translate-y-1 hover:shadow-lg hover:border-primary/20 hover:bg-slate-50/50 cursor-pointer transition-all duration-300">
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                <CardTitle className="text-sm font-medium transition-colors group-hover:text-primary">{stat.title}</CardTitle>
+                <div className={`p-2 rounded-lg ${stat.bgClass} transition-transform group-hover:scale-110 duration-300`}>
+                  <Icon className={`h-4 w-4 ${stat.colorClass}`} />
+                </div>
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-bold">{stat.value}</div>
+                <p className="text-xs text-muted-foreground mt-1">
+                  {stat.description}
+                </p>
+              </CardContent>
+            </Card>
+          </Link>
         )
       })}
     </div>

@@ -84,7 +84,7 @@ export async function createInvoice(data: {
       // Tạo orderCode độc nhất dựa trên timestamp + ID hóa đơn để tránh trùng lặp trên cổng PayOS
       const uniqueOrderCode = Number(Date.now().toString().slice(-6) + String(invoice.id % 1000).padStart(3, '0'))
 
-      const paymentLink = await payos.createPaymentLink({
+      const paymentLink = await payos.paymentRequests.create({
         orderCode: uniqueOrderCode,
         amount: totalAmount,
         description: `TT Phong ${data.room_id}`,

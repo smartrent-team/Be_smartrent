@@ -21,62 +21,59 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
-import { UserPlus, Loader2 } from 'lucide-react'
+import { Edit, Loader2 } from 'lucide-react'
 import { toast } from 'sonner'
+import { editManager } from '../actions'
 
 interface Branch {
   id: number
   name: string
 }
 
-export function CreateManagerDialog({ branches }: { branches: Branch[] }) {
+interface Manager {
+  id: string
+  full_name: string | null
+  phone: string | null
+  branch_id: number | null
+}
+
+export function EditManagerDialog({ manager, branches }: { manager: Manager; branches: Branch[] }) {
   const [open, setOpen] = useState(false)
   const [loading, setLoading] = useState(false)
   const router = useRouter()
 
+  // Định dạng lại +84 thành 0 cho dễ nhập liệu
+  const formatDisplayPhone = (p: string | null) => {
+    if (!p) return ''
+    if (p.startsWith('+84')) return '0' + p.slice(3)
+    return p
+  }
+
   const [formData, setFormData] = useState({
-    fullName: '',
-    phone: '',
+    fullName: manager.full_name || '',
+    phone: formatDisplayPhone(manager.phone),
     password: '',
-    branchId: '',
+    branchId: manager.branch_id?.toString() || '',
   })
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    if (!formData.fullName || !formData.phone || !formData.password || !formData.branchId || formData.branchId === 'none') {
+    if (!formData.fullName || !formData.phone || !formData.branchId || formData.branchId === 'none') {
       toast.error('Vui lòng điền đầy đủ các thông tin bắt buộc bao gồm chi nhánh')
       return
     }
 
     setLoading(true)
     try {
-      const res = await fetch('/api/users/create', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          full_name: formData.fullName,
-          phone: formData.phone,
-          password: formData.password,
-          role: 'manager',
-          branch_id: formData.branchId ? parseInt(formData.branchId, 10) : null,
-        }),
+      await editManager(manager.id, {
+        fullName: formData.fullName,
+        phone: formData.phone,
+        password: formData.password || undefined,
+        branchId: formData.branchId,
       })
 
-      const result = await res.json()
-
-      if (!res.ok) {
-        throw new Error(result.error || 'Có lỗi xảy ra khi tạo tài khoản')
-      }
-
-      toast.success('Đã tạo tài khoản Manager thành công!')
-      setFormData({
-        fullName: '',
-        phone: '',
-        password: '',
-        branchId: '',
-      })
+      toast.success('Đã cập nhật tài khoản Manager thành công!')
+      setFormData((prev) => ({ ...prev, password: '' }))
       setOpen(false)
       router.refresh()
     } catch (error: unknown) {
@@ -91,29 +88,33 @@ export function CreateManagerDialog({ branches }: { branches: Branch[] }) {
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger
         render={
-          <Button className="bg-gradient-to-r from-teal-600 to-emerald-600 hover:from-teal-700 hover:to-emerald-700 text-white font-medium shadow-md transition-all duration-200 gap-2">
-            <UserPlus className="h-4 w-4" />
-            Thêm Manager
+          <Button
+            variant="ghost"
+            size="icon"
+            className="text-teal-600 hover:text-teal-700 hover:bg-teal-50/50 rounded-lg h-9 w-9"
+            title="Sửa Manager"
+          >
+            <Edit className="h-4 w-4" />
           </Button>
         }
       />
       <DialogContent className="sm:max-w-[460px] border border-gray-100/50 backdrop-blur-md bg-white/95 shadow-2xl rounded-2xl">
         <DialogHeader>
           <DialogTitle className="text-xl font-bold bg-gradient-to-r from-teal-600 to-emerald-600 bg-clip-text text-transparent flex items-center gap-2">
-            Tạo Tài Khoản Manager
+            Sửa Thông Tin Manager
           </DialogTitle>
           <DialogDescription className="text-gray-500 mt-1">
-            Manager mới sẽ phụ trách quản lý chi nhánh được chỉ định và đăng nhập bằng số điện thoại.
+            Thay đổi thông tin hoặc gán chi nhánh mới cho Manager phụ trách.
           </DialogDescription>
         </DialogHeader>
 
         <form onSubmit={handleSubmit} className="space-y-4 py-4">
           <div className="space-y-2">
-            <Label htmlFor="fullName" className="text-sm font-medium text-gray-700">
+            <Label htmlFor="edit-fullName" className="text-sm font-medium text-gray-700">
               Họ và tên <span className="text-rose-500">*</span>
             </Label>
             <Input
-              id="fullName"
+              id="edit-fullName"
               placeholder="VD: Nguyễn Văn A"
               value={formData.fullName}
               onChange={(e) => setFormData({ ...formData, fullName: e.target.value })}
@@ -123,11 +124,11 @@ export function CreateManagerDialog({ branches }: { branches: Branch[] }) {
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="phone" className="text-sm font-medium text-gray-700">
+            <Label htmlFor="edit-phone" className="text-sm font-medium text-gray-700">
               Số điện thoại <span className="text-rose-500">*</span>
             </Label>
             <Input
-              id="phone"
+              id="edit-phone"
               type="tel"
               placeholder="VD: 0912345678"
               value={formData.phone}
@@ -138,30 +139,30 @@ export function CreateManagerDialog({ branches }: { branches: Branch[] }) {
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="password" className="text-sm font-medium text-gray-700">
-              Mật khẩu <span className="text-rose-500">*</span>
+            <Label htmlFor="edit-password" className="text-sm font-medium text-gray-700 flex flex-col gap-0.5">
+              <span>Đổi mật khẩu mới</span>
+              <span className="text-[10px] text-gray-400 font-normal">(Bỏ trống nếu giữ nguyên mật khẩu cũ)</span>
             </Label>
             <Input
-              id="password"
+              id="edit-password"
               type="password"
-              placeholder="Nhập ít nhất 6 ký tự"
+              placeholder="Nhập ít nhất 6 ký tự để đổi"
               value={formData.password}
               onChange={(e) => setFormData({ ...formData, password: e.target.value })}
               className="border-gray-200 focus:border-teal-500 focus:ring-teal-500 rounded-xl"
-              required
               minLength={6}
             />
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="branch" className="text-sm font-medium text-gray-700">
+            <Label htmlFor="edit-branch" className="text-sm font-medium text-gray-700">
               Chi nhánh phụ trách <span className="text-rose-500">*</span>
             </Label>
             <Select
               value={formData.branchId}
               onValueChange={(val) => setFormData({ ...formData, branchId: val || '' })}
             >
-              <SelectTrigger id="branch" className="border-gray-200 focus:border-teal-500 focus:ring-teal-500 rounded-xl">
+              <SelectTrigger id="edit-branch" className="border-gray-200 focus:border-teal-500 focus:ring-teal-500 rounded-xl">
                 <SelectValue placeholder="Chọn chi nhánh phụ trách" />
               </SelectTrigger>
               <SelectContent className="rounded-xl border-gray-100 shadow-xl bg-white">
@@ -191,10 +192,10 @@ export function CreateManagerDialog({ branches }: { branches: Branch[] }) {
               {loading ? (
                 <>
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  Đang tạo...
+                  Đang lưu...
                 </>
               ) : (
-                'Tạo tài khoản'
+                'Lưu thay đổi'
               )}
             </Button>
           </DialogFooter>

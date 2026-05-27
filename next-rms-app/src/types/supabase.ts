@@ -13,13 +13,13 @@ export interface Database {
         Row: {
           id: number
           created_at: string
-          room_number: string
+          room_code: string
           branch_id: number | null
           floor: number
           area: number
-          price: number
+          base_price: number
           status: 'available' | 'occupied' | 'maintenance'
-          electricity_price: number | null
+          electric_price: number | null
           water_price: number | null
           images: string[] | null
         }

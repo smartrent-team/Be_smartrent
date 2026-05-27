@@ -8,7 +8,7 @@ export async function POST(request: NextRequest) {
     const body = await request.json()
 
     // Verify webhook data sent from payOS
-    const webhookData = payos.verifyPaymentWebhookData(body)
+    const webhookData = await payos.webhooks.verify(body)
 
     if (webhookData.code === '00') {
       const paymentLinkId = webhookData.paymentLinkId

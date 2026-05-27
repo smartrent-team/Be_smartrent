@@ -1,4 +1,5 @@
 import { createClient } from '@/lib/supabase/server'
+import { createAdminClient } from '@/lib/supabase/admin'
 import { addRoom } from './actions'
 import {
   Table,
@@ -22,16 +23,35 @@ import {
 } from "@/components/ui/sheet"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
+import Link from 'next/link'
 
-export default async function RoomsPage() {
+export default async function RoomsPage({ searchParams }: { searchParams: Promise<{ [key: string]: string | string[] | undefined }> }) {
+  const params = await searchParams
+  const status = params.status as string || 'all'
+
+  // Verify auth
   const supabase = await createClient()
+  await supabase.auth.getUser()
 
-  // In a real app, handle branch_id based on manager's role
-  // Here we just fetch all rooms for simplicity
-  const { data: rooms, error } = await supabase
+  // Dùng admin client để bypass RLS
+  const adminSupabase = createAdminClient()
+
+  let query = adminSupabase
     .from('rooms')
-    .select('*')
-    .order('room_number', { ascending: true })
+    .select('*, branch:branches(name), tenants(id, move_out_date, user:users(full_name))')
+    .order('room_code', { ascending: true })
+
+  if (status !== 'all') {
+    query = query.eq('status', status)
+  }
+
+  const { data: rooms, error } = await query
+
+  const { data: rawBranches } = await adminSupabase
+    .from('branches')
+    .select('id, name')
+    .order('name')
+  const branches = rawBranches || []
 
   if (error) {
     console.error(error)
@@ -49,6 +69,24 @@ export default async function RoomsPage() {
         return <Badge variant="secondary">{status}</Badge>
     }
   }
+
+  interface RoomTenant {
+    id: number
+    move_out_date: string | null
+    user?: { full_name: string } | null
+  }
+
+  interface RoomData {
+    id: number
+    room_code: string
+    branch?: { name: string } | null
+    floor: number | null
+    base_price: number
+    status: string
+    tenants?: RoomTenant[]
+  }
+
+  const roomsList = (rooms as unknown as RoomData[]) || []
 
   return (
     <div className="flex flex-col gap-6 p-6">
@@ -80,7 +118,17 @@ export default async function RoomsPage() {
                 </div>
                 <div className="grid gap-2">
                   <Label htmlFor="branch">Chi nhánh</Label>
-                  <Input id="branch" name="branch" type="number" placeholder="ID Chi nhánh (VD: 1)..." />
+                  <select 
+                    id="branch" 
+                    name="branch" 
+                    required
+                    className="flex h-10 w-full items-center justify-between rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2"
+                  >
+                    <option value="">-- Chọn chi nhánh --</option>
+                    {branches.map((b) => (
+                      <option key={b.id} value={b.id.toString()}>{b.name}</option>
+                    ))}
+                  </select>
                 </div>
                 <div className="grid gap-2">
                   <Label htmlFor="floor">Tầng</Label>
@@ -102,36 +150,68 @@ export default async function RoomsPage() {
           </SheetContent>
         </Sheet>
       </div>
+
+      <div className="flex items-center gap-2 mb-2">
+        <Link href="?status=all">
+          <Button variant={status === 'all' ? 'default' : 'outline'} size="sm">Tất cả</Button>
+        </Link>
+        <Link href="?status=available">
+          <Button variant={status === 'available' ? 'default' : 'outline'} size="sm">Trống</Button>
+        </Link>
+        <Link href="?status=occupied">
+          <Button variant={status === 'occupied' ? 'default' : 'outline'} size="sm">Đã thuê</Button>
+        </Link>
+        <Link href="?status=maintenance">
+          <Button variant={status === 'maintenance' ? 'default' : 'outline'} size="sm">Bảo trì</Button>
+        </Link>
+      </div>
       
       <div className="rounded-md border">
         <Table>
           <TableHeader>
             <TableRow>
               <TableHead>Mã phòng</TableHead>
+              <TableHead>Chi nhánh</TableHead>
               <TableHead>Tầng</TableHead>
               <TableHead>Giá thuê</TableHead>
               <TableHead>Trạng thái</TableHead>
+              <TableHead>Khách thuê</TableHead>
               <TableHead className="text-right">Hành động</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
-            {rooms && rooms.map((room) => (
+            {roomsList.map((room) => (
               <TableRow key={room.id}>
-                <TableCell className="font-medium">{room.room_number}</TableCell>
+                <TableCell className="font-medium">{room.room_code}</TableCell>
+                <TableCell className="font-semibold text-emerald-800">
+                  {room.branch?.name || 'Chưa phân chi nhánh'}
+                </TableCell>
                 <TableCell>{room.floor}</TableCell>
                 <TableCell>
-                  {new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(room.price)}
+                  {new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(room.base_price)}
                 </TableCell>
                 <TableCell>{getStatusBadge(room.status)}</TableCell>
+                <TableCell>
+                  {(() => {
+                    const activeTenant = room.tenants && room.tenants.length > 0 
+                      ? room.tenants.find((t) => !t.move_out_date) 
+                      : null
+                    return activeTenant ? (
+                      <span className="font-semibold text-slate-700">{activeTenant.user?.full_name || 'Khách chưa đặt tên'}</span>
+                    ) : (
+                      <span className="text-gray-400 italic text-xs">Trống</span>
+                    )
+                  })()}
+                </TableCell>
                 <TableCell className="text-right">
                   {/* Action buttons could go here */}
                   <span className="text-sm text-blue-500 cursor-pointer">Chi tiết</span>
                 </TableCell>
               </TableRow>
             ))}
-            {(!rooms || rooms.length === 0) && (
+            {roomsList.length === 0 && (
               <TableRow>
-                <TableCell colSpan={5} className="h-24 text-center">
+                <TableCell colSpan={7} className="h-24 text-center">
                   Không có dữ liệu phòng.
                 </TableCell>
               </TableRow>

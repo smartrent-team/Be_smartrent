@@ -1,10 +1,10 @@
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { createClient } from '@/lib/supabase/server'
+import { createAdminClient } from '@/lib/supabase/admin'
 import { RevenueChartClient } from './RevenueChartClient'
 import { TrendingUp } from 'lucide-react'
 
 export default async function RevenueChart() {
-  const supabase = await createClient()
+  const supabase = createAdminClient()
 
   // Lấy doanh thu 6 tháng gần nhất
   const months: { month: string; revenue: number }[] = []

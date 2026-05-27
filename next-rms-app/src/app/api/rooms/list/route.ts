@@ -27,7 +27,7 @@ export async function GET(request: NextRequest) {
       .select(`
         *,
         tenants (
-          id, name, phone, check_in_date
+          id, move_in_date, move_out_date, user:users(full_name, phone)
         )
       `, { count: 'exact' })
 
@@ -62,7 +62,7 @@ export async function GET(request: NextRequest) {
       query = query.eq('status', statusParam)
     }
     if (searchParam) {
-      query = query.ilike('room_number', `%${searchParam}%`)
+      query = query.ilike('room_code', `%${searchParam}%`)
     }
     if (floorParam) {
       const floorNum = parseInt(floorParam, 10)
@@ -81,16 +81,37 @@ export async function GET(request: NextRequest) {
     }
 
     // Transform response to match legacy format if needed
+    interface TenantItem {
+      id: number
+      move_in_date: string
+      move_out_date: string | null
+      user?: {
+        full_name: string | null
+        phone: string | null
+      } | null
+    }
+
     const docs = rooms.map(room => {
-      // Assuming tenants array returns active tenants. Just picking the first one for simplicity.
-      const tenant = room.tenants && room.tenants.length > 0 ? room.tenants[0] : null
+      // Pick first active tenant (where move_out_date is null)
+      const tenantsList = room.tenants as unknown as TenantItem[] | undefined
+      const activeTenant = tenantsList && tenantsList.length > 0 
+        ? tenantsList.find(t => !t.move_out_date) 
+        : null
+
+      const tenant = activeTenant ? {
+        id: activeTenant.id,
+        name: activeTenant.user?.full_name || 'Khách chưa có tên',
+        phone: activeTenant.user?.phone || 'Chưa cập nhật',
+        check_in_date: activeTenant.move_in_date
+      } : null
+
       return {
         id: room.id,
-        roomCode: room.room_number,
+        roomCode: room.room_code,
         floor: room.floor,
         area: room.area,
-        basePrice: room.price,
-        electricPrice: room.electricity_price,
+        basePrice: room.base_price,
+        electricPrice: room.electric_price,
         waterPrice: room.water_price,
         status: room.status,
         branch: room.branch_id,

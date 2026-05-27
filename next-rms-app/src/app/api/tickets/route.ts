@@ -26,8 +26,8 @@ export async function GET(request: NextRequest) {
       }
       query = supabase.from('maintenance_tickets').select(`
         id, title, description, status, images, created_at, priority,
-        rooms (id, room_number),
-        tenants (id, name, phone)
+        rooms (id, room_code),
+        tenants (id, user:users(full_name, phone))
       `).eq('room_id', tenantInfo.room_id)
     } else if (auth.role === 'manager') {
       // Quản lý chỉ xem được ticket của chi nhánh mình
@@ -35,8 +35,8 @@ export async function GET(request: NextRequest) {
         // Lưu ý: với inner join của PostgREST, filter trên relation sẽ lọc luôn record chính
         query = supabase.from('maintenance_tickets').select(`
           id, title, description, status, images, created_at, priority,
-          rooms!inner (id, room_number, branch_id),
-          tenants (id, name, phone)
+          rooms!inner (id, room_code, branch_id),
+          tenants (id, user:users(full_name, phone))
         `).eq('rooms.branch_id', auth.branchId)
       } else {
         return NextResponse.json({ error: 'Manager không có chi nhánh' }, { status: 403 })
@@ -45,8 +45,8 @@ export async function GET(request: NextRequest) {
       // super_admin: xem được tất cả, không cần filter thêm
       query = supabase.from('maintenance_tickets').select(`
         id, title, description, status, images, created_at, priority,
-        rooms (id, room_number),
-        tenants (id, name, phone)
+        rooms (id, room_code),
+        tenants (id, user:users(full_name, phone))
       `)
     }
 

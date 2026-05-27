@@ -1,11 +1,15 @@
 import { createClient } from '@/lib/supabase/server'
+import { createAdminClient } from '@/lib/supabase/admin'
 import TicketListClient from './TicketListClient'
 
 export default async function TicketsPage() {
   const supabase = await createClient()
-  const { data: rawTickets } = await supabase
+  await supabase.auth.getUser()
+
+  const adminSupabase = createAdminClient()
+  const { data: rawTickets } = await adminSupabase
     .from('maintenance_tickets')
-    .select('id, title, priority, status, created_at, room:rooms(room_number)')
+    .select('id, title, priority, status, created_at, room:rooms(room_code)')
     .order('created_at', { ascending: false })
   
   interface TicketData {
@@ -14,12 +18,12 @@ export default async function TicketsPage() {
     priority?: string;
     status?: string;
     created_at?: string;
-    room?: { room_number: string };
+    room?: { room_code: string };
   }
 
   const tickets = ((rawTickets as unknown as TicketData[]) || []).map((ticket) => ({
     id: ticket.id,
-    room: ticket.room?.room_number || 'Chung',
+    room: ticket.room?.room_code || 'Chung',
     title: ticket.title || 'Không có tiêu đề',
     date: ticket.created_at ? new Date(ticket.created_at).toLocaleDateString('vi-VN') : 'N/A',
     priority: ticket.priority || 'medium',

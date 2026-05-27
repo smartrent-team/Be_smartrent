@@ -1,4 +1,5 @@
 import { createClient } from '@/lib/supabase/server'
+import { createAdminClient } from '@/lib/supabase/admin'
 import { notFound } from 'next/navigation'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
@@ -8,9 +9,14 @@ import { Button } from '@/components/ui/button'
 
 export default async function RoomDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
+  // Verify auth
   const supabase = await createClient()
+  await supabase.auth.getUser()
 
-  const { data: room, error } = await supabase
+  // Dùng admin client để bypass RLS
+  const adminSupabase = createAdminClient()
+
+  const { data: room, error } = await adminSupabase
     .from('rooms')
     .select(`
       *,
@@ -57,7 +63,7 @@ export default async function RoomDetailPage({ params }: { params: Promise<{ id:
           </Button>
         </Link>
         <div>
-          <h1 className="text-3xl font-bold tracking-tight">Phòng {room.room_number}</h1>
+          <h1 className="text-3xl font-bold tracking-tight">Phòng {room.room_code}</h1>
           <p className="text-muted-foreground mt-1">Thông tin chi tiết và lịch sử phòng.</p>
         </div>
       </div>
@@ -79,7 +85,7 @@ export default async function RoomDetailPage({ params }: { params: Promise<{ id:
               </div>
               <div>
                 <p className="text-sm text-muted-foreground">Giá thuê</p>
-                <p className="font-medium text-blue-600">{room.price.toLocaleString('vi-VN')} đ</p>
+                <p className="font-medium text-blue-600">{room.base_price.toLocaleString('vi-VN')} đ</p>
               </div>
               <div>
                 <p className="text-sm text-muted-foreground">Trạng thái</p>

@@ -1,4 +1,5 @@
 import { createClient } from '@/lib/supabase/server'
+import { createAdminClient } from '@/lib/supabase/admin'
 import {
   Table,
   TableBody,
@@ -10,13 +11,20 @@ import {
 import { Badge } from '@/components/ui/badge'
 import { Card, CardContent } from '@/components/ui/card'
 import { CreateManagerDialog } from './_components/CreateManagerDialog'
+import { EditManagerDialog } from './_components/EditManagerDialog'
+import { DeleteManagerButton } from './_components/DeleteManagerButton'
 import { ShieldAlert, Users, Building, Phone, Clock, AlertCircle } from 'lucide-react'
 
 export default async function ManagersPage() {
+  // Verify auth
   const supabase = await createClient()
+  await supabase.auth.getUser()
+
+  // Dùng admin client để bypass RLS
+  const adminSupabase = createAdminClient()
 
   // 1. Fetch branches for selector and mapping
-  const { data: rawBranches } = await supabase
+  const { data: rawBranches } = await adminSupabase
     .from('branches')
     .select('id, name')
     .order('name')
@@ -27,7 +35,7 @@ export default async function ManagersPage() {
   branches.forEach((b) => branchMap.set(b.id, b.name))
 
   // 2. Fetch managers
-  const { data: rawManagers } = await supabase
+  const { data: rawManagers } = await adminSupabase
     .from('users')
     .select('id, full_name, phone, role, branch_id')
     .eq('role', 'manager')
@@ -115,6 +123,7 @@ export default async function ManagersPage() {
                   <TableHead className="font-semibold text-gray-600">Chi nhánh phụ trách</TableHead>
                   <TableHead className="font-semibold text-gray-600">Vai trò</TableHead>
                   <TableHead className="font-semibold text-gray-600">Trạng thái</TableHead>
+                  <TableHead className="w-[100px] text-right font-semibold text-gray-600">Thao tác</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -130,7 +139,7 @@ export default async function ManagersPage() {
                           <div>
                             <span className="block font-semibold">{manager.full_name || 'Chưa đặt tên'}</span>
                             <span className="text-[10px] text-gray-400 flex items-center gap-1 mt-0.5">
-                              <Clock className="h-2.5 w-2.5" /> ID: {manager.id.slice(0, 8)}...
+                              <Clock className="h-2.5 w-2.5" /> ID: {String(manager.id).slice(0, 8)}...
                             </span>
                           </div>
                         </div>
@@ -160,6 +169,12 @@ export default async function ManagersPage() {
                         <Badge className="bg-teal-50 border-teal-200 text-teal-700 hover:bg-teal-100 font-semibold rounded-full px-2.5 py-0.5">
                           Hoạt động
                         </Badge>
+                      </TableCell>
+                      <TableCell className="text-right py-4">
+                        <div className="flex items-center justify-end gap-1">
+                          <EditManagerDialog manager={manager} branches={branches} />
+                          <DeleteManagerButton id={manager.id} name={manager.full_name || 'Manager'} />
+                        </div>
                       </TableCell>
                     </TableRow>
                   )
