@@ -1,0 +1,11 @@
+# Ignore macOS system files
+.DS_Store
+
+# Ignore local AI agent directory
+.agents/
+
+# Ignore local next-rms-app build and env files
+next-rms-app/node_modules/
+next-rms-app/.next/
+next-rms-app/.env*
+next-rms-app/*.tsbuildinfo
