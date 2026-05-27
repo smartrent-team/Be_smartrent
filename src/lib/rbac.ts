@@ -1,9 +1,14 @@
-import { createApiClient } from './supabase/server'
+import { createApiClient, createClient } from './supabase/server'
+import { headers } from 'next/headers'
 
 export async function verifyRole() {
-  const supabase = await createApiClient()
+  const headersList = await headers()
+  const authHeader = headersList.get('authorization')
+
+  // Nếu có Authorization header (từ mobile/swagger), dùng createApiClient, ngược lại dùng createClient (từ web cookies)
+  const supabase = authHeader ? await createApiClient() : await createClient()
   
-  // 1. Xác thực JWT (từ Authorization Header)
+  // 1. Xác thực JWT
   const { data: { user }, error: authError } = await supabase.auth.getUser()
 
   if (authError || !user) {
