@@ -24,7 +24,7 @@ export default async function TenantDetailPage({ params }: { params: Promise<{ i
       user:users(*),
       room:rooms(id, room_code, base_price),
       invoices(id, invoice_code, total_amount, payment_status, issued_at),
-      contracts(id, contract_images, status, deposit_amount)
+      contracts(id, status, deposit_amount)
     `)
     .eq('id', id)
     .single()
@@ -38,7 +38,7 @@ export default async function TenantDetailPage({ params }: { params: Promise<{ i
 
   // Lấy ảnh của hợp đồng đang active
   const activeContract = (tenant?.contracts as unknown as ContractData[])?.find((c) => c.status === 'active')
-  const initialImages = activeContract?.contract_images || []
+  const initialImages: string[] = []
 
   if (error || !tenant) {
     console.error('Tenant fetch error for id', id, ':', error);
