@@ -9,7 +9,7 @@ import {
   TableRow,
 } from '@/components/ui/table'
 import { Badge } from '@/components/ui/badge'
-import { Button } from '@/components/ui/button'
+import { Button, buttonVariants } from '@/components/ui/button'
 import { Phone, Mail, Eye } from 'lucide-react'
 import { Pagination } from '@/components/shared/Pagination'
 import Link from 'next/link'
@@ -123,10 +123,12 @@ export default async function TenantsPage({ searchParams }: { searchParams: Prom
                   </TableCell>
                   <TableCell className="text-right">
                     <div className="flex items-center justify-end gap-1">
-                      <Link href={`/tenants/${tenant.id}`}>
-                        <Button variant="ghost" size="icon" title="Xem chi tiết" className="h-9 w-9">
-                          <Eye className="h-4 w-4" />
-                        </Button>
+                      <Link
+                        href={`/tenants/${tenant.id}`}
+                        className={buttonVariants({ variant: 'ghost', size: 'icon' }) + " text-teal-600 hover:text-teal-700 hover:bg-teal-50/50 rounded-lg h-9 w-9 flex items-center justify-center"}
+                        title="Xem chi tiết"
+                      >
+                        <Eye className="h-4 w-4" />
                       </Link>
                       <EditTenantDialog tenant={tenant} rooms={allRooms} />
                       <DeleteTenantButton id={tenant.id} userId={tenant.userId} name={tenant.name} />

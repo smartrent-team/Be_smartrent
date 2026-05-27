@@ -5,7 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import Link from 'next/link'
 import { ArrowLeft, Users, FileText, Wrench } from 'lucide-react'
-import { Button } from '@/components/ui/button'
+import { Button, buttonVariants } from '@/components/ui/button'
 
 export default async function RoomDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
@@ -113,8 +113,11 @@ export default async function RoomDetailPage({ params }: { params: Promise<{ id:
                       <p className="font-medium">{t.user?.full_name}</p>
                       <p className="text-sm text-muted-foreground">{t.user?.phone || 'Không có sđt'}</p>
                     </div>
-                    <Link href={`/tenants/${t.id}`}>
-                      <Button variant="ghost" size="sm">Xem</Button>
+                    <Link
+                      href={`/tenants/${t.id}`}
+                      className={buttonVariants({ variant: 'ghost', size: 'sm' }) + " flex items-center justify-center"}
+                    >
+                      Xem
                     </Link>
                   </div>
                 ))}
