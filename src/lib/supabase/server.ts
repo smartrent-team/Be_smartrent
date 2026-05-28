@@ -33,6 +33,12 @@ export async function createApiClient() {
   const headersList = await headers()
   const authHeader = headersList.get('authorization')
 
+  // Chuẩn hóa scheme JWT thành Bearer để Supabase có thể nhận diện đúng
+  let finalAuthHeader = authHeader
+  if (authHeader && authHeader.startsWith('JWT ')) {
+    finalAuthHeader = authHeader.replace('JWT ', 'Bearer ')
+  }
+
   return createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
@@ -45,7 +51,7 @@ export async function createApiClient() {
       global: {
         headers: {
           // Gắn Token của Mobile vào header gửi lên Supabase
-          ...(authHeader ? { Authorization: authHeader } : {})
+          ...(finalAuthHeader ? { Authorization: finalAuthHeader } : {})
         }
       }
     }
