@@ -133,7 +133,10 @@ export default async function RoomsPage({ searchParams }: { searchParams: Promis
           <TableBody>
             {roomsList.map((room) => (
               <TableRow key={room.id}>
-                <TableCell className="font-medium">{room.room_code}</TableCell>
+                <TableCell className="font-medium">
+                  {room.room_code}
+                  <span className="text-xs text-muted-foreground ml-2">(ID: {room.id})</span>
+                </TableCell>
                 <TableCell className="font-semibold text-emerald-800">
                   {room.branch?.name || 'Chưa phân chi nhánh'}
                 </TableCell>

@@ -63,7 +63,10 @@ export default async function RoomDetailPage({ params }: { params: Promise<{ id:
           </Button>
         </Link>
         <div>
-          <h1 className="text-3xl font-bold tracking-tight">Phòng {room.room_code}</h1>
+          <h1 className="text-3xl font-bold tracking-tight">
+            Phòng {room.room_code} 
+            <span className="text-lg font-normal text-muted-foreground ml-2">(ID: {room.id})</span>
+          </h1>
           <p className="text-muted-foreground mt-1">Thông tin chi tiết và lịch sử phòng.</p>
         </div>
       </div>
