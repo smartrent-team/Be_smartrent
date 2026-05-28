@@ -49,3 +49,50 @@ export async function GET(
     return NextResponse.json({ error: errorMessage }, { status: 500 })
   }
 }
+
+export async function PATCH(
+  request: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  try {
+    // 1. Xác thực (yêu cầu quyền manager hoặc super_admin)
+    const auth = await verifyRole(['manager', 'super_admin'])
+    if (auth.error) {
+      return NextResponse.json({ error: auth.error }, { status: auth.status })
+    }
+
+    const { id } = await params
+    const supabase = auth.supabase!
+    
+    // 2. Lấy dữ liệu từ body
+    const body = await request.json()
+    const { status } = body
+
+    if (!status || !['pending', 'in-progress', 'resolved'].includes(status)) {
+      return NextResponse.json(
+        { error: 'Trạng thái không hợp lệ. Phải là: pending, in-progress, hoặc resolved' }, 
+        { status: 400 }
+      )
+    }
+
+    // 3. Cập nhật database
+    const { error } = await supabase
+      .from('maintenance_tickets')
+      .update({ status })
+      .eq('id', id)
+
+    if (error) {
+      return NextResponse.json({ error: error.message }, { status: 400 })
+    }
+
+    return NextResponse.json({
+      success: true,
+      message: 'Cập nhật trạng thái thành công',
+      status: status
+    })
+
+  } catch (error: unknown) {
+    const errorMessage = error instanceof Error ? error.message : String(error)
+    return NextResponse.json({ error: errorMessage }, { status: 500 })
+  }
+}

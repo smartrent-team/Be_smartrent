@@ -34,3 +34,26 @@ export async function updateTicketStatus(ticketId: string | number, status: 'pen
   revalidatePath('/tickets')
   revalidatePath(`/tickets/${ticketId}`)
 }
+export async function updateTicketDetails(
+  ticketId: string | number,
+  data: { title: string; description: string; priority: 'low' | 'medium' | 'high' }
+) {
+  const supabase = await createClient()
+
+  const { error } = await supabase
+    .from('maintenance_tickets')
+    .update({
+      title: data.title,
+      description: data.description,
+      priority: data.priority,
+    })
+    .eq('id', ticketId)
+
+  if (error) {
+    console.error('Lỗi khi cập nhật chi tiết ticket:', error)
+    throw new Error(error.message)
+  }
+
+  revalidatePath('/tickets')
+  revalidatePath(`/tickets/${ticketId}`)
+}

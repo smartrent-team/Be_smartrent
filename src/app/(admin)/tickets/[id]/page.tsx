@@ -6,6 +6,7 @@ import { ArrowLeft, User, Phone, MapPin, Calendar, AlertTriangle } from 'lucide-
 import Link from 'next/link'
 import { Button } from '@/components/ui/button'
 import StatusUpdater from './StatusUpdater'
+import EditTicketDialog from './EditTicketDialog'
 
 export default async function TicketDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
@@ -53,7 +54,15 @@ export default async function TicketDetailPage({ params }: { params: Promise<{ i
           </Button>
           <h1 className="text-3xl font-bold tracking-tight">Chi tiết báo hỏng #{ticket.id}</h1>
         </div>
-        <StatusUpdater ticketId={ticket.id} currentStatus={ticket.status as any} />
+        <div className="flex items-center gap-3">
+          <EditTicketDialog 
+            ticketId={ticket.id}
+            initialTitle={ticket.title}
+            initialDescription={ticket.description || ''}
+            initialPriority={ticket.priority as 'low' | 'medium' | 'high'}
+          />
+          <StatusUpdater ticketId={ticket.id} currentStatus={ticket.status as any} />
+        </div>
       </div>
 
       <div className="grid gap-6 md:grid-cols-2">

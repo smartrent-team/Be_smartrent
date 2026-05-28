@@ -1062,6 +1062,85 @@
             "description": "Không tìm thấy ticket"
           }
         }
+      },
+      "patch": {
+        "tags": [
+          "Tickets"
+        ],
+        "summary": "Cập nhật trạng thái báo hỏng (dành cho Manager/Admin)",
+        "description": "Cho phép quản lý hoặc admin cập nhật trạng thái của báo hỏng (chờ xử lý, đang sửa, đã xong). Yêu cầu Authorization Bearer token và quyền manager trở lên.",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "description": "ID của ticket",
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "status": {
+                    "type": "string",
+                    "enum": [
+                      "pending",
+                      "in-progress",
+                      "resolved"
+                    ],
+                    "description": "Trạng thái mới của báo hỏng"
+                  }
+                },
+                "required": [
+                  "status"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Thành công",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean"
+                    },
+                    "message": {
+                      "type": "string"
+                    },
+                    "status": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Dữ liệu đầu vào không hợp lệ hoặc lỗi DB"
+          },
+          "401": {
+            "description": "Chưa xác thực"
+          },
+          "403": {
+            "description": "Không có quyền truy cập (chỉ manager hoặc admin mới được dùng)"
+          }
+        }
       }
     }
   }
