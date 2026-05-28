@@ -8,10 +8,14 @@ export async function verifyRole() {
   // Nếu có Authorization header (từ mobile/swagger), dùng createApiClient, ngược lại dùng createClient (từ web cookies)
   const supabase = authHeader ? await createApiClient() : await createClient()
   
-  // 1. Xác thực JWT
-  const { data: { user }, error: authError } = await supabase.auth.getUser()
+  // Nếu có authHeader (Bearer <token>), ta cắt lấy token (bỏ qua hoa/thường)
+  const token = authHeader?.replace(/^Bearer\s+/i, '')
+  const { data: { user }, error: authError } = token 
+    ? await supabase.auth.getUser(token) 
+    : await supabase.auth.getUser()
 
   if (authError || !user) {
+    console.error('verifyRole Auth Error:', authError?.message || 'No user found', 'Token length:', token?.length)
     return { error: 'Unauthorized', status: 401 }
   }
 

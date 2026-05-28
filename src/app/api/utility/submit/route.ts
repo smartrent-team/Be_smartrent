@@ -1,15 +1,16 @@
-import { createClient } from '@/lib/supabase/server'
+import { verifyRole } from '@/lib/rbac'
 import { NextResponse, type NextRequest } from 'next/server'
 
 export async function POST(request: NextRequest) {
   try {
-    const supabase = await createClient()
-
-    // 1. Kiểm tra Auth (Bảo vệ API)
-    const { data: { user }, error: authError } = await supabase.auth.getUser()
-    if (authError || !user) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    // 1. Kiểm tra Auth (Bảo vệ API) bằng verifyRole (hỗ trợ cả Cookie lẫn Bearer Token từ Mobile)
+    const auth = await verifyRole()
+    if (auth.error) {
+      return NextResponse.json({ error: auth.error }, { status: auth.status })
     }
+    
+    const supabase = auth.supabase!
+    // user = auth.user! (nếu cần)
 
     // 2. Lấy dữ liệu từ Flutter App gửi lên
     const body = await request.json()
@@ -29,14 +30,14 @@ export async function POST(request: NextRequest) {
 
     const { data: previousLog } = await supabase
       .from('utility_logs')
-      .select('electricity_index, water_index')
+      .select('electric_new, water_new')
       .eq('room_id', roomId)
       .eq('month', previousMonth)
       .eq('year', previousYear)
       .single()
 
-    const prevElectricity = previousLog?.electricity_index || 0
-    const prevWater = previousLog?.water_index || 0
+    const prevElectricity = previousLog?.electric_new || 0
+    const prevWater = previousLog?.water_new || 0
 
     const electricityUsed = currentElectricity - prevElectricity
     const waterUsed = currentWater - prevWater
@@ -72,8 +73,12 @@ export async function POST(request: NextRequest) {
         room_id: roomId,
         month,
         year,
-        electricity_index: currentElectricity,
-        water_index: currentWater
+        electric_old: prevElectricity,
+        electric_new: currentElectricity,
+        electric_usage: electricityUsed,
+        water_old: prevWater,
+        water_new: currentWater,
+        water_usage: waterUsed,
       })
       .select()
       .single()
@@ -96,9 +101,9 @@ export async function POST(request: NextRequest) {
       } 
     })
 
-  } catch (error: unknown) {
+  } catch (error: any) {
     console.error('Error submitting utility logic:', error)
-    const errorMessage = error instanceof Error ? error.message : String(error)
+    const errorMessage = error?.message || error?.details || String(error)
     return NextResponse.json({ error: errorMessage }, { status: 500 })
   }
 }
