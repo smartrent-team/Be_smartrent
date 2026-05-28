@@ -1,5 +1,6 @@
 import { NextResponse, type NextRequest } from 'next/server'
 import { verifyRole } from '@/lib/rbac'
+import { createAdminClient } from '@/lib/supabase/admin'
 
 export async function POST(request: NextRequest) {
   try {
@@ -15,8 +16,11 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Mật khẩu mới phải có ít nhất 6 ký tự' }, { status: 400 })
     }
 
-    // supabase instance here already has the user's JWT so it can update their password
-    const { error } = await auth.supabase!.auth.updateUser({
+    // Vì createApiClient() cho Mobile App chỉ truyền Authorization header mà không set auth session
+    // Hàm updateUser() mặc định sẽ báo lỗi "Auth session missing!".
+    // Khi đã đi qua verifyRole() tức là JWT đã hợp lệ, ta có thể an toàn dùng Admin Client để đổi pass
+    const supabaseAdmin = createAdminClient()
+    const { error } = await supabaseAdmin.auth.admin.updateUserById(auth.user!.id, {
       password: new_password
     })
 
