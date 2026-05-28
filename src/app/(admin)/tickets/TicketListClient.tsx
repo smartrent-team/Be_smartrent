@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useState, useRef } from 'react'
+import Link from 'next/link'
 import {
   Table,
   TableBody,
@@ -11,7 +12,7 @@ import {
 } from '@/components/ui/table'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
-import { Check, MoreHorizontal } from 'lucide-react'
+import { Check, MoreHorizontal, Eye } from 'lucide-react'
 import { toast } from 'sonner'
 import { createClient } from '@/lib/supabase/client'
 import { resolveTicket } from './actions'
@@ -132,17 +133,20 @@ export default function TicketListClient({ initialTickets }: { initialTickets: T
                 <TableCell>{getPriorityBadge(ticket.priority)}</TableCell>
                 <TableCell>{getStatusBadge(ticket.status)}</TableCell>
                 <TableCell className="text-right">
-                  {ticket.status !== 'resolved' ? (
-                    <form action={resolveTicket.bind(null, ticket.id)}>
-                      <Button variant="outline" size="sm" className="gap-2" type="submit">
-                        <Check className="h-3 w-3" /> Đánh dấu xong
-                      </Button>
-                    </form>
-                  ) : (
-                    <Button variant="ghost" size="icon">
-                      <MoreHorizontal className="h-4 w-4" />
+                  <div className="flex items-center justify-end gap-2">
+                    <Button variant="outline" size="sm" className="gap-2" asChild>
+                      <Link href={`/tickets/${ticket.id}`}>
+                        <Eye className="h-4 w-4" /> Xem
+                      </Link>
                     </Button>
-                  )}
+                    {ticket.status !== 'resolved' && (
+                      <form action={resolveTicket.bind(null, ticket.id)}>
+                        <Button variant="secondary" size="sm" className="gap-2" type="submit">
+                          <Check className="h-4 w-4" /> Xong
+                        </Button>
+                      </form>
+                    )}
+                  </div>
                 </TableCell>
               </TableRow>
             ))

@@ -18,3 +18,19 @@ export async function resolveTicket(ticketId: string | number) {
 
   revalidatePath('/tickets')
 }
+export async function updateTicketStatus(ticketId: string | number, status: 'pending' | 'in-progress' | 'resolved') {
+  const supabase = await createClient()
+
+  const { error } = await supabase
+    .from('maintenance_tickets')
+    .update({ status })
+    .eq('id', ticketId)
+
+  if (error) {
+    console.error('Lỗi khi cập nhật trạng thái:', error)
+    throw new Error(error.message)
+  }
+
+  revalidatePath('/tickets')
+  revalidatePath(`/tickets/${ticketId}`)
+}
