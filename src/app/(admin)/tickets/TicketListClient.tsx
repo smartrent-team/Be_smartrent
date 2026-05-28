@@ -18,6 +18,7 @@ import { resolveTicket } from './actions'
 
 type Ticket = {
   id: number
+  roomId?: number
   room: string
   title: string
   date: string
@@ -49,7 +50,8 @@ export default function TicketListClient({ initialTickets }: { initialTickets: T
             // Tạm thời hiển thị "Mới" nếu chưa kịp fetch room_number
             const newTicket: Ticket = {
               id: newDoc.id,
-              room: `(ID: ${newDoc.room_id})`,
+              roomId: newDoc.room_id,
+              room: '...',
               title: newDoc.title || 'Yêu cầu mới',
               date: new Date(newDoc.created_at).toLocaleDateString('vi-VN'),
               priority: newDoc.priority || 'medium',
@@ -121,7 +123,10 @@ export default function TicketListClient({ initialTickets }: { initialTickets: T
           {tickets.length > 0 ? (
             tickets.map((ticket) => (
               <TableRow key={ticket.id}>
-                <TableCell className="font-medium">P.{ticket.room}</TableCell>
+                <TableCell className="font-medium">
+                  {ticket.room && ticket.room !== 'Chung' && ticket.room !== '...' ? `P.${ticket.room}` : ticket.room}
+                  {ticket.roomId && <span className="text-xs text-muted-foreground ml-2">(ID: {ticket.roomId})</span>}
+                </TableCell>
                 <TableCell className="max-w-[300px] truncate" title={ticket.title}>{ticket.title}</TableCell>
                 <TableCell>{ticket.date}</TableCell>
                 <TableCell>{getPriorityBadge(ticket.priority)}</TableCell>

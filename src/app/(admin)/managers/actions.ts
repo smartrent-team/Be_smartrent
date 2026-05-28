@@ -39,14 +39,6 @@ export async function editManager(
     updateAuthData.password = data.password
   }
 
-  if (Object.keys(updateAuthData).length > 0) {
-    const { error: authError } = await adminSupabase.auth.admin.updateUserById(id, updateAuthData)
-    if (authError) {
-      console.error('Lỗi khi cập nhật Auth User:', authError)
-      throw new Error('Lỗi cập nhật tài khoản Auth: ' + authError.message)
-    }
-  }
-
   const userIntId = parseInt(id, 10)
   const { data: userProfile } = await adminSupabase.from('users').select('phone').eq('id', userIntId).single()
 

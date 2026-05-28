@@ -9,7 +9,7 @@ export default async function TicketsPage() {
   const adminSupabase = createAdminClient()
   const { data: rawTickets } = await adminSupabase
     .from('maintenance_tickets')
-    .select('id, title, priority, status, created_at, room:rooms(room_code)')
+    .select('id, title, priority, status, created_at, room_id, room:rooms(room_code)')
     .order('created_at', { ascending: false })
   
   interface TicketData {
@@ -18,11 +18,13 @@ export default async function TicketsPage() {
     priority?: string;
     status?: string;
     created_at?: string;
+    room_id?: number;
     room?: { room_code: string };
   }
 
   const tickets = ((rawTickets as unknown as TicketData[]) || []).map((ticket) => ({
     id: ticket.id,
+    roomId: ticket.room_id,
     room: ticket.room?.room_code || 'Chung',
     title: ticket.title || 'Không có tiêu đề',
     date: ticket.created_at ? new Date(ticket.created_at).toLocaleDateString('vi-VN') : 'N/A',
