@@ -151,7 +151,10 @@ export default async function RoomsPage({ searchParams }: { searchParams: Promis
                       ? room.tenants.find((t) => !t.move_out_date) 
                       : null
                     return activeTenant ? (
-                      <span className="font-semibold text-slate-700">{activeTenant.user?.full_name || 'Khách chưa đặt tên'}</span>
+                      <span className="font-semibold text-slate-700">
+                        {activeTenant.user?.full_name || 'Khách chưa đặt tên'}
+                        <span className="text-xs text-gray-400 font-normal ml-2">(ID: {activeTenant.id})</span>
+                      </span>
                     ) : (
                       <span className="text-gray-400 italic text-xs">Trống</span>
                     )

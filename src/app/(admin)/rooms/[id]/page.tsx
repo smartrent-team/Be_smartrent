@@ -113,7 +113,10 @@ export default async function RoomDetailPage({ params }: { params: Promise<{ id:
                 {currentTenants.map((t) => (
                   <div key={t.id} className="flex justify-between items-center border-b pb-2 last:border-0">
                     <div>
-                      <p className="font-medium">{t.user?.full_name}</p>
+                      <p className="font-medium">
+                        {t.user?.full_name}
+                        <span className="text-xs text-muted-foreground font-normal ml-2">(ID: {t.id})</span>
+                      </p>
                       <p className="text-sm text-muted-foreground">{t.user?.phone || 'Không có sđt'}</p>
                     </div>
                     <Link
