@@ -1,0 +1,34 @@
+import { NextResponse, type NextRequest } from 'next/server'
+import { createClient } from '@/lib/supabase/server'
+import { headers } from 'next/headers'
+
+export async function POST(request: NextRequest) {
+  try {
+    const body = await request.json()
+    const { email } = body
+
+    if (!email) {
+      return NextResponse.json({ error: 'Email là bắt buộc' }, { status: 400 })
+    }
+
+    const supabase = await createClient()
+    const headersList = await headers()
+    
+    const host = headersList.get('host')
+    const protocol = process.env.NODE_ENV === 'development' ? 'http' : 'https'
+    const origin = `${protocol}://${host}`
+
+    const { error } = await supabase.auth.resetPasswordForEmail(email, {
+      redirectTo: `${origin}/api/auth/callback?next=/update-password`,
+    })
+
+    if (error) {
+      return NextResponse.json({ error: error.message }, { status: 400 })
+    }
+
+    return NextResponse.json({ success: true, message: 'Đã gửi email khôi phục mật khẩu. Vui lòng kiểm tra hộp thư của bạn.' })
+  } catch (error: unknown) {
+    const errorMessage = error instanceof Error ? error.message : String(error)
+    return NextResponse.json({ error: errorMessage }, { status: 500 })
+  }
+}

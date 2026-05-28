@@ -1,50 +1,50 @@
-import { login } from './actions'
+import { resetPassword } from './actions'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card'
 import Link from 'next/link'
 
-export default async function LoginPage({
+export default async function ForgotPasswordPage({
   searchParams,
 }: {
-  searchParams: Promise<{ message: string }>
+  searchParams: Promise<{ message?: string; success?: string }>
 }) {
-  const { message } = await searchParams
+  const { message, success } = await searchParams
+
   return (
     <div className="flex items-center justify-center min-h-screen bg-gray-50">
       <Card className="w-[400px]">
         <CardHeader>
-          <CardTitle>Đăng nhập Hệ thống RMS</CardTitle>
+          <CardTitle>Khôi phục mật khẩu</CardTitle>
           <CardDescription>
-            Nhập email và mật khẩu của bạn để truy cập hệ thống quản lý.
+            Nhập email của bạn và chúng tôi sẽ gửi liên kết để đặt lại mật khẩu.
           </CardDescription>
         </CardHeader>
-        <form action={login}>
+        <form action={resetPassword}>
           <CardContent className="space-y-4">
             {message && (
               <div className="p-3 text-sm text-red-500 bg-red-50 rounded-md">
                 {message}
               </div>
             )}
+            {success && (
+              <div className="p-3 text-sm text-green-700 bg-green-50 rounded-md">
+                {success}
+              </div>
+            )}
             <div className="space-y-2">
               <Label htmlFor="email">Email</Label>
               <Input id="email" name="email" type="email" placeholder="name@example.com" required />
             </div>
-            <div className="space-y-2">
-              <div className="flex items-center justify-between">
-                <Label htmlFor="password">Mật khẩu</Label>
-                <Link href="/forgot-password" className="text-sm font-medium text-blue-600 hover:underline">
-                  Quên mật khẩu?
-                </Link>
-              </div>
-              <Input id="password" name="password" type="password" required />
-            </div>
           </CardContent>
-          <CardFooter>
+          <CardFooter className="flex flex-col gap-3">
             <Button type="submit" className="w-full">
-              Đăng nhập
+              Gửi email khôi phục
             </Button>
+            <Link href="/login" className="text-sm text-muted-foreground hover:underline">
+              Quay lại Đăng nhập
+            </Link>
           </CardFooter>
         </form>
       </Card>
