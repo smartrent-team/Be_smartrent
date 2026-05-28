@@ -101,9 +101,9 @@ export async function POST(request: NextRequest) {
       } 
     })
 
-  } catch (error: any) {
+  } catch (error) {
     console.error('Error submitting utility logic:', error)
-    const errorMessage = error?.message || error?.details || String(error)
+    const errorMessage = error instanceof Error ? error.message : String(error)
     return NextResponse.json({ error: errorMessage }, { status: 500 })
   }
 }
