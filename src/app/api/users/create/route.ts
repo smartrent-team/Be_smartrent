@@ -11,7 +11,7 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json()
-    const { phone, password, full_name, role: targetRole, branch_id: targetBranchId } = body
+    const { phone, password, full_name, role: targetRole, branch_id: targetBranchId, room_id } = body
 
     if (!phone || !password || !targetRole) {
       return NextResponse.json({ error: 'Thiếu thông tin bắt buộc (phone, password, role)' }, { status: 400 })
@@ -61,7 +61,7 @@ export async function POST(request: NextRequest) {
     }
 
     // 4. Lưu thông tin phụ vào bảng public.users (để cột id tự động sinh số nguyên integer)
-    const { error: dbError } = await adminSupabase
+    const { data: newUserProfile, error: dbError } = await adminSupabase
       .from('users')
       .insert({
         full_name,
@@ -70,11 +70,49 @@ export async function POST(request: NextRequest) {
         branch_id: finalBranchId || null,
         email: dummyEmail
       })
+      .select()
+      .single()
 
-    if (dbError) {
+    if (dbError || !newUserProfile) {
       // Rollback (Xóa auth user nếu chèn DB thất bại)
       await adminSupabase.auth.admin.deleteUser(authData.user.id)
-      return NextResponse.json({ error: 'Lỗi khi ghi dữ liệu profile: ' + dbError.message }, { status: 500 })
+      return NextResponse.json({ error: 'Lỗi khi ghi dữ liệu profile: ' + (dbError?.message || 'Unknown error') }, { status: 500 })
+    }
+
+    // 5. Nếu vai trò là tenant và có room_id, thêm thông tin vào bảng tenants và cập nhật trạng thái phòng
+    if (targetRole === 'tenant' && room_id) {
+      const roomIdNum = Number(room_id)
+      const { data: tenantData, error: tenantError } = await adminSupabase
+        .from('tenants')
+        .insert({
+          user_id: newUserProfile.id,
+          room_id: roomIdNum,
+          move_in_date: new Date().toISOString(),
+          identity_number: '000000000000'
+        })
+        .select()
+        .single()
+
+      if (tenantError) {
+        // Rollback cả user và auth user
+        await adminSupabase.from('users').delete().eq('id', newUserProfile.id)
+        await adminSupabase.auth.admin.deleteUser(authData.user.id)
+        return NextResponse.json({ error: 'Lỗi khi tạo hồ sơ cư dân thuê phòng: ' + tenantError.message }, { status: 500 })
+      }
+
+      // Cập nhật trạng thái phòng thành occupied
+      const { error: roomUpdateError } = await adminSupabase
+        .from('rooms')
+        .update({ status: 'occupied' })
+        .eq('id', roomIdNum)
+
+      if (roomUpdateError) {
+        // Rollback tenant, user và auth user
+        await adminSupabase.from('tenants').delete().eq('id', tenantData.id)
+        await adminSupabase.from('users').delete().eq('id', newUserProfile.id)
+        await adminSupabase.auth.admin.deleteUser(authData.user.id)
+        return NextResponse.json({ error: 'Lỗi khi cập nhật trạng thái phòng: ' + roomUpdateError.message }, { status: 500 })
+      }
     }
 
     return NextResponse.json({ 

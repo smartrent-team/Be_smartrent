@@ -4,104 +4,111 @@ import { verifyRole } from '@/lib/rbac'
 export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url)
-    const roomIdParam = searchParams.get('id')
+    const roomId = searchParams.get('id')
 
-    if (!roomIdParam) {
-      return NextResponse.json({ error: 'Thiếu mã phòng (id)' }, { status: 400 })
+    if (!roomId) {
+      return NextResponse.json({ error: 'Thiếu ID phòng (parameter id)' }, { status: 400 })
     }
 
-    const roomId = parseInt(roomIdParam, 10)
-    if (Number.isNaN(roomId)) {
-      return NextResponse.json({ error: 'Mã phòng không hợp lệ' }, { status: 400 })
-    }
-
-    // 1. Dùng RBAC xác thực JWT
+    // 1. Xác thực người gọi API qua RBAC
     const auth = await verifyRole()
     if (auth.error || !auth.user || !auth.role) {
       return NextResponse.json({ error: auth.error || 'Unauthorized' }, { status: auth.status || 401 })
     }
+
     const supabase = auth.supabase!
 
-    // Query room detail along with relations
+    // 2. Truy vấn chi tiết phòng cùng thông tin tenants, invoices, tickets liên quan
     const { data: room, error } = await supabase
       .from('rooms')
       .select(`
         *,
         tenants (
-          id, user_id, move_in_date, move_out_date, user:users(full_name, phone)
+          id,
+          move_in_date,
+          move_out_date,
+          user:users (
+            full_name,
+            phone
+          )
         ),
         invoices (
-          id, invoice_code, total_amount, payment_status, issued_at
+          id,
+          total_amount,
+          payment_status,
+          issued_at
         ),
         maintenance_tickets (
-          id, title, status, created_at, priority
+          id,
+          title,
+          priority,
+          status,
+          created_at
         )
       `)
-      .eq('id', roomId)
+      .eq('id', Number(roomId))
       .single()
 
     if (error || !room) {
-      return NextResponse.json({ error: 'Không tìm thấy thông tin phòng' }, { status: 404 })
+      return NextResponse.json({ error: 'Không tìm thấy phòng được yêu cầu' }, { status: 404 })
     }
 
-    // 2. Phân quyền theo Role
+    // 3. Phân quyền: Manager chỉ thấy phòng thuộc chi nhánh của họ
     if (auth.role === 'manager') {
       if (!auth.branchId || room.branch_id !== auth.branchId) {
         return NextResponse.json({ error: 'Bạn không có quyền truy cập thông tin phòng thuộc chi nhánh khác' }, { status: 403 })
       }
-    } else if (auth.role === 'tenant') {
-      // Check if this user is an active tenant in this room
-      const activeTenant = (room.tenants as any[])?.find(
-        (t) => !t.move_out_date && t.user_id === auth.user?.id
-      )
-      if (!activeTenant) {
-        return NextResponse.json({ error: 'Bạn không có quyền truy cập thông tin phòng này' }, { status: 403 })
-      }
     }
 
-    // Transform response
-    // Get active tenant if exists
-    const activeTenant = (room.tenants as any[])?.find((t) => !t.move_out_date) || null
-    const tenant = activeTenant ? {
+    // 4. Tìm cư dân đang hoạt động (active tenant - chưa dời đi)
+    const activeTenant = room.tenants && room.tenants.length > 0
+      ? room.tenants.find((t: any) => !t.move_out_date)
+      : null
+
+    const tenantInfo = activeTenant ? {
       id: activeTenant.id,
       name: activeTenant.user?.full_name || 'Khách chưa có tên',
       phone: activeTenant.user?.phone || 'Chưa cập nhật',
       checkInDate: activeTenant.move_in_date
     } : null
 
-    const data = {
-      id: room.id,
-      roomCode: room.room_code,
-      floor: room.floor,
-      area: room.area,
-      basePrice: room.base_price,
-      electricPrice: room.electric_price,
-      waterPrice: room.water_price,
-      status: room.status,
-      tenant,
-      invoices: (room.invoices as any[])?.map(inv => ({
-        id: inv.id,
-        invoiceCode: inv.invoice_code,
-        totalAmount: inv.total_amount,
-        paymentStatus: inv.payment_status,
-        issuedAt: inv.issued_at
-      })) || [],
-      tickets: (room.maintenance_tickets as any[])?.map(ticket => ({
-        id: ticket.id,
-        title: ticket.title,
-        status: ticket.status,
-        createdAt: ticket.created_at,
-        priority: ticket.priority
-      })) || []
-    }
+    // 5. Định dạng lịch sử hóa đơn
+    const invoicesList = (room.invoices || []).map((inv: any) => ({
+      id: inv.id,
+      totalAmount: inv.total_amount,
+      paymentStatus: inv.payment_status,
+      issuedAt: inv.issued_at
+    }))
 
+    // 6. Định dạng lịch sử sự cố
+    const ticketsList = (room.maintenance_tickets || []).map((tick: any) => ({
+      id: tick.id,
+      title: tick.title,
+      priority: tick.priority,
+      status: tick.status,
+      createdAt: tick.created_at
+    }))
+
+    // 7. Trả về cấu trúc JSON data tương thích 100% với Frontend di động
     return NextResponse.json({
       success: true,
-      data
+      data: {
+        id: room.id,
+        roomCode: room.room_code,
+        floor: room.floor,
+        area: room.area,
+        basePrice: room.base_price,
+        electricPrice: room.electric_price,
+        waterPrice: room.water_price,
+        status: room.status,
+        tenant: tenantInfo,
+        invoices: invoicesList,
+        tickets: ticketsList
+      }
     })
 
   } catch (error: unknown) {
-    console.error('Error fetching room details:', error)
+    console.error('Error fetching room detail:', error)
     const errorMessage = error instanceof Error ? error.message : String(error)
     return NextResponse.json(
       { error: 'Lỗi máy chủ nội bộ', details: errorMessage },
