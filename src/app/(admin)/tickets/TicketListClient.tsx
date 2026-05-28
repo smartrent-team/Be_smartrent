@@ -11,7 +11,7 @@ import {
   TableRow,
 } from '@/components/ui/table'
 import { Badge } from '@/components/ui/badge'
-import { Button } from '@/components/ui/button'
+import { Button, buttonVariants } from '@/components/ui/button'
 import { Check, MoreHorizontal, Eye } from 'lucide-react'
 import { toast } from 'sonner'
 import { createClient } from '@/lib/supabase/client'
@@ -134,11 +134,9 @@ export default function TicketListClient({ initialTickets }: { initialTickets: T
                 <TableCell>{getStatusBadge(ticket.status)}</TableCell>
                 <TableCell className="text-right">
                   <div className="flex items-center justify-end gap-2">
-                    <Button variant="outline" size="sm" className="gap-2" asChild>
-                      <Link href={`/tickets/${ticket.id}`}>
-                        <Eye className="h-4 w-4" /> Xem
-                      </Link>
-                    </Button>
+                    <Link href={`/tickets/${ticket.id}`} className={buttonVariants({ variant: 'outline', size: 'sm', className: 'gap-2' })}>
+                      <Eye className="h-4 w-4" /> Xem
+                    </Link>
                     {ticket.status !== 'resolved' && (
                       <form action={resolveTicket.bind(null, ticket.id)}>
                         <Button variant="secondary" size="sm" className="gap-2" type="submit">

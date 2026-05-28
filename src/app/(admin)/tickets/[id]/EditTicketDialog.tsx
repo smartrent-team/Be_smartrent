@@ -48,11 +48,11 @@ export default function EditTicketDialog({
 
   return (
     <Dialog open={isOpen} onOpenChange={setIsOpen}>
-      <DialogTrigger asChild>
+      <DialogTrigger render={
         <Button variant="outline" className="gap-2">
           <Pencil className="h-4 w-4" /> Sửa thông tin
         </Button>
-      </DialogTrigger>
+      } />
       <DialogContent className="sm:max-w-[500px]">
         <DialogHeader>
           <DialogTitle>Chỉnh sửa Báo hỏng</DialogTitle>

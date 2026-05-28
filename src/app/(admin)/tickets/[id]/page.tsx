@@ -4,7 +4,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Badge } from '@/components/ui/badge'
 import { ArrowLeft, User, Phone, MapPin, Calendar, AlertTriangle } from 'lucide-react'
 import Link from 'next/link'
-import { Button } from '@/components/ui/button'
+import { Button, buttonVariants } from '@/components/ui/button'
 import StatusUpdater from './StatusUpdater'
 import EditTicketDialog from './EditTicketDialog'
 
@@ -47,11 +47,9 @@ export default async function TicketDetailPage({ params }: { params: Promise<{ i
     <div className="flex flex-col gap-6 p-6 max-w-4xl mx-auto">
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-4">
-          <Button variant="ghost" size="icon" asChild>
-            <Link href="/tickets">
-              <ArrowLeft className="h-5 w-5" />
-            </Link>
-          </Button>
+          <Link href="/tickets" className={buttonVariants({ variant: 'ghost', size: 'icon' })}>
+            <ArrowLeft className="h-5 w-5" />
+          </Link>
           <h1 className="text-3xl font-bold tracking-tight">Chi tiết báo hỏng #{ticket.id}</h1>
         </div>
         <div className="flex items-center gap-3">
@@ -125,11 +123,9 @@ export default async function TicketDetailPage({ params }: { params: Promise<{ i
               
               {/* Nút hành động nhanh */}
               <div className="pt-4 flex gap-2">
-                <Button className="w-full gap-2" variant="outline" asChild>
-                  <a href={`tel:${phone}`}>
-                    <Phone className="h-4 w-4" /> Gọi ngay
-                  </a>
-                </Button>
+                <a href={`tel:${phone}`} className={buttonVariants({ variant: 'outline', className: 'w-full gap-2' })}>
+                  <Phone className="h-4 w-4" /> Gọi ngay
+                </a>
               </div>
             </CardContent>
           </Card>
