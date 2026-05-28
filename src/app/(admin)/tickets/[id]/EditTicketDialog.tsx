@@ -39,8 +39,8 @@ export default function EditTicketDialog({
       await updateTicketDetails(ticketId, { title, description, priority })
       toast.success('Cập nhật thông tin thành công')
       setIsOpen(false)
-    } catch (error: any) {
-      toast.error(error.message || 'Lỗi khi cập nhật thông tin')
+    } catch (error) {
+      toast.error('Có lỗi xảy ra: ' + (error as Error).message)
     } finally {
       setIsLoading(false)
     }

@@ -19,15 +19,16 @@ export default function StatusUpdater({
   const [isLoading, setIsLoading] = useState(false)
   const router = useRouter()
 
-  const handleStatusChange = async (newStatus: StatusType) => {
+  const handleStatusChange = async (newStatus: StatusType | null) => {
+    if (!newStatus) return
     setIsLoading(true)
     try {
       await updateTicketStatus(ticketId, newStatus)
       setStatus(newStatus)
       toast.success('Cập nhật trạng thái thành công')
       router.refresh()
-    } catch (error: any) {
-      toast.error(error.message || 'Lỗi khi cập nhật trạng thái')
+    } catch (error) {
+      toast.error('Lỗi: ' + (error as Error).message)
       setStatus(currentStatus) // revert
     } finally {
       setIsLoading(false)

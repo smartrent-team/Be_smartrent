@@ -2,9 +2,9 @@ import { notFound } from 'next/navigation'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
-import { ArrowLeft, User, Phone, MapPin, Calendar, AlertTriangle } from 'lucide-react'
+import { ArrowLeft, User, Phone, MapPin, AlertTriangle } from 'lucide-react'
 import Link from 'next/link'
-import { Button, buttonVariants } from '@/components/ui/button'
+import { buttonVariants } from '@/components/ui/button'
 import StatusUpdater from './StatusUpdater'
 import EditTicketDialog from './EditTicketDialog'
 
@@ -59,7 +59,7 @@ export default async function TicketDetailPage({ params }: { params: Promise<{ i
             initialDescription={ticket.description || ''}
             initialPriority={ticket.priority as 'low' | 'medium' | 'high'}
           />
-          <StatusUpdater ticketId={ticket.id} currentStatus={ticket.status as any} />
+          <StatusUpdater ticketId={ticket.id} currentStatus={ticket.status as 'pending' | 'in-progress' | 'resolved'} />
         </div>
       </div>
 
@@ -135,7 +135,7 @@ export default async function TicketDetailPage({ params }: { params: Promise<{ i
               <AlertTriangle className="h-5 w-5 shrink-0 mt-0.5" />
               <div className="text-sm">
                 <p className="font-semibold mb-1">Lưu ý</p>
-                <p>Hãy cập nhật trạng thái sang <strong>"Đang sửa"</strong> khi thợ bắt đầu tiến hành, và <strong>"Đã xong"</strong> sau khi hoàn tất để khách thuê tiện theo dõi.</p>
+                <p>Hãy cập nhật trạng thái sang <strong>&quot;Đang sửa&quot;</strong> khi thợ bắt đầu tiến hành, và <strong>&quot;Đã xong&quot;</strong> sau khi hoàn tất để khách thuê tiện theo dõi.</p>
               </div>
             </CardContent>
           </Card>

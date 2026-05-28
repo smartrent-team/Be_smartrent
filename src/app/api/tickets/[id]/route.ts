@@ -56,9 +56,12 @@ export async function PATCH(
 ) {
   try {
     // 1. Xác thực (yêu cầu quyền manager hoặc super_admin)
-    const auth = await verifyRole(['manager', 'super_admin'])
+    const auth = await verifyRole()
     if (auth.error) {
       return NextResponse.json({ error: auth.error }, { status: auth.status })
+    }
+    if (auth.role !== 'manager' && auth.role !== 'super_admin') {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
     }
 
     const { id } = await params
