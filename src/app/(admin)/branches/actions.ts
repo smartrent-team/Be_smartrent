@@ -7,7 +7,19 @@ import { SupabaseClient } from '@supabase/supabase-js'
 async function verifySuperAdmin(supabase: SupabaseClient) {
   const { data: { user }, error: authError } = await supabase.auth.getUser()
   if (authError || !user) throw new Error('Chưa đăng nhập')
-  const { data: profile } = await supabase.from('users').select('role').eq('email', user.email).single()
+  
+  let query = supabase.from('users').select('role')
+  if (user.email && user.phone) {
+    query = query.or(`email.eq.${user.email},phone.eq.${user.phone}`)
+  } else if (user.email) {
+    query = query.eq('email', user.email)
+  } else if (user.phone) {
+    query = query.eq('phone', user.phone)
+  } else {
+    throw new Error('Không thể xác thực danh tính')
+  }
+
+  const { data: profile } = await query.single()
   if (profile?.role !== 'super_admin') {
     throw new Error('Bạn không có quyền thực hiện hành động này (Yêu cầu Super Admin)')
   }
