@@ -13,7 +13,7 @@ import { Card, CardContent } from '@/components/ui/card'
 import { CreateManagerDialog } from './_components/CreateManagerDialog'
 import { EditManagerDialog } from './_components/EditManagerDialog'
 import { DeleteManagerButton } from './_components/DeleteManagerButton'
-import { ShieldAlert, Users, Building, Phone, Clock, AlertCircle } from 'lucide-react'
+import { ShieldAlert, Users, Building, Phone, Clock, AlertCircle, Mail } from 'lucide-react'
 
 export default async function ManagersPage() {
   // Verify auth
@@ -37,7 +37,7 @@ export default async function ManagersPage() {
   // 2. Fetch managers
   const { data: rawManagers } = await adminSupabase
     .from('users')
-    .select('id, full_name, phone, role, branch_id')
+    .select('id, full_name, phone, email, role, branch_id')
     .eq('role', 'manager')
 
   const managers = rawManagers || []
@@ -145,9 +145,15 @@ export default async function ManagersPage() {
                         </div>
                       </TableCell>
                       <TableCell className="text-gray-600 py-4">
-                        <div className="flex items-center gap-2">
-                          <Phone className="h-3.5 w-3.5 text-gray-400" />
-                          <span className="text-sm font-medium">{manager.phone || 'Chưa cập nhật'}</span>
+                        <div className="flex flex-col gap-1 text-sm text-gray-600">
+                          <span className="flex items-center gap-2">
+                            <Phone className="h-3.5 w-3.5 text-gray-400" />
+                            <span className="font-medium">{manager.phone || 'Chưa cập nhật'}</span>
+                          </span>
+                          <span className="flex items-center gap-2">
+                            <Mail className="h-3.5 w-3.5 text-gray-400" />
+                            <span>{manager.email || 'Chưa cập nhật'}</span>
+                          </span>
                         </div>
                       </TableCell>
                       <TableCell className="py-4">

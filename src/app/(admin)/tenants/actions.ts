@@ -17,6 +17,7 @@ async function verifySuperAdmin(supabase: SupabaseClient) {
 export async function createTenantAction(data: {
   fullName: string
   phone: string
+  email: string
   password?: string
   roomId: string
   depositAmount: number
@@ -25,7 +26,7 @@ export async function createTenantAction(data: {
   const supabase = await createClient()
   await verifySuperAdmin(supabase)
 
-  if (!data.fullName || !data.phone || !data.roomId || !data.moveInDate) {
+  if (!data.fullName || !data.phone || !data.email || !data.roomId || !data.moveInDate) {
     throw new Error('Vui lòng nhập đầy đủ thông tin bắt buộc')
   }
 
@@ -44,11 +45,9 @@ export async function createTenantAction(data: {
 
   const formattedPhone = data.phone.startsWith('0') ? `+84${data.phone.slice(1)}` : data.phone
 
-  const dummyEmail = `${formattedPhone.replace('+', '')}@user.local`
-
   // 1. Tạo tài khoản trong Supabase Auth với cả Email và SĐT
   const { data: authData, error: authError } = await adminSupabase.auth.admin.createUser({
-    email: dummyEmail,
+    email: data.email.trim(),
     email_confirm: true,
     phone: formattedPhone,
     password: data.password || '123456',
@@ -76,7 +75,7 @@ export async function createTenantAction(data: {
         phone: formattedPhone,
         role: 'tenant',
         branch_id: branchId,
-        email: `${formattedPhone.replace('+', '')}@user.local`
+        email: data.email.trim()
       })
       .select()
       .single()
@@ -158,6 +157,7 @@ export async function editTenantAction(
   data: {
     fullName: string
     phone: string
+    email: string
     password?: string
     roomId: string
     depositAmount: number
@@ -168,8 +168,8 @@ export async function editTenantAction(
   const supabase = await createClient()
   await verifySuperAdmin(supabase)
 
-  if (!data.fullName || !data.phone || !data.roomId || !data.moveInDate) {
-    throw new Error('Họ tên, SĐT, Phòng và ngày dời vào là bắt buộc')
+  if (!data.fullName || !data.phone || !data.email || !data.roomId || !data.moveInDate) {
+    throw new Error('Họ tên, SĐT, Email, Phòng và ngày dời vào là bắt buộc')
   }
 
   const newRoomId = parseInt(data.roomId, 10)
@@ -179,7 +179,7 @@ export async function editTenantAction(
   // 1. Lấy profile hiện tại để tìm phone và cập nhật Auth (nếu cần)
   const { data: currentProfile } = await adminSupabase
     .from('users')
-    .select('phone')
+    .select('phone, email')
     .eq('id', userIntId)
     .single()
 
@@ -189,8 +189,9 @@ export async function editTenantAction(
     if (formattedPhone && formattedPhone !== currentProfile.phone) {
       updateAuthData.phone = formattedPhone
       updateAuthData.phone_confirm = true
-      const newDummyEmail = `${formattedPhone.replace('+', '')}@user.local`
-      updateAuthData.email = newDummyEmail
+    }
+    if (data.email && data.email.trim() !== currentProfile.email) {
+      updateAuthData.email = data.email.trim()
       updateAuthData.email_confirm = true
     }
     if (data.password && data.password.trim() !== '') {
@@ -218,6 +219,7 @@ export async function editTenantAction(
   const { error: userError } = await adminSupabase.from('users').update({
     full_name: data.fullName.trim(),
     phone: formattedPhone,
+    email: data.email.trim(),
     branch_id: branchId
   }).eq('id', userIntId)
 

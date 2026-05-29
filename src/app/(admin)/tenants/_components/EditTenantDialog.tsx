@@ -32,6 +32,7 @@ interface Tenant {
   depositAmount: number | null
   name: string
   phone: string
+  email: string
   status: string
   rawMoveInDate: string
   rawMoveOutDate: string | null
@@ -50,6 +51,7 @@ export function EditTenantDialog({ tenant, rooms }: { tenant: Tenant; rooms: Roo
   const [formData, setFormData] = useState({
     fullName: tenant.name,
     phone: formatDisplayPhone(tenant.phone),
+    email: tenant.email.includes('@user.local') || tenant.email === 'Chưa cập nhật' ? '' : tenant.email,
     password: '',
     roomId: tenant.roomId?.toString() || '',
     depositAmount: tenant.depositAmount?.toString() || '0',
@@ -64,7 +66,7 @@ export function EditTenantDialog({ tenant, rooms }: { tenant: Tenant; rooms: Roo
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    if (!formData.fullName || !formData.phone || !formData.roomId || !formData.moveInDate) {
+    if (!formData.fullName || !formData.phone || !formData.email || !formData.roomId || !formData.moveInDate) {
       toast.error('Vui lòng điền đầy đủ các thông tin bắt buộc')
       return
     }
@@ -74,6 +76,7 @@ export function EditTenantDialog({ tenant, rooms }: { tenant: Tenant; rooms: Roo
       await editTenantAction(tenant.id, tenant.userId, {
         fullName: formData.fullName,
         phone: formData.phone,
+        email: formData.email,
         password: formData.password || undefined,
         roomId: formData.roomId,
         depositAmount: parseInt(formData.depositAmount, 10) || 0,
@@ -143,6 +146,21 @@ export function EditTenantDialog({ tenant, rooms }: { tenant: Tenant; rooms: Roo
                 placeholder="VD: 0912345678"
                 value={formData.phone}
                 onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
+                className="border-gray-200 focus:border-teal-500 focus:ring-teal-500 rounded-xl"
+                required
+              />
+            </div>
+            
+            <div className="space-y-2">
+              <Label htmlFor="edit-tenant-email" className="text-sm font-medium text-gray-700">
+                Email <span className="text-rose-500">*</span>
+              </Label>
+              <Input
+                id="edit-tenant-email"
+                type="email"
+                placeholder="VD: nguyenvana@gmail.com"
+                value={formData.email}
+                onChange={(e) => setFormData({ ...formData, email: e.target.value })}
                 className="border-gray-200 focus:border-teal-500 focus:ring-teal-500 rounded-xl"
                 required
               />

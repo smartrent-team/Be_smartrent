@@ -32,6 +32,7 @@ export function CreateTenantDialog({ rooms }: { rooms: Room[] }) {
   const [formData, setFormData] = useState({
     fullName: '',
     phone: '',
+    email: '',
     password: '',
     roomId: '',
     depositAmount: '',
@@ -40,7 +41,7 @@ export function CreateTenantDialog({ rooms }: { rooms: Room[] }) {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    if (!formData.fullName || !formData.phone || !formData.roomId || !formData.moveInDate) {
+    if (!formData.fullName || !formData.phone || !formData.email || !formData.roomId || !formData.moveInDate) {
       toast.error('Vui lòng điền đầy đủ các thông tin bắt buộc')
       return
     }
@@ -50,6 +51,7 @@ export function CreateTenantDialog({ rooms }: { rooms: Room[] }) {
       await createTenantAction({
         fullName: formData.fullName,
         phone: formData.phone,
+        email: formData.email,
         password: formData.password || undefined,
         roomId: formData.roomId,
         depositAmount: formData.depositAmount ? parseInt(formData.depositAmount, 10) : 0,
@@ -60,6 +62,7 @@ export function CreateTenantDialog({ rooms }: { rooms: Room[] }) {
       setFormData({
         fullName: '',
         phone: '',
+        email: '',
         password: '',
         roomId: '',
         depositAmount: '',
@@ -105,6 +108,21 @@ export function CreateTenantDialog({ rooms }: { rooms: Room[] }) {
               placeholder="VD: Nguyễn Văn A"
               value={formData.fullName}
               onChange={(e) => setFormData({ ...formData, fullName: e.target.value })}
+              className="border-gray-200 focus:border-teal-500 focus:ring-teal-500 rounded-xl"
+              required
+            />
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="tenant-email" className="text-sm font-medium text-gray-700">
+              Email <span className="text-rose-500">*</span>
+            </Label>
+            <Input
+              id="tenant-email"
+              type="email"
+              placeholder="VD: nguyenvana@gmail.com"
+              value={formData.email}
+              onChange={(e) => setFormData({ ...formData, email: e.target.value })}
               className="border-gray-200 focus:border-teal-500 focus:ring-teal-500 rounded-xl"
               required
             />

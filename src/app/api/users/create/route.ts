@@ -11,10 +11,10 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json()
-    const { phone, password, full_name, role: targetRole, branch_id: targetBranchId, room_id } = body
+    const { phone, password, full_name, role: targetRole, branch_id: targetBranchId, room_id, email } = body
 
-    if (!phone || !password || !targetRole) {
-      return NextResponse.json({ error: 'Thiếu thông tin bắt buộc (phone, password, role)' }, { status: 400 })
+    if (!phone || !password || !targetRole || !email) {
+      return NextResponse.json({ error: 'Thiếu thông tin bắt buộc (phone, password, role, email)' }, { status: 400 })
     }
 
     // 2. Kiểm tra RBAC (Phân quyền)
@@ -40,13 +40,12 @@ export async function POST(request: NextRequest) {
 
     // Đảm bảo số điện thoại định dạng đúng
     const formattedPhone = phone.startsWith('0') ? `+84${phone.slice(1)}` : phone
-    const dummyEmail = `${formattedPhone.replace('+', '')}@user.local`
 
     // 3. Khởi tạo Admin Client để tạo user bỏ qua OTP SMS
     const adminSupabase = createAdminClient()
 
     const { data: authData, error: authError } = await adminSupabase.auth.admin.createUser({
-      email: dummyEmail,
+      email: email.trim(),
       email_confirm: true,
       phone: formattedPhone,
       password,
@@ -68,7 +67,7 @@ export async function POST(request: NextRequest) {
         phone: formattedPhone,
         role: targetRole,
         branch_id: finalBranchId || null,
-        email: dummyEmail
+        email: email.trim()
       })
       .select()
       .single()

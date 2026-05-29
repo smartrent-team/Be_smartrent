@@ -37,13 +37,14 @@ export function CreateManagerDialog({ branches }: { branches: Branch[] }) {
   const [formData, setFormData] = useState({
     fullName: '',
     phone: '',
+    email: '',
     password: '',
     branchId: '',
   })
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    if (!formData.fullName || !formData.phone || !formData.password || !formData.branchId || formData.branchId === 'none') {
+    if (!formData.fullName || !formData.phone || !formData.email || !formData.password || !formData.branchId || formData.branchId === 'none') {
       toast.error('Vui lòng điền đầy đủ các thông tin bắt buộc bao gồm chi nhánh')
       return
     }
@@ -58,6 +59,7 @@ export function CreateManagerDialog({ branches }: { branches: Branch[] }) {
         body: JSON.stringify({
           full_name: formData.fullName,
           phone: formData.phone,
+          email: formData.email,
           password: formData.password,
           role: 'manager',
           branch_id: formData.branchId ? parseInt(formData.branchId, 10) : null,
@@ -74,6 +76,7 @@ export function CreateManagerDialog({ branches }: { branches: Branch[] }) {
       setFormData({
         fullName: '',
         phone: '',
+        email: '',
         password: '',
         branchId: '',
       })
@@ -132,6 +135,21 @@ export function CreateManagerDialog({ branches }: { branches: Branch[] }) {
               placeholder="VD: 0912345678"
               value={formData.phone}
               onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
+              className="border-gray-200 focus:border-teal-500 focus:ring-teal-500 rounded-xl"
+              required
+            />
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="email" className="text-sm font-medium text-gray-700">
+              Email <span className="text-rose-500">*</span>
+            </Label>
+            <Input
+              id="email"
+              type="email"
+              placeholder="VD: manager@gmail.com"
+              value={formData.email}
+              onChange={(e) => setFormData({ ...formData, email: e.target.value })}
               className="border-gray-200 focus:border-teal-500 focus:ring-teal-500 rounded-xl"
               required
             />
