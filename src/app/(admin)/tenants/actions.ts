@@ -20,7 +20,8 @@ async function verifySuperAdmin(supabase: SupabaseClient) {
     throw new Error('Không thể xác thực danh tính')
   }
 
-  const { data: profile } = await query.single()
+  const { data: profile, error } = await query.single()
+  console.log("verifySuperAdmin DBG -> user:", { email: user.email, phone: user.phone }, "profile:", profile, "error:", error)
   if (profile?.role !== 'super_admin') {
     throw new Error('Bạn không có quyền thực hiện hành động này (Yêu cầu Super Admin)')
   }
@@ -227,17 +228,23 @@ export async function editTenantAction(
   const { data: newRoom } = await adminSupabase.from('rooms').select('branch_id').eq('id', newRoomId).single()
   const branchId = newRoom?.branch_id || null
 
-  // 3. Cập nhật profile trong public.users
-  const { error: userError } = await adminSupabase.from('users').update({
-    full_name: data.fullName.trim(),
-    phone: formattedPhone,
-    email: data.email.trim(),
-    branch_id: branchId
-  }).eq('id', userIntId)
+  // 2. Cập nhật thông tin trong bảng users
+  const { error: profileError } = await adminSupabase
+    .from('users')
+    .update({
+      full_name: data.fullName,
+      phone: data.phone,
+      email: data.email,
+      updated_at: new Date().toISOString()
+    })
+    .eq('id', userIntId)
 
-  if (userError) throw new Error('Lỗi cập nhật Profile: ' + userError.message)
-
-  // 4. Lấy phòng cũ để cập nhật trạng thái nếu đổi phòng
+  if (profileError) {
+    if (profileError.message?.includes('users_email_idx') || profileError.code === '23505') {
+      throw new Error('Email này đã được sử dụng bởi một tài khoản khác.')
+    }
+    throw new Error('Lỗi cập nhật Profile: ' + profileError.message)
+  } // 4. Lấy phòng cũ để cập nhật trạng thái nếu đổi phòng
   const { data: oldTenant } = await adminSupabase.from('tenants').select('room_id').eq('id', id).single()
   const oldRoomId = oldTenant?.room_id
 
@@ -319,7 +326,9 @@ export async function deleteTenantAction(id: number, userIntId: number) {
     await adminSupabase.from('rooms').update({ status: 'available' }).eq('id', tenant.room_id)
   }
 
-  // Xóa các hợp đồng liên quan
+  // Xóa các dữ liệu liên kết để tránh lỗi khóa ngoại (foreign key)
+  await adminSupabase.from('maintenance_tickets').delete().eq('tenant_id', id)
+  await adminSupabase.from('invoices').delete().eq('tenant_id', id)
   await adminSupabase.from('contracts').delete().eq('tenant_id', id)
 
   // 2. Xóa thông tin thuê
@@ -330,6 +339,9 @@ export async function deleteTenantAction(id: number, userIntId: number) {
   const { data: userProfile } = await adminSupabase.from('users').select('phone').eq('id', userIntId).single()
 
   // 3. Xóa profile trong users
+  // Xóa các thông báo của user này trước để tránh lỗi khóa ngoại (foreign key NOT NULL)
+  await adminSupabase.from('notifications').delete().eq('user_id', userIntId)
+  
   const { error: userError } = await adminSupabase.from('users').delete().eq('id', userIntId)
   if (userError) throw new Error('Lỗi xóa Profile khách thuê: ' + userError.message)
 

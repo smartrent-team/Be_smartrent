@@ -83,6 +83,9 @@ export async function editManager(
 
   if (dbError) {
     console.error('Lỗi khi cập nhật profile Manager:', dbError)
+    if (dbError.message?.includes('users_email_idx') || dbError.code === '23505') {
+      throw new Error('Email này đã được sử dụng bởi một tài khoản khác.')
+    }
     throw new Error('Lỗi cập nhật Profile: ' + dbError.message)
   }
 
@@ -99,7 +102,10 @@ export async function deleteManager(id: string) {
   // Tìm thông tin profile để có SĐT tìm tài khoản Auth
   const { data: userProfile } = await adminSupabase.from('users').select('phone').eq('id', userIntId).single()
 
-  // 1. Xóa thông tin profile trong public.users
+  // 1. Xóa profile trong public.users
+  // Xóa các thông báo của user này trước để tránh lỗi khóa ngoại (foreign key NOT NULL)
+  await adminSupabase.from('notifications').delete().eq('user_id', userIntId)
+  
   const { error: dbError } = await adminSupabase
     .from('users')
     .delete()
