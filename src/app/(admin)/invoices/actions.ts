@@ -28,9 +28,21 @@ export async function createInvoice(data: {
 
     const totalAmount = data.roomPrice + (data.serviceCost || 0) + (data.electricCost || 0) + (data.waterCost || 0)
     
-    // 1. Sinh mã hóa đơn (INV-YYYYMM-XXXX)
+    // 1. Sinh mã hóa đơn (INV-YYYYMM-XXXX) và kiểm tra trùng lặp
     const date = new Date()
     const yearMonth = `${date.getFullYear()}${String(date.getMonth() + 1).padStart(2, '0')}`
+
+    // Chống trùng lặp: Kiểm tra xem phòng này đã có hóa đơn trong tháng chưa
+    const { data: existingInvoice } = await supabase
+      .from('invoices')
+      .select('id')
+      .eq('room_id', data.room_id)
+      .like('invoice_code', `INV-${yearMonth}-%`)
+      .maybeSingle()
+
+    if (existingInvoice) {
+      throw new Error(`Phòng này đã được tạo hóa đơn trong tháng ${date.getMonth() + 1}/${date.getFullYear()}. Vui lòng kiểm tra lại danh sách Hóa đơn.`)
+    }
 
     const { data: lastInvoices } = await supabase
       .from('invoices')

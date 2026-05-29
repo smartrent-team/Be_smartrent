@@ -19,5 +19,6 @@ export async function GET(request: Request) {
 
   // Lỗi xác thực hoặc không có code
   // Trả về trang đăng nhập kèm lỗi
-  return NextResponse.redirect(`${origin}/login?message=Xác thực thất bại hoặc đường dẫn đã hết hạn. Vui lòng thử lại.`)
+  const errorMsg = encodeURIComponent('Xác thực thất bại hoặc đường dẫn đã hết hạn. Vui lòng thử lại.')
+  return NextResponse.redirect(`${origin}/login?message=${errorMsg}`)
 }
