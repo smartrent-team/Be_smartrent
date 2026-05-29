@@ -233,7 +233,7 @@ export async function editTenantAction(
     .from('users')
     .update({
       full_name: data.fullName,
-      phone: data.phone,
+      phone: formattedPhone,
       email: data.email,
       updated_at: new Date().toISOString()
     })
