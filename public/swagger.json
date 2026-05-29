@@ -138,6 +138,48 @@
   },
   "security": [],
   "paths": {
+    "/api/tenants/me": {
+      "get": {
+        "tags": [
+          "👥 Khách thuê (Tenants)"
+        ],
+        "summary": "Lấy thông tin chi tiết của bản thân",
+        "description": "Lấy thông tin hồ sơ, hợp đồng, hoá đơn, và yêu cầu bảo trì của khách thuê đang đăng nhập. (Dành cho Tenant app)",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Thành công",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean",
+                      "example": true
+                    },
+                    "data": {
+                      "type": "object",
+                      "description": "Thông tin chi tiết của tenant"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Chưa đăng nhập hoặc token hết hạn"
+          },
+          "404": {
+            "description": "Không tìm thấy hồ sơ khách thuê"
+          }
+        }
+      }
+    },
     "/api/auth/login": {
       "post": {
         "tags": [
