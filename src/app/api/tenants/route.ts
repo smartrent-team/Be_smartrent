@@ -18,7 +18,7 @@ export async function GET(request: NextRequest) {
         id,
         move_in_date,
         move_out_date,
-        room:rooms(
+        room:rooms!inner(
           room_code,
           branch_id
         ),
@@ -36,7 +36,7 @@ export async function GET(request: NextRequest) {
       if (!auth.branchId) {
         return NextResponse.json({ error: 'Tài khoản Manager chưa được gán chi nhánh' }, { status: 403 })
       }
-      query = query.eq('user.branch_id', auth.branchId)
+      query = query.eq('rooms.branch_id', auth.branchId)
     }
 
     const { data: tenantsData, error } = await query
