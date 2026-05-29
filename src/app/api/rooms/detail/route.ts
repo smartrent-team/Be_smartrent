@@ -28,6 +28,7 @@ export async function GET(request: NextRequest) {
           move_in_date,
           move_out_date,
           user:users (
+            id,
             full_name,
             phone
           )
@@ -57,6 +58,14 @@ export async function GET(request: NextRequest) {
     if (auth.role === 'manager') {
       if (!auth.branchId || room.branch_id !== auth.branchId) {
         return NextResponse.json({ error: 'Bạn không có quyền truy cập thông tin phòng thuộc chi nhánh khác' }, { status: 403 })
+      }
+    }
+
+    // 3.5. Phân quyền: Khách thuê chỉ xem được phòng của chính mình
+    if (auth.role === 'tenant') {
+      const isMyRoom = room.tenants?.some((t: any) => t.user?.id === auth.dbUserId && !t.move_out_date)
+      if (!isMyRoom) {
+        return NextResponse.json({ error: 'Bạn chỉ có quyền xem chi tiết phòng của chính mình' }, { status: 403 })
       }
     }
 
