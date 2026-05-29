@@ -41,6 +41,26 @@ export async function POST(request: NextRequest) {
     // Đảm bảo số điện thoại định dạng đúng
     const formattedPhone = phone.startsWith('0') ? `+84${phone.slice(1)}` : phone
 
+    // Nếu tạo tenant và có gán phòng, kiểm tra xem phòng có thuộc chi nhánh không
+    if (targetRole === 'tenant' && room_id) {
+      const roomIdNum = Number(room_id)
+      const { data: roomCheck } = await auth.supabase!
+        .from('rooms')
+        .select('branch_id')
+        .eq('id', roomIdNum)
+        .single()
+      
+      if (!roomCheck) {
+        return NextResponse.json({ error: 'Không tìm thấy phòng' }, { status: 404 })
+      }
+      if (auth.role === 'manager' && roomCheck.branch_id !== auth.branchId) {
+        return NextResponse.json({ error: 'Bạn không thể thêm khách thuê vào phòng của chi nhánh khác' }, { status: 403 })
+      }
+      
+      // Ghi đè lại finalBranchId bằng đúng branch_id của phòng để đảm bảo tính nhất quán
+      finalBranchId = roomCheck.branch_id
+    }
+
     // 3. Khởi tạo Admin Client để tạo user bỏ qua OTP SMS
     const adminSupabase = createAdminClient()
 

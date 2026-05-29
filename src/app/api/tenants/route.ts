@@ -32,7 +32,12 @@ export async function GET(request: NextRequest) {
       `)
       .eq('user.status', 'active')
 
-    // 3. Phân quyền: Manager chỉ thấy cư dân thuộc chi nhánh của họ
+    // 3. Phân quyền: Chặn Khách thuê xem danh sách toàn bộ cư dân
+    if (auth.role === 'tenant') {
+      return NextResponse.json({ error: 'Khách thuê không có quyền xem danh sách cư dân' }, { status: 403 })
+    }
+
+    // 4. Phân quyền: Manager chỉ thấy cư dân thuộc chi nhánh của họ
     if (auth.role === 'manager') {
       if (!auth.branchId) {
         return NextResponse.json({ error: 'Tài khoản Manager chưa được gán chi nhánh' }, { status: 403 })
