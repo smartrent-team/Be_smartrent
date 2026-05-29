@@ -164,6 +164,9 @@ export function EditTenantDialog({ tenant, rooms }: { tenant: Tenant; rooms: Roo
                 className="border-gray-200 focus:border-teal-500 focus:ring-teal-500 rounded-xl"
                 required
               />
+              <p className="text-xs text-amber-600">
+                ⚠️ Bắt buộc nhập email thật để khách thuê có thể lấy lại mật khẩu.
+              </p>
             </div>
 
             <div className="space-y-2">

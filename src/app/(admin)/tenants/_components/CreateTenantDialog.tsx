@@ -126,6 +126,9 @@ export function CreateTenantDialog({ rooms }: { rooms: Room[] }) {
               className="border-gray-200 focus:border-teal-500 focus:ring-teal-500 rounded-xl"
               required
             />
+            <p className="text-xs text-amber-600">
+              ⚠️ Bắt buộc nhập email thật để khách thuê có thể lấy lại mật khẩu.
+            </p>
           </div>
 
           <div className="grid grid-cols-2 gap-4">
