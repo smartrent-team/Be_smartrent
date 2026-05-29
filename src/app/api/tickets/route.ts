@@ -86,11 +86,23 @@ export async function POST(request: NextRequest) {
     
     const { roomId, tenantId, title, description, images, priority } = parsed.data
 
+    let finalRoomId = roomId;
+    let finalTenantId = tenantId;
+
+    if (auth.role === 'tenant') {
+      const { data: tenantInfo } = await supabase.from('tenants').select('id, room_id').eq('user_id', auth.dbUserId).single();
+      if (!tenantInfo) {
+        return NextResponse.json({ error: 'Không tìm thấy thông tin khách thuê' }, { status: 403 })
+      }
+      finalRoomId = tenantInfo.room_id;
+      finalTenantId = tenantInfo.id;
+    }
+
     const { data: ticket, error } = await supabase
       .from('maintenance_tickets')
       .insert({
-        room_id: roomId,
-        tenant_id: tenantId,
+        room_id: finalRoomId,
+        tenant_id: finalTenantId,
         title,
         description,
         status: 'pending',
