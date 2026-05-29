@@ -358,10 +358,22 @@ export async function deleteTenantAction(id: number, userIntId: number) {
 
   // 5. Xóa tài khoản Auth trên Supabase Auth bằng cách tìm theo SĐT
   if (userProfile?.phone) {
-    const { data: authUsers } = await adminSupabase.auth.admin.listUsers()
-    const authUser = authUsers.users.find(u => u.phone === userProfile.phone)
-    if (authUser) {
-      const { error: authError } = await adminSupabase.auth.admin.deleteUser(authUser.id)
+    let page = 1;
+    let foundUserId: string | null = null;
+    while (true) {
+      const { data: authUsers } = await adminSupabase.auth.admin.listUsers({ page, perPage: 1000 })
+      if (!authUsers || !authUsers.users || authUsers.users.length === 0) break;
+      const authUser = authUsers.users.find(u => u.phone === userProfile.phone || u.email === userProfile.email)
+      if (authUser) {
+        foundUserId = authUser.id;
+        break;
+      }
+      if (authUsers.users.length < 1000) break;
+      page++;
+    }
+    
+    if (foundUserId) {
+      const { error: authError } = await adminSupabase.auth.admin.deleteUser(foundUserId)
       if (authError) console.error('Lỗi khi xóa tài khoản Auth khách thuê:', authError.message)
     }
   }
