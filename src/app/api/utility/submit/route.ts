@@ -20,6 +20,27 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Thiếu thông tin bắt buộc' }, { status: 400 })
     }
 
+    // Kiểm tra quyền hạn
+    if (auth.role === 'tenant') {
+      return NextResponse.json({ error: 'Khách thuê không có quyền chốt điện nước' }, { status: 403 })
+    }
+
+    if (auth.role === 'manager') {
+      if (!auth.branchId) {
+        return NextResponse.json({ error: 'Quản lý chưa được gán chi nhánh' }, { status: 403 })
+      }
+      // Kiểm tra phòng có thuộc chi nhánh của manager không
+      const { data: roomCheck } = await supabase
+        .from('rooms')
+        .select('branch_id')
+        .eq('id', roomId)
+        .single()
+      
+      if (!roomCheck || roomCheck.branch_id !== auth.branchId) {
+        return NextResponse.json({ error: 'Phòng không thuộc chi nhánh bạn quản lý' }, { status: 403 })
+      }
+    }
+
     // 3. Tìm chỉ số tháng trước để so sánh (Logic thay thế cho FastAPI)
     let previousMonth = month - 1
     let previousYear = year
