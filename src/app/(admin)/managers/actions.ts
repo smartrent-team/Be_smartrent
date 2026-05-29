@@ -1,37 +1,14 @@
 'use server'
 
-import { createClient } from '@/lib/supabase/server'
+import { verifySuperAdmin } from '@/lib/rbac'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { revalidatePath } from 'next/cache'
-import { SupabaseClient } from '@supabase/supabase-js'
-
-async function verifySuperAdmin(supabase: SupabaseClient) {
-  const { data: { user }, error: authError } = await supabase.auth.getUser()
-  if (authError || !user) throw new Error('Chưa đăng nhập')
-  
-  let query = supabase.from('users').select('role')
-  if (user.email && user.phone) {
-    query = query.or(`email.eq.${user.email},phone.eq.${user.phone}`)
-  } else if (user.email) {
-    query = query.eq('email', user.email)
-  } else if (user.phone) {
-    query = query.eq('phone', user.phone)
-  } else {
-    throw new Error('Không thể xác thực danh tính')
-  }
-
-  const { data: profile } = await query.single()
-  if (profile?.role !== 'super_admin') {
-    throw new Error('Bạn không có quyền thực hiện hành động này (Yêu cầu Super Admin)')
-  }
-}
 
 export async function editManager(
   id: string,
   data: { fullName: string; phone: string; email: string; password?: string; branchId?: string }
 ) {
-  const supabase = await createClient()
-  await verifySuperAdmin(supabase)
+  const supabase = await verifySuperAdmin()
 
   if (!data.fullName || !data.phone || !data.email) {
     throw new Error('Họ tên, email và số điện thoại là bắt buộc')
@@ -93,8 +70,7 @@ export async function editManager(
 }
 
 export async function deleteManager(id: string) {
-  const supabase = await createClient()
-  await verifySuperAdmin(supabase)
+  const supabase = await verifySuperAdmin()
 
   const adminSupabase = createAdminClient()
   const userIntId = parseInt(id, 10)

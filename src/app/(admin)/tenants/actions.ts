@@ -1,31 +1,11 @@
 'use server'
 
-import { createClient } from '@/lib/supabase/server'
+import { verifySuperAdmin } from '@/lib/rbac'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { revalidatePath } from 'next/cache'
 import { SupabaseClient } from '@supabase/supabase-js'
 
-async function verifySuperAdmin(supabase: SupabaseClient) {
-  const { data: { user }, error: authError } = await supabase.auth.getUser()
-  if (authError || !user) throw new Error('Chưa đăng nhập')
-  
-  let query = supabase.from('users').select('role')
-  if (user.email && user.phone) {
-    query = query.or(`email.eq.${user.email},phone.eq.${user.phone}`)
-  } else if (user.email) {
-    query = query.eq('email', user.email)
-  } else if (user.phone) {
-    query = query.eq('phone', user.phone)
-  } else {
-    throw new Error('Không thể xác thực danh tính')
-  }
 
-  const { data: profile, error } = await query.single()
-  console.log("verifySuperAdmin DBG -> user:", { email: user.email, phone: user.phone }, "profile:", profile, "error:", error)
-  if (profile?.role !== 'super_admin') {
-    throw new Error('Bạn không có quyền thực hiện hành động này (Yêu cầu Super Admin)')
-  }
-}
 
 export async function createTenantAction(data: {
   fullName: string
@@ -36,8 +16,7 @@ export async function createTenantAction(data: {
   depositAmount: number
   moveInDate: string
 }) {
-  const supabase = await createClient()
-  await verifySuperAdmin(supabase)
+  const supabase = await verifySuperAdmin()
 
   if (!data.fullName || !data.phone || !data.email || !data.roomId || !data.moveInDate) {
     throw new Error('Vui lòng nhập đầy đủ thông tin bắt buộc')
@@ -178,8 +157,7 @@ export async function editTenantAction(
     moveOutDate?: string
   }
 ) {
-  const supabase = await createClient()
-  await verifySuperAdmin(supabase)
+  const supabase = await verifySuperAdmin()
 
   if (!data.fullName || !data.phone || !data.email || !data.roomId || !data.moveInDate) {
     throw new Error('Họ tên, SĐT, Email, Phòng và ngày dời vào là bắt buộc')
@@ -315,8 +293,7 @@ export async function editTenantAction(
 }
 
 export async function deleteTenantAction(id: number, userIntId: number) {
-  const supabase = await createClient()
-  await verifySuperAdmin(supabase)
+  const supabase = await verifySuperAdmin()
 
   const adminSupabase = createAdminClient()
 

@@ -19,6 +19,7 @@ export async function POST(request: NextRequest) {
     const { phone, password } = parsed.data
 
     const supabase = await createApiClient()
+    const adminSupabase = await import('@/lib/supabase/admin').then(m => m.createAdminClient())
     
     let targetEmail: string
     if (phone.includes('@')) {
@@ -31,7 +32,7 @@ export async function POST(request: NextRequest) {
       if (phone.startsWith('0')) localPhone = `+84${phone.slice(1)}`
       else if (!phone.startsWith('+')) localPhone = `+84${phone}`
 
-      const { data: userRecord } = await supabase.from('users').select('email').eq('phone', localPhone).single()
+      const { data: userRecord } = await adminSupabase.from('users').select('email').eq('phone', localPhone).single()
       
       if (userRecord && userRecord.email) {
         targetEmail = userRecord.email
@@ -51,7 +52,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Lấy thêm profile bằng email để mobile app biết role
-    const { data: profile } = await supabase
+    const { data: profile } = await adminSupabase
       .from('users')
       .select('*')
       .eq('email', targetEmail)

@@ -1,4 +1,5 @@
 import { createApiClient, createClient } from './supabase/server'
+import { createAdminClient } from './supabase/admin'
 import { headers } from 'next/headers'
 
 export async function verifyRole() {
@@ -19,8 +20,11 @@ export async function verifyRole() {
     return { error: 'Unauthorized', status: 401 }
   }
 
-  // 2. Lấy role và branch_id
-  const { data: userProfile, error: profileError } = await supabase
+  // Khởi tạo Admin Client để bypass RLS (Do RLS sẽ bị khóa lại bằng USING (false))
+  const adminSupabase = createAdminClient()
+
+  // 2. Lấy role và branch_id bằng adminSupabase để không bị RLS chặn
+  const { data: userProfile, error: profileError } = await adminSupabase
     .from('users')
     .select('id, role, branch_id')
     .eq('email', user.email)
@@ -35,7 +39,7 @@ export async function verifyRole() {
     dbUserId: userProfile.id,
     role: userProfile.role as 'super_admin' | 'manager' | 'tenant',
     branchId: userProfile.branch_id,
-    supabase
+    supabase: adminSupabase // Cực kỳ quan trọng: Trả về admin client cho các API Route sử dụng
   }
 }
 
@@ -44,4 +48,28 @@ export function canCreateUser(currentRole: string, targetRole: string) {
   if (currentRole === 'super_admin') return true
   if (currentRole === 'manager' && targetRole === 'tenant') return true
   return false
+}
+
+export async function verifySuperAdmin() {
+  const supabase = await createClient()
+  const { data: { user }, error: authError } = await supabase.auth.getUser()
+  if (authError || !user) throw new Error('Chưa đăng nhập')
+  
+  const adminSupabase = createAdminClient()
+  let query = adminSupabase.from('users').select('role')
+  
+  if (user.email && user.phone) {
+    query = query.or(`email.eq.${user.email},phone.eq.${user.phone}`)
+  } else if (user.email) {
+    query = query.eq('email', user.email)
+  } else if (user.phone) {
+    query = query.eq('phone', user.phone)
+  }
+
+  const { data: profile } = await query.single()
+  if (profile?.role !== 'super_admin') {
+    throw new Error('Bạn không có quyền thực hiện hành động này (Yêu cầu Super Admin)')
+  }
+
+  return adminSupabase
 }
