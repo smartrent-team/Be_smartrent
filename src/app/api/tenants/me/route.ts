@@ -58,7 +58,7 @@ export async function GET(request: NextRequest) {
           created_at
         )
       `)
-      .eq('user_id', auth.user.id)
+      .eq('user_id', auth.dbUserId)
       .single()
 
     if (error || !tenant) {

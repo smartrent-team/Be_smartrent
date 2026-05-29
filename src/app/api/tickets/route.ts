@@ -20,7 +20,7 @@ export async function GET(request: NextRequest) {
     // Phân quyền RBAC
     if (auth.role === 'tenant') {
       // Khách thuê chỉ xem được ticket của phòng mình (Lấy room_id từ bảng tenants)
-      const { data: tenantInfo } = await supabase.from('tenants').select('room_id').eq('user_id', auth.user.id).single()
+      const { data: tenantInfo } = await supabase.from('tenants').select('room_id').eq('user_id', auth.dbUserId).single()
       if (!tenantInfo?.room_id) {
         return NextResponse.json({ success: true, data: [] }) // Không có phòng
       }

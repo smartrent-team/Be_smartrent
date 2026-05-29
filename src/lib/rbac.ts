@@ -22,7 +22,7 @@ export async function verifyRole() {
   // 2. Lấy role và branch_id
   const { data: userProfile, error: profileError } = await supabase
     .from('users')
-    .select('role, branch_id')
+    .select('id, role, branch_id')
     .eq('email', user.email)
     .single()
 
@@ -32,6 +32,7 @@ export async function verifyRole() {
 
   return {
     user,
+    dbUserId: userProfile.id,
     role: userProfile.role as 'super_admin' | 'manager' | 'tenant',
     branchId: userProfile.branch_id,
     supabase
