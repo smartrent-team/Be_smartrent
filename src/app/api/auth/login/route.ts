@@ -18,18 +18,29 @@ export async function POST(request: NextRequest) {
 
     const { phone, password } = parsed.data
 
+    const supabase = await createApiClient()
+    
     let targetEmail: string
-
     if (phone.includes('@')) {
-      // Đăng nhập bằng Email trực tiếp (dành cho Super Admin)
+      // Đăng nhập bằng Email trực tiếp
       targetEmail = phone
     } else {
-      // Đăng nhập bằng số điện thoại (dành cho Manager/Tenant)
-      const formattedPhone = phone.startsWith('0') ? `+84${phone.slice(1)}` : phone
-      targetEmail = `${formattedPhone.replace('+', '')}@user.local`
+      // Đăng nhập bằng số điện thoại
+      // Do Supabase không cho phép đăng nhập trực tiếp bằng SĐT, ta cần lấy email tương ứng từ DB
+      let localPhone = phone
+      if (phone.startsWith('0')) localPhone = `+84${phone.slice(1)}`
+      else if (!phone.startsWith('+')) localPhone = `+84${phone}`
+
+      const { data: userRecord } = await supabase.from('users').select('email').eq('phone', localPhone).single()
+      
+      if (userRecord && userRecord.email) {
+        targetEmail = userRecord.email
+      } else {
+        // Fallback email cho các tài khoản cũ chưa có email thật
+        targetEmail = `${localPhone.replace('+', '')}@user.local`
+      }
     }
 
-    const supabase = await createApiClient()
     const { data, error } = await supabase.auth.signInWithPassword({
       email: targetEmail,
       password,
