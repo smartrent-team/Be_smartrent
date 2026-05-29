@@ -96,6 +96,11 @@ export async function POST(request: NextRequest) {
       }
       finalRoomId = tenantInfo.room_id;
       finalTenantId = tenantInfo.id;
+    } else if (auth.role === 'manager') {
+      const { data: roomCheck } = await supabase.from('rooms').select('branch_id').eq('id', finalRoomId).single();
+      if (!roomCheck || roomCheck.branch_id !== auth.branchId) {
+        return NextResponse.json({ error: 'Bạn không thể tạo sự cố cho phòng thuộc chi nhánh khác' }, { status: 403 })
+      }
     }
 
     const { data: ticket, error } = await supabase
