@@ -5,6 +5,27 @@ import { payos } from '@/lib/payos'
 import { revalidatePath } from 'next/cache'
 import { calculateElectricityCost, calculateWaterCost } from '@/lib/billing'
 
+import { SupabaseClient } from '@supabase/supabase-js'
+
+async function verifySuperAdmin(supabase: SupabaseClient) {
+  const { data: { user }, error: authError } = await supabase.auth.getUser()
+  if (authError || !user) throw new Error('Chưa đăng nhập')
+  
+  let query = supabase.from('users').select('role')
+  if (user.email && user.phone) {
+    query = query.or(`email.eq.${user.email},phone.eq.${user.phone}`)
+  } else if (user.email) {
+    query = query.eq('email', user.email)
+  } else if (user.phone) {
+    query = query.eq('phone', user.phone)
+  }
+
+  const { data: profile } = await query.single()
+  if (profile?.role !== 'super_admin') {
+    throw new Error('Bạn không có quyền thực hiện hành động này (Yêu cầu Super Admin)')
+  }
+}
+
 export async function createInvoice(data: {
   room_id: number
   tenant_id?: number
@@ -20,11 +41,7 @@ export async function createInvoice(data: {
 }) {
   try {
     const supabase = await createClient()
-    const { data: { user } } = await supabase.auth.getUser()
-
-    if (!user) {
-      throw new Error('Unauthorized')
-    }
+    await verifySuperAdmin(supabase)
 
     const totalAmount = data.roomPrice + (data.serviceCost || 0) + (data.electricCost || 0) + (data.waterCost || 0)
     
