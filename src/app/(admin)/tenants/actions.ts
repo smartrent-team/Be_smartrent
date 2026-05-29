@@ -343,12 +343,16 @@ export async function deleteTenantAction(id: number, userIntId: number) {
     .eq('status', 'active')
 
   // Tìm số điện thoại để xóa tài khoản Supabase Auth
-  const { data: userProfile } = await adminSupabase.from('users').select('phone').eq('id', userIntId).single()
+  const { data: userProfile } = await adminSupabase.from('users').select('phone, email').eq('id', userIntId).single()
 
-  // 4. Xóa mềm profile trong users (không xóa bảng notifications)
+  // 4. Xóa mềm profile trong users và giải phóng SĐT/Email
   const { error: userError } = await adminSupabase
     .from('users')
-    .update({ status: 'deleted' })
+    .update({ 
+      status: 'deleted',
+      phone: userProfile?.phone ? `${userProfile.phone}_del_${userIntId}` : null,
+      email: userProfile?.email ? `${userProfile.email}_del_${userIntId}` : null
+    })
     .eq('id', userIntId)
   if (userError) throw new Error('Lỗi xóa mềm Profile khách thuê: ' + userError.message)
 

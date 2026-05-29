@@ -100,12 +100,16 @@ export async function deleteManager(id: string) {
   const userIntId = parseInt(id, 10)
 
   // Tìm thông tin profile để có SĐT tìm tài khoản Auth
-  const { data: userProfile } = await adminSupabase.from('users').select('phone').eq('id', userIntId).single()
+  const { data: userProfile } = await adminSupabase.from('users').select('phone, email').eq('id', userIntId).single()
 
-  // 1. Cập nhật status thành deleted thay vì xóa profile
+  // 1. Cập nhật status thành deleted và giải phóng SĐT/Email để có thể tái sử dụng
   const { error: dbError } = await adminSupabase
     .from('users')
-    .update({ status: 'deleted' })
+    .update({ 
+      status: 'deleted',
+      phone: userProfile?.phone ? `${userProfile.phone}_del_${userIntId}` : null,
+      email: userProfile?.email ? `${userProfile.email}_del_${userIntId}` : null
+    })
     .eq('id', userIntId)
 
   if (dbError) {
