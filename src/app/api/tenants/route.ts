@@ -51,10 +51,19 @@ export async function GET(request: NextRequest) {
       throw error
     }
 
+    interface TenantRecord {
+      id: number;
+      room_id: number;
+      move_in_date: string;
+      move_out_date: string | null;
+      rooms: { id: number; room_code: string; branch_id: number } | null;
+      user: { id: number; full_name: string; phone: string; role: string; email: string } | null;
+    }
+
     // 4. Trả về định dạng JSON docs tương thích với ứng dụng di động Flutter
-    const docs = (tenantsData || [])
-      .filter((t: any) => t.user !== null) // Loại bỏ các bản ghi không có user hợp lệ
-      .map((t: any) => {
+    const docs = ((tenantsData || []) as unknown as TenantRecord[])
+      .filter(t => t.user !== null) // Loại bỏ các bản ghi không có user hợp lệ
+      .map(t => {
         const fullName = t.user?.full_name || 'Không tên';
         // Lấy chữ cái đầu tiên của Tên cuối cùng làm initial đại diện
         const nameParts = fullName.trim().split(' ');

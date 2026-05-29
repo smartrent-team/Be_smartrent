@@ -61,17 +61,26 @@ export async function GET(request: NextRequest) {
       }
     }
 
+    interface RoomTenant {
+      user?: { id: number; full_name: string; phone: string } | null;
+      move_out_date: string | null;
+      move_in_date: string;
+      id: number;
+    }
+
+    const roomTenants = room.tenants as unknown as RoomTenant[] | undefined;
+
     // 3.5. Phân quyền: Khách thuê chỉ xem được phòng của chính mình
     if (auth.role === 'tenant') {
-      const isMyRoom = room.tenants?.some((t: any) => t.user?.id === auth.dbUserId && !t.move_out_date)
+      const isMyRoom = roomTenants?.some(t => t.user?.id === auth.dbUserId && !t.move_out_date)
       if (!isMyRoom) {
         return NextResponse.json({ error: 'Bạn chỉ có quyền xem chi tiết phòng của chính mình' }, { status: 403 })
       }
     }
 
     // 4. Tìm cư dân đang hoạt động (active tenant - chưa dời đi)
-    const activeTenant = room.tenants && room.tenants.length > 0
-      ? room.tenants.find((t: any) => !t.move_out_date)
+    const activeTenant = roomTenants && roomTenants.length > 0
+      ? roomTenants.find(t => !t.move_out_date)
       : null
 
     const tenantInfo = activeTenant ? {
@@ -82,7 +91,16 @@ export async function GET(request: NextRequest) {
     } : null
 
     // 5. Định dạng lịch sử hóa đơn
-    const invoicesList = (room.invoices || []).map((inv: any) => ({
+    interface RoomInvoice {
+      id: number;
+      invoice_code: string;
+      total_amount: number;
+      payment_status: string;
+      created_at: string;
+      issued_at: string;
+    }
+
+    const invoicesList = ((room.invoices || []) as unknown as RoomInvoice[]).map(inv => ({
       id: inv.id,
       totalAmount: inv.total_amount,
       paymentStatus: inv.payment_status,
@@ -90,7 +108,15 @@ export async function GET(request: NextRequest) {
     }))
 
     // 6. Định dạng lịch sử sự cố
-    const ticketsList = (room.maintenance_tickets || []).map((tick: any) => ({
+    interface RoomTicket {
+      id: number;
+      title: string;
+      status: string;
+      priority: string;
+      created_at: string;
+    }
+
+    const ticketsList = ((room.maintenance_tickets || []) as unknown as RoomTicket[]).map(tick => ({
       id: tick.id,
       title: tick.title,
       priority: tick.priority,
