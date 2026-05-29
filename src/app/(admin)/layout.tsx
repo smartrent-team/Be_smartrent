@@ -16,6 +16,23 @@ export default async function AdminLayout({
     redirect('/login')
   }
 
+  // Chặn Manager và Tenant truy cập vào Web App (Chỉ Super Admin mới được vào)
+  let query = supabase.from('users').select('role')
+  if (user.email && user.phone) {
+    query = query.or(`email.eq.${user.email},phone.eq.${user.phone}`)
+  } else if (user.email) {
+    query = query.eq('email', user.email)
+  } else if (user.phone) {
+    query = query.eq('phone', user.phone)
+  }
+  
+  const { data: profile } = await query.single()
+
+  if (!profile || profile.role !== 'super_admin') {
+    // Nếu không phải super admin, cho out về trang lỗi hoặc login kèm thông báo
+    redirect('/login?message=' + encodeURIComponent('Bạn không có quyền truy cập trang quản trị Web. Dành riêng cho Super Admin.'))
+  }
+
   return (
     <div className="grid min-h-screen w-full md:grid-cols-[220px_1fr] lg:grid-cols-[280px_1fr]">
       <div className="hidden border-r bg-muted/40 md:block">
