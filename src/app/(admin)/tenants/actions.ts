@@ -326,26 +326,33 @@ export async function deleteTenantAction(id: number, userIntId: number) {
     await adminSupabase.from('rooms').update({ status: 'available' }).eq('id', tenant.room_id)
   }
 
-  // Xóa các dữ liệu liên kết để tránh lỗi khóa ngoại (foreign key)
-  await adminSupabase.from('maintenance_tickets').delete().eq('tenant_id', id)
-  await adminSupabase.from('invoices').delete().eq('tenant_id', id)
-  await adminSupabase.from('contracts').delete().eq('tenant_id', id)
+  // Không xóa maintenance_tickets, invoices, contracts để giữ lịch sử
 
-  // 2. Xóa thông tin thuê
-  const { error: tenantError } = await adminSupabase.from('tenants').delete().eq('id', id)
-  if (tenantError) throw new Error('Lỗi xóa hồ sơ khách thuê: ' + tenantError.message)
+  // 2. Cập nhật ngày chuyển đi (move_out_date) cho hồ sơ thuê
+  const { error: tenantError } = await adminSupabase
+    .from('tenants')
+    .update({ move_out_date: new Date().toISOString() })
+    .eq('id', id)
+  if (tenantError) throw new Error('Lỗi cập nhật hồ sơ khách thuê: ' + tenantError.message)
+
+  // 3. Cập nhật hợp đồng thành trạng thái kết thúc (expired/cancelled)
+  await adminSupabase
+    .from('contracts')
+    .update({ status: 'expired', end_date: new Date().toISOString() })
+    .eq('tenant_id', id)
+    .eq('status', 'active')
 
   // Tìm số điện thoại để xóa tài khoản Supabase Auth
   const { data: userProfile } = await adminSupabase.from('users').select('phone').eq('id', userIntId).single()
 
-  // 3. Xóa profile trong users
-  // Xóa các thông báo của user này trước để tránh lỗi khóa ngoại (foreign key NOT NULL)
-  await adminSupabase.from('notifications').delete().eq('user_id', userIntId)
-  
-  const { error: userError } = await adminSupabase.from('users').delete().eq('id', userIntId)
-  if (userError) throw new Error('Lỗi xóa Profile khách thuê: ' + userError.message)
+  // 4. Xóa mềm profile trong users (không xóa bảng notifications)
+  const { error: userError } = await adminSupabase
+    .from('users')
+    .update({ status: 'deleted' })
+    .eq('id', userIntId)
+  if (userError) throw new Error('Lỗi xóa mềm Profile khách thuê: ' + userError.message)
 
-  // 4. Xóa tài khoản Auth trên Supabase Auth bằng cách tìm theo SĐT
+  // 5. Xóa tài khoản Auth trên Supabase Auth bằng cách tìm theo SĐT
   if (userProfile?.phone) {
     const { data: authUsers } = await adminSupabase.auth.admin.listUsers()
     const authUser = authUsers.users.find(u => u.phone === userProfile.phone)

@@ -34,7 +34,8 @@ export default async function TenantsPage({ searchParams }: { searchParams: Prom
   // 1. Fetch tenants
   const { data: rawTenants, count } = await adminSupabase
     .from('tenants')
-    .select('id, move_in_date, move_out_date, room_id, user_id, room:rooms(room_code, branch:branches(name)), user:users(full_name, email, phone), contracts(deposit_amount, status)', { count: 'exact' })
+    .select('id, move_in_date, move_out_date, room_id, user_id, room:rooms(room_code, branch:branches(name)), user:users!inner(full_name, email, phone), contracts(deposit_amount, status)', { count: 'exact' })
+    .eq('user.status', 'active')
     .order('created_at', { ascending: false })
     .range(from, to)
 

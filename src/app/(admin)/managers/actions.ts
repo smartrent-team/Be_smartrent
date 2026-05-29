@@ -102,17 +102,14 @@ export async function deleteManager(id: string) {
   // Tìm thông tin profile để có SĐT tìm tài khoản Auth
   const { data: userProfile } = await adminSupabase.from('users').select('phone').eq('id', userIntId).single()
 
-  // 1. Xóa profile trong public.users
-  // Xóa các thông báo của user này trước để tránh lỗi khóa ngoại (foreign key NOT NULL)
-  await adminSupabase.from('notifications').delete().eq('user_id', userIntId)
-  
+  // 1. Cập nhật status thành deleted thay vì xóa profile
   const { error: dbError } = await adminSupabase
     .from('users')
-    .delete()
+    .update({ status: 'deleted' })
     .eq('id', userIntId)
 
   if (dbError) {
-    console.error('Lỗi khi xóa profile Manager:', dbError)
+    console.error('Lỗi khi xóa mềm profile Manager:', dbError)
     throw new Error('Lỗi xóa Profile: ' + dbError.message)
   }
 

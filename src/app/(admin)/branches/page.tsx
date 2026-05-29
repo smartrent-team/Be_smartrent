@@ -40,6 +40,7 @@ export default async function BranchesPage() {
     .from('users')
     .select('id, full_name, phone, branch_id')
     .eq('role', 'manager')
+    .eq('status', 'active')
   const managers = rawManagers || []
 
   // Pre-calculate stats per branch

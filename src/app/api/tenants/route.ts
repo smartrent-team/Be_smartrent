@@ -22,7 +22,7 @@ export async function GET(request: NextRequest) {
           room_code,
           branch_id
         ),
-        user:users(
+        user:users!inner(
           id,
           full_name,
           phone,
@@ -30,6 +30,7 @@ export async function GET(request: NextRequest) {
           branch_id
         )
       `)
+      .eq('user.status', 'active')
 
     // 3. Phân quyền: Manager chỉ thấy cư dân thuộc chi nhánh của họ
     if (auth.role === 'manager') {

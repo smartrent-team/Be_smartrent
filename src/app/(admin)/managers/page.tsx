@@ -39,6 +39,7 @@ export default async function ManagersPage() {
     .from('users')
     .select('id, full_name, phone, email, role, branch_id')
     .eq('role', 'manager')
+    .eq('status', 'active')
 
   const managers = rawManagers || []
 
