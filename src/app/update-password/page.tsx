@@ -101,7 +101,14 @@ export default function UpdatePasswordPage() {
     setLoading(false)
 
     setTimeout(() => {
-      router.push('/login?message=' + encodeURIComponent('Đổi mật khẩu thành công. Vui lòng đăng nhập lại.'))
+      const urlParams = new URLSearchParams(window.location.search)
+      const source = urlParams.get('source')
+
+      if (source === 'mobile_app') {
+        window.location.href = 'smartrent://open?page=login'
+      } else {
+        router.push('/login?message=' + encodeURIComponent('Đổi mật khẩu thành công. Vui lòng đăng nhập lại.'))
+      }
     }, 1500)
   }
 
