@@ -9,13 +9,15 @@ export async function resetPassword(formData: FormData) {
   const supabase = await createClient()
   const headersList = await headers()
   
-  // Lấy origin từ host (ví dụ: localhost:3000 hoặc domain thật)
   const host = headersList.get('host')
   const protocol = process.env.NODE_ENV === 'development' ? 'http' : 'https'
   const origin = `${protocol}://${host}`
 
+  // redirectTo trỏ thẳng về /update-password
+  // Supabase sẽ gắn #access_token=...&type=recovery vào URL này
+  // Page /update-password là client component sẽ đọc hash và xử lý
   const { error } = await supabase.auth.resetPasswordForEmail(email, {
-    redirectTo: `${origin}/api/auth/callback?next=/update-password`,
+    redirectTo: `${origin}/update-password`,
   })
 
   if (error) {
@@ -24,3 +26,4 @@ export async function resetPassword(formData: FormData) {
 
   redirect(`/forgot-password?success=${encodeURIComponent('Đã gửi email khôi phục. Vui lòng kiểm tra hộp thư của bạn.')}`)
 }
+
