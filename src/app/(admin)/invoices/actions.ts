@@ -1,7 +1,7 @@
 'use server'
 
 import { verifySuperAdmin } from '@/lib/rbac'
-import { payos } from '@/lib/payos'
+import { attachPayOsPaymentToInvoice } from '@/lib/invoice-payment'
 import { revalidatePath } from 'next/cache'
 import { calculateElectricityCost, calculateWaterCost } from '@/lib/billing'
 
@@ -109,59 +109,26 @@ export async function createInvoice(data: {
     } | null = null
 
     if (totalAmount > 0 && totalAmount >= 2000) {
-      try {
-        const returnUrl = process.env.PAYOS_RETURN_URL || 'http://localhost:3000/payment-success'
-        const cancelUrl = process.env.PAYOS_CANCEL_URL || 'http://localhost:3000/payment-cancel'
-
-        const uniqueOrderCode = Number(Date.now().toString().slice(-6) + String(invoice.id % 1000).padStart(3, '0'))
-
-        const paymentLink = await payos.paymentRequests.create({
-          orderCode: uniqueOrderCode,
-          amount: totalAmount,
-          description: `TT ${invoiceCode}`.slice(0, 25),
-          returnUrl,
-          cancelUrl,
-        })
-
-        const extendedUpdate = {
-          payment_link_id: paymentLink.paymentLinkId,
-          checkoutUrl: paymentLink.checkoutUrl,
-          qrPayload: paymentLink.qrCode,
-          payment_account_number: paymentLink.accountNumber,
-          payment_account_name: paymentLink.accountName,
-          payment_bank_bin: paymentLink.bin,
-          payment_description: paymentLink.description,
-        }
-        const { error: extUpdateErr } = await supabase
-          .from('invoices')
-          .update(extendedUpdate)
-          .eq('id', invoice.id)
-
-        if (extUpdateErr) {
-          await supabase
-            .from('invoices')
-            .update({
-              payment_link_id: paymentLink.paymentLinkId,
-              checkoutUrl: paymentLink.checkoutUrl,
-              qrPayload: paymentLink.qrCode,
-            })
-            .eq('id', invoice.id)
-        }
-
+      const { payment: pay, warning } = await attachPayOsPaymentToInvoice(supabase, {
+        id: invoice.id,
+        invoice_code: invoiceCode,
+        total_amount: totalAmount,
+      })
+      if (pay) {
         payment = {
-          qrPayload: paymentLink.qrCode,
-          checkoutUrl: paymentLink.checkoutUrl,
+          qrPayload: pay.qrPayload,
+          checkoutUrl: pay.checkoutUrl,
           amount: totalAmount,
           invoiceCode,
-          accountNumber: paymentLink.accountNumber,
-          accountName: paymentLink.accountName,
-          bankBin: paymentLink.bin,
-          description: paymentLink.description,
-          expiredAt: paymentLink.expiredAt,
+          accountNumber: pay.accountNumber,
+          accountName: pay.accountName,
+          bankBin: pay.bankBin,
+          description: pay.description,
+          expiredAt: pay.expiredAt,
         }
-      } catch (payosError: any) {
-        console.warn('⚠️ PayOS tạo link thanh toán thất bại (hóa đơn vẫn được tạo):', payosError?.message || payosError)
-        paymentWarning = 'Hóa đơn đã tạo nhưng link thanh toán PayOS chưa được tạo. Vui lòng kiểm tra cấu hình PayOS (CHECKSUM_KEY).'
+      } else if (warning) {
+        console.warn('⚠️ PayOS:', warning)
+        paymentWarning = warning
       }
     }
 

@@ -25,9 +25,7 @@ export async function GET() {
       return NextResponse.json({ error: 'Không tìm thấy hồ sơ cư dân' }, { status: 404 })
     }
 
-    const { data: invoices, error } = await supabase
-      .from('invoices')
-      .select(`
+    const invoiceSelectWithPayment = `
         id,
         invoice_code,
         total_amount,
@@ -49,9 +47,45 @@ export async function GET() {
         payment_bank_bin,
         payment_description,
         rooms ( room_code, branch:branches ( name ) )
-      `)
-      .or(`tenant_id.eq.${tenant.id},room_id.eq.${tenant.room_id}`)
-      .order('issued_at', { ascending: false })
+      `
+
+    const invoiceSelectBase = `
+        id,
+        invoice_code,
+        total_amount,
+        payment_status,
+        issued_at,
+        created_at,
+        room_price,
+        service_cost,
+        electric_cost,
+        water_cost,
+        electric_old,
+        electric_new,
+        water_old,
+        water_new,
+        qrPayload,
+        checkoutUrl,
+        rooms ( room_code, branch:branches ( name ) )
+      `
+
+    const invoiceQuery = (select: string) =>
+      supabase
+        .from('invoices')
+        .select(select)
+        .or(`tenant_id.eq.${tenant.id},room_id.eq.${tenant.room_id}`)
+        .order('issued_at', { ascending: false })
+
+    let { data: invoices, error } = await invoiceQuery(invoiceSelectWithPayment)
+
+    if (error && (error as { code?: string }).code === '42703') {
+      console.warn(
+        'invoices payment columns missing — run supabase/migrations/05_add_payos_payment_columns_invoices.sql or npm run db:migrate-invoices'
+      )
+      const fallback = await invoiceQuery(invoiceSelectBase)
+      invoices = fallback.data
+      error = fallback.error
+    }
 
     if (error) throw error
 

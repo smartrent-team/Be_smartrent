@@ -53,6 +53,10 @@ export interface Database {
           payment_link_id: string | null
           checkoutUrl: string | null
           qrPayload: string | null
+          payment_account_number: string | null
+          payment_account_name: string | null
+          payment_bank_bin: string | null
+          payment_description: string | null
           room_price: number
           service_cost: number
           electric_cost: number
