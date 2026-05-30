@@ -58,7 +58,33 @@ export default function UpdatePasswordPage() {
         }
       }
 
-      // Không có hash → kiểm tra session hiện tại (đến từ PKCE callback)
+      // Cách 1: Xử lý token hash trực tiếp từ URL (dành cho Email Template dùng token_hash)
+      const searchParams = new URLSearchParams(window.location.search)
+      const tokenHash = searchParams.get('token_hash')
+      const type = searchParams.get('type')
+      
+      if (tokenHash && type === 'recovery') {
+        const { error } = await supabase.auth.verifyOtp({
+          token_hash: tokenHash,
+          type: 'recovery',
+        })
+        
+        if (error) {
+          setMessage({ type: 'error', text: 'Đường dẫn không hợp lệ hoặc đã hết hạn. Vui lòng thử lại.' })
+          return
+        }
+        
+        // Xóa token_hash khỏi URL để bảo mật
+        const newUrl = new URL(window.location.href)
+        newUrl.searchParams.delete('token_hash')
+        newUrl.searchParams.delete('type')
+        window.history.replaceState(null, '', newUrl.toString())
+        
+        setSessionReady(true)
+        return
+      }
+
+      // Cách 2: Không có hash → kiểm tra session hiện tại (đến từ PKCE callback)
       const { data: { user } } = await supabase.auth.getUser()
       if (user) {
         setSessionReady(true)

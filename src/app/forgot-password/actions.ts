@@ -17,7 +17,7 @@ export async function resetPassword(formData: FormData) {
   // Supabase sẽ gắn #access_token=...&type=recovery vào URL này
   // Page /update-password là client component sẽ đọc hash và xử lý
   const { error } = await supabase.auth.resetPasswordForEmail(email, {
-    redirectTo: `${origin}/update-password`,
+    redirectTo: `${origin}/update-password?source=web`,
   })
 
   if (error) {
