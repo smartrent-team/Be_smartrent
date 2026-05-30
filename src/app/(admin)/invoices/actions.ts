@@ -17,9 +17,9 @@ export async function createInvoice(data: {
   electricNew?: number
   waterOld?: number
   waterNew?: number
-}) {
+}, supabaseClient?: any) {
   try {
-    const supabase = await verifySuperAdmin()
+    const supabase = supabaseClient || await verifySuperAdmin()
 
     const totalAmount = data.roomPrice + (data.serviceCost || 0) + (data.electricCost || 0) + (data.waterCost || 0)
     
@@ -79,41 +79,51 @@ export async function createInvoice(data: {
 
     if (insertError) throw insertError
 
-    // 2. Tạo link thanh toán PayOS
-    if (totalAmount > 0) {
-      if (totalAmount < 2000) {
-        throw new Error('Số tiền thanh toán tối thiểu qua cổng PayOS là 2,000đ')
-      }
+    // 2. Tạo link thanh toán PayOS (không bắt buộc – nếu lỗi vẫn tạo hóa đơn OK)
+    let paymentWarning: string | null = null
+    if (totalAmount > 0 && totalAmount >= 2000) {
+      try {
+        const returnUrl = process.env.PAYOS_RETURN_URL || 'http://localhost:3000/payment-success'
+        const cancelUrl = process.env.PAYOS_CANCEL_URL || 'http://localhost:3000/payment-cancel'
 
-      const returnUrl = process.env.PAYOS_RETURN_URL || 'http://localhost:3000/payment-success'
-      const cancelUrl = process.env.PAYOS_CANCEL_URL || 'http://localhost:3000/payment-cancel'
+        // Tạo orderCode độc nhất dựa trên timestamp + ID hóa đơn để tránh trùng lặp trên cổng PayOS
+        const uniqueOrderCode = Number(Date.now().toString().slice(-6) + String(invoice.id % 1000).padStart(3, '0'))
 
-      // Tạo orderCode độc nhất dựa trên timestamp + ID hóa đơn để tránh trùng lặp trên cổng PayOS
-      const uniqueOrderCode = Number(Date.now().toString().slice(-6) + String(invoice.id % 1000).padStart(3, '0'))
-
-      const paymentLink = await payos.paymentRequests.create({
-        orderCode: uniqueOrderCode,
-        amount: totalAmount,
-        description: `TT Phong ${data.room_id}`,
-        returnUrl,
-        cancelUrl,
-      })
-
-      // Cập nhật lại invoice với ID link thanh toán và link checkout
-      await supabase
-        .from('invoices')
-        .update({
-          payment_link_id: paymentLink.paymentLinkId,
-          checkoutUrl: paymentLink.checkoutUrl,
-          qrPayload: paymentLink.qrCode,
+        const paymentLink = await payos.paymentRequests.create({
+          orderCode: uniqueOrderCode,
+          amount: totalAmount,
+          description: `TT Phong ${data.room_id}`,
+          returnUrl,
+          cancelUrl,
         })
-        .eq('id', invoice.id)
+
+        // Cập nhật lại invoice với ID link thanh toán và link checkout
+        await supabase
+          .from('invoices')
+          .update({
+            payment_link_id: paymentLink.paymentLinkId,
+            checkoutUrl: paymentLink.checkoutUrl,
+            qrPayload: paymentLink.qrCode,
+          })
+          .eq('id', invoice.id)
+      } catch (payosError: any) {
+        console.warn('⚠️ PayOS tạo link thanh toán thất bại (hóa đơn vẫn được tạo):', payosError?.message || payosError)
+        paymentWarning = 'Hóa đơn đã tạo nhưng link thanh toán PayOS chưa được tạo. Vui lòng kiểm tra cấu hình PayOS (CHECKSUM_KEY).'
+      }
     }
 
-    return { success: true, invoiceId: invoice.id }
-  } catch (error: unknown) {
+    return { success: true, invoiceId: invoice.id, paymentWarning }
+  } catch (error: any) {
     console.error('Lỗi khi tạo hóa đơn:', error)
-    return { success: false, error: error instanceof Error ? error.message : String(error) }
+    let errorMessage = 'Lỗi không xác định'
+    if (error) {
+      if (typeof error === 'object') {
+        errorMessage = error.message || error.details || JSON.stringify(error)
+      } else {
+        errorMessage = String(error)
+      }
+    }
+    return { success: false, error: errorMessage }
   }
 }
 
