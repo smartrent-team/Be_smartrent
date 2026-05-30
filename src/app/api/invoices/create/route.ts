@@ -65,6 +65,9 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({
       success: true,
       invoiceId: result.invoiceId,
+      invoiceCode: result.invoiceCode,
+      tenantId: result.tenantId,
+      payment: result.payment,
       ...(result.paymentWarning ? { paymentWarning: result.paymentWarning } : {}),
     })
 

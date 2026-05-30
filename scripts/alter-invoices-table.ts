@@ -93,6 +93,10 @@ async function tryConnectAndMigrate() {
         `ALTER TABLE invoices ADD COLUMN IF NOT EXISTS "checkoutUrl" text;`,
         `ALTER TABLE invoices ADD COLUMN IF NOT EXISTS "qrPayload" text;`,
         `ALTER TABLE invoices ADD COLUMN IF NOT EXISTS payment_link_id text;`,
+        `ALTER TABLE invoices ADD COLUMN IF NOT EXISTS payment_account_number text;`,
+        `ALTER TABLE invoices ADD COLUMN IF NOT EXISTS payment_account_name text;`,
+        `ALTER TABLE invoices ADD COLUMN IF NOT EXISTS payment_bank_bin text;`,
+        `ALTER TABLE invoices ADD COLUMN IF NOT EXISTS payment_description text;`,
         `ALTER TABLE invoices ADD COLUMN IF NOT EXISTS paid_at timestamp with time zone;`
       ]
       

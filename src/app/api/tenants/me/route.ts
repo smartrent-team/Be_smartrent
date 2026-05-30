@@ -41,7 +41,13 @@ export async function GET() {
           invoice_code,
           total_amount,
           payment_status,
-          issued_at
+          issued_at,
+          qrPayload,
+          checkoutUrl,
+          room_price,
+          service_cost,
+          electric_cost,
+          water_cost
         ),
         contracts (
           id,
