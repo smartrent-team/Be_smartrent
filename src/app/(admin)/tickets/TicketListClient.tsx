@@ -34,7 +34,7 @@ export default function TicketListClient({ initialTickets }: { initialTickets: T
 
   useEffect(() => {
     // Khởi tạo audio
-    audioRef.current = new Audio('/notification.mp3') // Nếu có file âm thanh thì sẽ kêu
+    audioRef.current = new Audio('/tieng_doc_1780103089973.mp3')
     audioRef.current.volume = 0.5
   }, [])
 
