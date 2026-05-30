@@ -9,7 +9,7 @@ import {
   TableRow,
 } from '@/components/ui/table'
 import { Badge } from '@/components/ui/badge'
-import { Button, buttonVariants } from '@/components/ui/button'
+import { buttonVariants } from '@/components/ui/button'
 import { Phone, Mail, Eye } from 'lucide-react'
 import { Pagination } from '@/components/shared/Pagination'
 import Link from 'next/link'

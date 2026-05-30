@@ -1,7 +1,7 @@
-import { NextResponse, type NextRequest } from 'next/server'
+import { NextResponse } from 'next/server'
 import { verifyRole } from '@/lib/rbac'
 
-export async function GET(request: NextRequest) {
+export async function GET() {
   try {
     // 1. Kiểm tra JWT của người gọi API qua RBAC
     const auth = await verifyRole()

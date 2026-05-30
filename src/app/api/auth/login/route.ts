@@ -1,7 +1,7 @@
 import { NextResponse, type NextRequest } from 'next/server'
 import { createApiClient } from '@/lib/supabase/server'
 import { z } from 'zod'
-import { phoneSchema, formatZodError } from '@/lib/validations'
+import { formatZodError } from '@/lib/validations'
 
 const loginSchema = z.object({
   phone: z.string().min(1, 'Vui lòng nhập số điện thoại hoặc email'),

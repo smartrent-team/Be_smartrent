@@ -3,7 +3,7 @@
 import { verifySuperAdmin } from '@/lib/rbac'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { revalidatePath } from 'next/cache'
-import { SupabaseClient } from '@supabase/supabase-js'
+
 
 
 
@@ -16,7 +16,7 @@ export async function createTenantAction(data: {
   depositAmount: number
   moveInDate: string
 }) {
-  const supabase = await verifySuperAdmin()
+  await verifySuperAdmin()
 
   if (!data.fullName || !data.phone || !data.email || !data.roomId || !data.moveInDate) {
     throw new Error('Vui lòng nhập đầy đủ thông tin bắt buộc')
@@ -157,7 +157,7 @@ export async function editTenantAction(
     moveOutDate?: string
   }
 ) {
-  const supabase = await verifySuperAdmin()
+  await verifySuperAdmin()
 
   if (!data.fullName || !data.phone || !data.email || !data.roomId || !data.moveInDate) {
     throw new Error('Họ tên, SĐT, Email, Phòng và ngày dời vào là bắt buộc')
@@ -202,9 +202,7 @@ export async function editTenantAction(
     }
   }
 
-  // 2. Lấy thông tin chi nhánh của phòng mới
-  const { data: newRoom } = await adminSupabase.from('rooms').select('branch_id').eq('id', newRoomId).single()
-  const branchId = newRoom?.branch_id || null
+  // 2. Lấy thông tin chi nhánh của phòng mới (không dùng trong flow edit)
 
   // 2. Cập nhật thông tin trong bảng users
   const { error: profileError } = await adminSupabase
@@ -293,7 +291,7 @@ export async function editTenantAction(
 }
 
 export async function deleteTenantAction(id: number, userIntId: number) {
-  const supabase = await verifySuperAdmin()
+  await verifySuperAdmin()
 
   const adminSupabase = createAdminClient()
 

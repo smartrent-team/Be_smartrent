@@ -8,7 +8,7 @@ export async function editManager(
   id: string,
   data: { fullName: string; phone: string; email: string; password?: string; branchId?: string }
 ) {
-  const supabase = await verifySuperAdmin()
+  await verifySuperAdmin()
 
   if (!data.fullName || !data.phone || !data.email) {
     throw new Error('Họ tên, email và số điện thoại là bắt buộc')
@@ -70,7 +70,7 @@ export async function editManager(
 }
 
 export async function deleteManager(id: string) {
-  const supabase = await verifySuperAdmin()
+  await verifySuperAdmin()
 
   const adminSupabase = createAdminClient()
   const userIntId = parseInt(id, 10)
