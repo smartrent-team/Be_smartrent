@@ -41,7 +41,8 @@ export async function updateSession(request: NextRequest) {
     !request.nextUrl.pathname.startsWith('/forgot-password') &&
     !request.nextUrl.pathname.startsWith('/update-password') &&
     !request.nextUrl.pathname.startsWith('/api') && // Exclude API routes from redirecting
-    !request.nextUrl.pathname.startsWith('/auth')
+    !request.nextUrl.pathname.startsWith('/auth') &&
+    !request.nextUrl.pathname.startsWith('/swagger.json') // Cho phép đọc file mô tả API
   ) {
     // no user, potentially respond by redirecting the user to the login page
     const url = request.nextUrl.clone()
