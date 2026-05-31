@@ -59,9 +59,25 @@ export async function GET(request: NextRequest) {
       if (!auth.branchId) {
         return NextResponse.json({ error: 'Người dùng chưa được gán vào cơ sở nào' }, { status: 403 })
       }
-      // Manager chỉ thấy hóa đơn thuộc phòng trong chi nhánh của mình
-      // Lọc qua rooms.branch_id
-      query = query.eq('rooms.branch_id', auth.branchId)
+      // Lấy danh sách room_id thuộc chi nhánh của manager
+      // (Supabase không hỗ trợ filter trực tiếp trên foreign table)
+      const { data: branchRooms, error: roomsError } = await supabase
+        .from('rooms')
+        .select('id')
+        .eq('branch_id', auth.branchId)
+
+      if (roomsError) {
+        return NextResponse.json({ error: 'Không thể lấy danh sách phòng theo chi nhánh' }, { status: 500 })
+      }
+
+      const branchRoomIds = (branchRooms || []).map((r: { id: number }) => r.id)
+
+      if (branchRoomIds.length === 0) {
+        // Chi nhánh chưa có phòng nào → trả về rỗng luôn
+        return NextResponse.json({ success: true, docs: [], totalDocs: 0, limit, page, totalPages: 0 })
+      }
+
+      query = query.in('room_id', branchRoomIds)
     }
     // super_admin thấy tất cả
 
