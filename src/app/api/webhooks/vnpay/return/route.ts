@@ -1,5 +1,6 @@
 import { NextResponse, type NextRequest } from 'next/server'
 import { verifyVNPaySignature } from '@/lib/vnpay'
+import { createAdminClient } from '@/lib/supabase/admin'
 
 export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url)
@@ -11,10 +12,31 @@ export async function GET(request: NextRequest) {
 
   const isVerified = verifyVNPaySignature({ ...vnp_Params })
 
-  // Chuyển hướng người dùng về trang thông báo
-  // Có thể tuỳ biến UI trang này sau ở /payment-result
   if (isVerified) {
     if (vnp_Params['vnp_ResponseCode'] === '00') {
+      const orderId = vnp_Params['vnp_TxnRef']
+      const supabase = createAdminClient()
+
+      // Update invoice to paid if not already updated by IPN
+      const { data: invoice } = await supabase
+        .from('invoices')
+        .select('id, payment_status, total_amount')
+        .eq('payment_link_id', orderId)
+        .single()
+
+      if (invoice && invoice.payment_status !== 'paid') {
+        const vnpAmount = Number(vnp_Params['vnp_Amount']) / 100
+        if (vnpAmount === Number(invoice.total_amount)) {
+          await supabase
+            .from('invoices')
+            .update({
+              payment_status: 'paid',
+              paid_at: new Date().toISOString(),
+            })
+            .eq('id', invoice.id)
+        }
+      }
+
       return NextResponse.redirect(new URL('/payment-success', request.url))
     } else {
       return NextResponse.redirect(new URL('/payment-cancel', request.url))
