@@ -16,12 +16,12 @@ export async function GET(request: NextRequest) {
 
     const baseSelect = `
       id, title, description, status, images, created_at, priority,
-      rooms (id, room_code),
+      rooms (id, room_code, floor),
       tenants (id, user:users(full_name, phone))
     `
     const baseSelectInner = `
       id, title, description, status, images, created_at, priority,
-      rooms!inner (id, room_code, branch_id),
+      rooms (id, room_code, floor, branch_id),
       tenants (id, user:users(full_name, phone))
     `
 
@@ -36,11 +36,19 @@ export async function GET(request: NextRequest) {
       query = supabase.from('maintenance_tickets').select(baseSelect).eq('room_id', tenantInfo.room_id)
     } else if (auth.role === 'manager') {
       // Quản lý chỉ xem được ticket của chi nhánh mình
-      if (auth.branchId) {
-        query = supabase.from('maintenance_tickets').select(baseSelectInner).eq('rooms.branch_id', auth.branchId)
-      } else {
+      if (!auth.branchId) {
         return NextResponse.json({ error: 'Manager không có chi nhánh' }, { status: 403 })
       }
+      // Lấy danh sách room_id thuộc chi nhánh (Supabase không filter được qua foreign table)
+      const { data: branchRooms } = await supabase
+        .from('rooms')
+        .select('id')
+        .eq('branch_id', auth.branchId)
+      const branchRoomIds = (branchRooms || []).map((r: { id: number }) => r.id)
+      if (branchRoomIds.length === 0) {
+        return NextResponse.json({ success: true, data: [] })
+      }
+      query = supabase.from('maintenance_tickets').select(baseSelectInner).in('room_id', branchRoomIds)
     } else {
       // super_admin: xem được tất cả, không cần filter thêm
       query = supabase.from('maintenance_tickets').select(baseSelect)

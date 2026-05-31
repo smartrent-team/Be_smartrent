@@ -19,7 +19,7 @@ export async function GET(
       .from('maintenance_tickets')
       .select(`
         *,
-        room:rooms(room_code, branch_id),
+        rooms(room_code, floor, branch_id),
         tenant:tenants(
           user_id,
           user:users(full_name, phone)
@@ -45,7 +45,7 @@ export async function GET(
     
     // - Quản lý chỉ xem được ticket thuộc chi nhánh của mình
     if (auth.role === 'manager') {
-      if (ticket.room?.branch_id !== auth.branchId) {
+      if ((ticket.rooms as unknown as { branch_id: number })?.branch_id !== auth.branchId) {
         return NextResponse.json({ error: 'Bạn không có quyền xem sự cố của chi nhánh khác' }, { status: 403 })
       }
     }
