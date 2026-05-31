@@ -91,6 +91,14 @@ export default async function TenantDetailPage({ params }: { params: Promise<{ i
                   {tenant.move_out_date ? 'Đã trả phòng' : 'Đang thuê'}
                 </Badge>
               </div>
+              <div>
+                <p className="text-sm text-muted-foreground">CCCD / CMND</p>
+                <p className="font-medium">
+                  {tenant.identity_number && tenant.identity_number !== '000000000000'
+                    ? tenant.identity_number
+                    : 'Chưa cập nhật'}
+                </p>
+              </div>
             </div>
           </CardContent>
         </Card>

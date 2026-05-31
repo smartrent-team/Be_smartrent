@@ -26,7 +26,7 @@ export async function GET(
 
     const { data: tenantRow, error: tenantError } = await supabase
       .from('tenants')
-      .select('id, move_in_date, move_out_date, room_id, user_id')
+      .select('id, move_in_date, move_out_date, room_id, user_id, identity_number')
       .eq('id', tenantId)
       .single()
 
@@ -154,6 +154,11 @@ export async function GET(
         contractImages,
         userId: userRow.id,
         activeContractId: activeContract?.id ?? null,
+        identityNumber: (() => {
+          const raw = tenantRow.identity_number as string | null
+          if (!raw || raw === '000000000000') return null
+          return raw
+        })(),
       },
     })
   } catch (error: unknown) {
