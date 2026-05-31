@@ -20,12 +20,12 @@ export async function attachVNPayToInvoice(
   }
 
   try {
-    const orderId = `${invoice.invoice_code}_${Date.now()}`
+    const orderId = `${invoice.invoice_code.replace(/[^A-Za-z0-9]/g, '')}${new Date().getTime()}`
     
     const checkoutUrl = buildVNPayUrl({
       orderId: orderId,
-      amount: totalAmount,
-      orderInfo: `Thanh toan hoa don ${invoice.invoice_code}`,
+      amount: Math.round(totalAmount),
+      orderInfo: `ThanhToan${invoice.invoice_code.replace(/[^A-Za-z0-9]/g, '')}`,
       ipAddr,
     })
 
