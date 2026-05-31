@@ -25,6 +25,7 @@ import Link from 'next/link'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { addInvoiceAction } from './actions'
+import { ResendNotificationButton } from './_components/ResendNotificationButton'
 
 export default async function InvoicesPage({ searchParams }: { searchParams: Promise<{ [key: string]: string | string[] | undefined }> }) {
   const params = await searchParams
@@ -209,9 +210,7 @@ function InvoiceTable({ invoices }: { invoices: InvoiceFormatted[] }) {
                 </TableCell>
                 <TableCell className="text-right">
                   {inv.status !== 'paid' && (
-                    <Button variant="outline" size="sm" className="gap-2">
-                      <Send className="h-3 w-3" /> Gửi link
-                    </Button>
+                    <ResendNotificationButton invoiceId={inv.id} />
                   )}
                 </TableCell>
               </TableRow>

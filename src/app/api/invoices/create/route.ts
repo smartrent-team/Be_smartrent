@@ -52,10 +52,10 @@ export async function POST(request: NextRequest) {
       serviceCost: serviceCost ? Number(serviceCost) : 0,
       electricCost: finalElectricCost ? Number(finalElectricCost) : 0,
       waterCost: finalWaterCost ? Number(finalWaterCost) : 0,
-      electricOld: electricOld ? Number(electricOld) : null,
-      electricNew: electricNew ? Number(electricNew) : null,
-      waterOld: waterOld ? Number(waterOld) : null,
-      waterNew: waterNew ? Number(waterNew) : null,
+      electricOld: electricOld ? Number(electricOld) : undefined,
+      electricNew: electricNew ? Number(electricNew) : undefined,
+      waterOld: waterOld ? Number(waterOld) : undefined,
+      waterNew: waterNew ? Number(waterNew) : undefined,
     }, auth.supabase)
 
     if (!result.success) {

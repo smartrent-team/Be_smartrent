@@ -1,38 +1,23 @@
 import { NextResponse } from 'next/server'
 import { verifyRole } from '@/lib/rbac'
-import { attachPayOsPaymentToInvoice, toTenantPaymentError } from '@/lib/invoice-payment'
+import { attachVNPayToInvoice, toTenantPaymentError } from '@/lib/invoice-payment'
 
 type RouteContext = { params: Promise<{ id: string }> }
 
-const SELECT_WITH_QR = `
+const SELECT_FIELDS = `
   id, invoice_code, total_amount, payment_status, issued_at, created_at,
-  qrPayload, checkoutUrl, tenant_id, room_id
-`
-
-const SELECT_WITH_BANK = `
-  ${SELECT_WITH_QR.trim()},
-  payment_account_number, payment_account_name, payment_bank_bin, payment_description
+  checkoutUrl, tenant_id, room_id
 `
 
 async function fetchInvoice(
   supabase: { from: (table: string) => any },
   invoiceId: number
 ) {
-  let result = await supabase
+  return await supabase
     .from('invoices')
-    .select(SELECT_WITH_BANK)
+    .select(SELECT_FIELDS)
     .eq('id', invoiceId)
     .maybeSingle()
-
-  if (result.error && (result.error as { code?: string }).code === '42703') {
-    result = await supabase
-      .from('invoices')
-      .select(SELECT_WITH_QR)
-      .eq('id', invoiceId)
-      .maybeSingle()
-  }
-
-  return result
 }
 
 export async function POST(_request: Request, context: RouteContext) {
@@ -84,7 +69,7 @@ export async function POST(_request: Request, context: RouteContext) {
       return NextResponse.json({ error: 'Hóa đơn đã được thanh toán' }, { status: 400 })
     }
 
-    if (invoice.qrPayload) {
+    if (invoice.checkoutUrl) {
       return NextResponse.json({
         success: true,
         invoice: mapInvoice(invoice),
@@ -92,11 +77,16 @@ export async function POST(_request: Request, context: RouteContext) {
       })
     }
 
-    const { payment, warning } = await attachPayOsPaymentToInvoice(supabase, {
-      id: invoice.id,
-      invoice_code: invoice.invoice_code,
-      total_amount: invoice.total_amount,
-    })
+    // IP của người dùng thực tế sẽ được proxy pass nếu qua nginx, tạm dùng 127.0.0.1
+    const { payment, warning } = await attachVNPayToInvoice(
+      supabase, 
+      {
+        id: invoice.id,
+        invoice_code: invoice.invoice_code,
+        total_amount: invoice.total_amount,
+      },
+      '127.0.0.1' 
+    )
 
     if (!payment) {
       console.warn('[payment-link] tenant invoice', invoiceId, warning)
@@ -128,12 +118,7 @@ export async function POST(_request: Request, context: RouteContext) {
 function mapInvoiceFromPayment(
   invoice: Record<string, unknown>,
   payment: {
-    qrPayload: string
     checkoutUrl: string
-    accountNumber: string
-    accountName: string
-    bankBin: string
-    description: string
   }
 ) {
   return {
@@ -143,14 +128,9 @@ function mapInvoiceFromPayment(
     paymentStatus: invoice.payment_status,
     issuedAt: invoice.issued_at,
     createdAt: invoice.created_at,
-    qrPayload: payment.qrPayload,
     checkoutUrl: payment.checkoutUrl,
-    paymentAccountNumber: payment.accountNumber,
-    paymentAccountName: payment.accountName,
-    paymentBankBin: payment.bankBin,
-    paymentDescription: payment.description,
     isPaid: false,
-    hasQr: true,
+    hasLink: true,
   }
 }
 
@@ -162,13 +142,8 @@ function mapInvoice(inv: Record<string, unknown>) {
     paymentStatus: inv.payment_status,
     issuedAt: inv.issued_at,
     createdAt: inv.created_at,
-    qrPayload: inv.qrPayload,
     checkoutUrl: inv.checkoutUrl,
-    paymentAccountNumber: inv.payment_account_number ?? null,
-    paymentAccountName: inv.payment_account_name ?? null,
-    paymentBankBin: inv.payment_bank_bin ?? null,
-    paymentDescription: inv.payment_description ?? null,
     isPaid: inv.payment_status === 'paid',
-    hasQr: Boolean(inv.qrPayload),
+    hasLink: Boolean(inv.checkoutUrl),
   }
 }

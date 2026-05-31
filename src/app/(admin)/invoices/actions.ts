@@ -1,9 +1,10 @@
 'use server'
 
 import { verifySuperAdmin } from '@/lib/rbac'
-import { attachPayOsPaymentToInvoice } from '@/lib/invoice-payment'
+import { attachVNPayToInvoice } from '@/lib/invoice-payment'
 import { revalidatePath } from 'next/cache'
 import { calculateElectricityCost, calculateWaterCost } from '@/lib/billing'
+import { sendPushNotification } from '@/lib/push'
 
 export async function createInvoice(data: {
   room_id: number
@@ -27,7 +28,6 @@ export async function createInvoice(data: {
     const date = new Date()
     const yearMonth = `${date.getFullYear()}${String(date.getMonth() + 1).padStart(2, '0')}`
 
-    // Chống trùng lặp: Kiểm tra xem phòng này đã có hóa đơn trong tháng chưa
     const { data: existingInvoice } = await supabase
       .from('invoices')
       .select('id')
@@ -94,42 +94,38 @@ export async function createInvoice(data: {
       }
     }
 
-    // 2. Tạo link thanh toán PayOS (không bắt buộc – nếu lỗi vẫn tạo hóa đơn OK)
+    // 2. Tạo link thanh toán VNPay
     let paymentWarning: string | null = null
     let payment: {
-      qrPayload: string
       checkoutUrl: string
       amount: number
       invoiceCode: string
-      accountNumber: string
-      accountName: string
-      bankBin: string
-      description: string
-      expiredAt?: number
     } | null = null
 
-    if (totalAmount > 0 && totalAmount >= 2000) {
-      const { payment: pay, warning } = await attachPayOsPaymentToInvoice(supabase, {
+    if (totalAmount > 0 && totalAmount >= 5000) {
+      const { payment: pay, warning } = await attachVNPayToInvoice(supabase, {
         id: invoice.id,
         invoice_code: invoiceCode,
         total_amount: totalAmount,
       })
       if (pay) {
         payment = {
-          qrPayload: pay.qrPayload,
           checkoutUrl: pay.checkoutUrl,
           amount: totalAmount,
           invoiceCode,
-          accountNumber: pay.accountNumber,
-          accountName: pay.accountName,
-          bankBin: pay.bankBin,
-          description: pay.description,
-          expiredAt: pay.expiredAt,
         }
       } else if (warning) {
-        console.warn('⚠️ PayOS:', warning)
+        console.warn('⚠️ VNPay:', warning)
         paymentWarning = warning
       }
+    }
+
+    // 3. Tự động gửi thông báo (Push Notification) cho người thuê
+    if (tenantId) {
+      // Gọi ngầm không cần await để tránh block luồng trả về
+      resendInvoiceNotification(invoice.id).catch(err => {
+        console.error('Lỗi khi gửi thông báo tự động:', err)
+      })
     }
 
     return { success: true, invoiceId: invoice.id, invoiceCode, paymentWarning, payment, tenantId }
@@ -144,6 +140,62 @@ export async function createInvoice(data: {
       }
     }
     return { success: false, error: errorMessage }
+  }
+}
+
+export async function resendInvoiceNotification(invoiceId: string | number) {
+  try {
+    const supabase = await verifySuperAdmin()
+    
+    // Lấy thông tin hoá đơn & user
+    const { data: invoice, error } = await supabase
+      .from('invoices')
+      .select('id, invoice_code, total_amount, tenant_id, room:rooms(room_code), tenant:tenants(user_id)')
+      .eq('id', invoiceId)
+      .single()
+
+    if (error || !invoice || !invoice.tenant_id) {
+      throw new Error('Không tìm thấy hoá đơn hoặc người thuê')
+    }
+
+    const tenantData = invoice.tenant as unknown;
+    const tenantObj = Array.isArray(tenantData) ? tenantData[0] as { user_id: string } : tenantData as { user_id: string } | null;
+    const tenantUserId = tenantObj?.user_id;
+
+    const roomData = invoice.room as unknown;
+    const roomObj = Array.isArray(roomData) ? roomData[0] as { room_code: string } : roomData as { room_code: string } | null;
+    const roomCode = roomObj?.room_code || '?';
+
+    const title = '🔔 Hoá đơn mới'
+    const body = `Phòng ${roomCode} có hoá đơn tháng này. Tổng tiền: ${invoice.total_amount?.toLocaleString('vi-VN')}đ. Vui lòng thanh toán!`
+
+    // Lấy token thiết bị
+    const { data: tokens } = await supabase
+      .from('device_tokens')
+      .select('token')
+      .eq('tenant_id', invoice.tenant_id)
+
+    if (tokens && tokens.length > 0) {
+      for (const item of tokens) {
+        await sendPushNotification(item.token, title, body)
+      }
+    }
+
+    // Lưu notification vào DB
+    if (tenantUserId) {
+      await supabase.from('notifications').insert({
+        user_id: tenantUserId,
+        title,
+        body,
+        type: 'invoice',
+        isRead: false,
+      })
+    }
+
+    return { success: true }
+  } catch (err: any) {
+    console.error('Gửi thông báo lỗi:', err)
+    return { success: false, error: err.message }
   }
 }
 

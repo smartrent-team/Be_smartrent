@@ -94,7 +94,7 @@ export async function GET() {
       branch: { name: string } | null
     }
 
-    const docs = (invoices || []).map((inv) => {
+    const docs = ((invoices as any[]) || []).map((inv: any) => {
       const room = inv.rooms as unknown as InvoiceRoom | null
       return {
         id: inv.id,

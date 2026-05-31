@@ -28,7 +28,7 @@ if (!connectionString) {
 }
 
 async function tryConnectAndMigrate() {
-  const parsed = new URL(connectionString)
+  const parsed = new URL(connectionString as string)
   const passwordDecoded = decodeURIComponent(parsed.password)
   const dbName = parsed.pathname.substring(1).split('?')[0]
   
