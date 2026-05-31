@@ -7,6 +7,7 @@ import Link from 'next/link'
 import { ArrowLeft, User, MapPin, FileText } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { ContractImages } from '@/components/shared/ContractImages'
+import { getContractImagesById } from '@/lib/contracts'
 
 export default async function TenantDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
@@ -36,13 +37,20 @@ export default async function TenantDetailPage({ params }: { params: Promise<{ i
     deposit_amount?: number;
   }
 
-  // Lấy ảnh của hợp đồng đang active
   const activeContract = (tenant?.contracts as unknown as ContractData[])?.find((c) => c.status === 'active')
-  const initialImages: string[] = []
 
   if (error || !tenant) {
     console.error('Tenant fetch error for id', id, ':', error);
     notFound()
+  }
+
+  let initialImages: string[] = []
+  if (activeContract?.id) {
+    try {
+      initialImages = await getContractImagesById(Number(activeContract.id))
+    } catch (contractError) {
+      console.error('Tenant detail contract images fetch error for id', id, ':', contractError)
+    }
   }
 
   return (

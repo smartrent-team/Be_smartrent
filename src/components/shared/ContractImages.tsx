@@ -5,7 +5,6 @@ import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Image as ImageIcon, Upload, X, Loader2 } from 'lucide-react'
 import { toast } from 'sonner'
-import { createClient } from '@/lib/supabase/client'
 import Image from 'next/image'
 
 interface ContractImagesProps {
@@ -17,7 +16,28 @@ interface ContractImagesProps {
 export function ContractImages({ tenantId, roomId, initialImages }: ContractImagesProps) {
   const [images, setImages] = useState<string[]>(initialImages)
   const [uploading, setUploading] = useState(false)
-  const supabase = createClient()
+
+  const syncContractImages = async (nextImages: string[]) => {
+    const response = await fetch(`/api/tenants/${tenantId}/contract-images`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        contractImages: nextImages,
+        roomId,
+      }),
+    })
+
+    const data = await response.json()
+    if (!response.ok) {
+      throw new Error(data.error || 'Không thể lưu ảnh hợp đồng')
+    }
+
+    return Array.isArray(data.contractImages)
+      ? data.contractImages.filter((url: unknown): url is string => typeof url === 'string' && url.length > 0)
+      : nextImages
+  }
 
   const handleUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
@@ -53,39 +73,10 @@ export function ContractImages({ tenantId, roomId, initialImages }: ContractImag
 
       toast.loading('Đang lưu vào dữ liệu khách thuê...', { id: toastId })
 
-      // 3. Cập nhật vào Database (bảng contracts)
-      // Trước tiên kiểm tra xem đã có contract cho tenant này chưa, nếu chưa thì tạo.
-      const { data: existingContract } = await supabase
-        .from('contracts')
-        .select('id, contract_images')
-        .eq('tenant_id', tenantId)
-        .eq('status', 'active')
-        .single()
-
       const newImagesList = [...images, newImageUrl]
+      const syncedImages = await syncContractImages(newImagesList)
 
-      if (existingContract) {
-        // Update
-        const { error: updateError } = await supabase
-          .from('contracts')
-          .update({ contract_images: newImagesList })
-          .eq('id', existingContract.id)
-        if (updateError) throw updateError
-      } else {
-        // Insert
-        const { error: insertError } = await supabase
-          .from('contracts')
-          .insert({
-            tenant_id: tenantId,
-            room_id: roomId,
-            start_date: new Date().toISOString(),
-            contract_images: newImagesList,
-            status: 'active'
-          })
-        if (insertError) throw insertError
-      }
-
-      setImages(newImagesList)
+      setImages(syncedImages)
       toast.success('Tải ảnh hợp đồng thành công!', { id: toastId })
     } catch (error: unknown) {
       console.error(error)
@@ -103,21 +94,9 @@ export function ContractImages({ tenantId, roomId, initialImages }: ContractImag
     
     try {
       const newImagesList = images.filter(url => url !== urlToRemove)
-      const { data: existingContract } = await supabase
-        .from('contracts')
-        .select('id')
-        .eq('tenant_id', tenantId)
-        .eq('status', 'active')
-        .single()
-
-      if (existingContract) {
-        await supabase
-          .from('contracts')
-          .update({ contract_images: newImagesList })
-          .eq('id', existingContract.id)
-      }
+      const syncedImages = await syncContractImages(newImagesList)
       
-      setImages(newImagesList)
+      setImages(syncedImages)
       toast.success('Đã xóa ảnh')
     } catch {
       toast.error('Lỗi khi xóa ảnh')

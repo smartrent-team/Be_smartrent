@@ -1,4 +1,5 @@
 import { NextResponse, type NextRequest } from 'next/server'
+import { getContractImagesById, updateContractImagesDirectly } from '@/lib/contracts'
 import { verifyRole } from '@/lib/rbac'
 
 export async function GET(
@@ -100,16 +101,10 @@ export async function GET(
 
     let contractImages: string[] = []
     if (activeContract?.id) {
-      const { data: imageRow } = await supabase
-        .from('contracts')
-        .select('contract_images')
-        .eq('id', activeContract.id)
-        .maybeSingle()
-
-      if (imageRow?.contract_images && Array.isArray(imageRow.contract_images)) {
-        contractImages = imageRow.contract_images.filter(
-          (url): url is string => typeof url === 'string' && url.length > 0
-        )
+      try {
+        contractImages = await getContractImagesById(activeContract.id)
+      } catch (contractError) {
+        console.error('Tenant detail – contract images:', contractError)
       }
     }
 
@@ -337,15 +332,10 @@ export async function PATCH(
       const contractUpdate: {
         start_date: string
         end_date: string | null
-        contract_images?: string[]
         status?: string
       } = {
         start_date: moveInIso,
         end_date: moveOutIso,
-      }
-
-      if (contractImages !== undefined) {
-        contractUpdate.contract_images = contractImages
       }
 
       if (moveOutIso) {
@@ -353,6 +343,10 @@ export async function PATCH(
       }
 
       await supabase.from('contracts').update(contractUpdate).eq('id', activeContract.id)
+
+      if (contractImages !== undefined) {
+        await updateContractImagesDirectly(activeContract.id, contractImages)
+      }
     }
 
     if (tenantRow.room_id) {

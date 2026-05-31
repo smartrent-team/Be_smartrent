@@ -1,6 +1,7 @@
 import { NextResponse, type NextRequest } from 'next/server'
 import { verifyRole, canCreateUser } from '@/lib/rbac'
 import { createAdminClient } from '@/lib/supabase/admin'
+import { createContractDirectly } from '@/lib/contracts'
 
 export async function POST(request: NextRequest) {
   try {
@@ -11,7 +12,13 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json()
-    const { phone, password, full_name, role: targetRole, branch_id: targetBranchId, room_id, email } = body
+    const { phone, password, full_name, role: targetRole, branch_id: targetBranchId, room_id, email, identity_number, contractImages: rawContractImages } = body
+
+    const contractImages = Array.isArray(rawContractImages)
+      ? rawContractImages.filter(
+          (url: unknown): url is string => typeof url === 'string' && url.startsWith('http')
+        )
+      : []
 
     if (!phone || !password || !targetRole || !email) {
       return NextResponse.json({ error: 'Thiếu thông tin bắt buộc (phone, password, role, email)' }, { status: 400 })
@@ -98,16 +105,20 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Lỗi khi ghi dữ liệu profile: ' + (dbError?.message || 'Unknown error') }, { status: 500 })
     }
 
+    let createdTenantId: number | null = null
+    let createdRoomId: number | null = null
+
     // 5. Nếu vai trò là tenant và có room_id, thêm thông tin vào bảng tenants và cập nhật trạng thái phòng
     if (targetRole === 'tenant' && room_id) {
       const roomIdNum = Number(room_id)
+      createdRoomId = roomIdNum
       const { data: tenantData, error: tenantError } = await adminSupabase
         .from('tenants')
         .insert({
           user_id: newUserProfile.id,
           room_id: roomIdNum,
           move_in_date: new Date().toISOString(),
-          identity_number: '000000000000'
+          identity_number: (identity_number && String(identity_number).replace(/\D/g, '')) || '000000000000'
         })
         .select()
         .single()
@@ -119,6 +130,56 @@ export async function POST(request: NextRequest) {
         return NextResponse.json({ error: 'Lỗi khi tạo hồ sơ cư dân thuê phòng: ' + tenantError.message }, { status: 500 })
       }
 
+      createdTenantId = tenantData.id
+
+      const { data: roomData } = await adminSupabase
+        .from('rooms')
+        .select('base_price')
+        .eq('id', roomIdNum)
+        .single()
+
+      const contractCode = `HD-${roomIdNum}-${tenantData.id}-${Date.now().toString().slice(-4)}`
+      let contractErrorMessage: string | null = null
+
+      if (contractImages.length > 0) {
+        try {
+          await createContractDirectly({
+            contractCode,
+            tenantId: tenantData.id,
+            roomId: roomIdNum,
+            startDate: new Date().toISOString(),
+            depositAmount: 0,
+            monthlyPrice: roomData?.base_price ?? 0,
+            status: 'active',
+            contractImages,
+          })
+        } catch (error: unknown) {
+          contractErrorMessage = error instanceof Error ? error.message : String(error)
+        }
+      } else {
+        const { error: contractError } = await adminSupabase.from('contracts').insert({
+          contract_code: contractCode,
+          tenant_id: tenantData.id,
+          room_id: roomIdNum,
+          start_date: new Date().toISOString(),
+          deposit_amount: 0,
+          monthly_price: roomData?.base_price ?? 0,
+          status: 'active',
+        })
+
+        contractErrorMessage = contractError?.message ?? null
+      }
+
+      if (contractErrorMessage) {
+        await adminSupabase.from('tenants').delete().eq('id', tenantData.id)
+        await adminSupabase.from('users').delete().eq('id', newUserProfile.id)
+        await adminSupabase.auth.admin.deleteUser(authData.user.id)
+        return NextResponse.json(
+          { error: 'Lỗi khi tạo hợp đồng: ' + contractErrorMessage },
+          { status: 500 }
+        )
+      }
+
       // Cập nhật trạng thái phòng thành occupied
       const { error: roomUpdateError } = await adminSupabase
         .from('rooms')
@@ -126,7 +187,8 @@ export async function POST(request: NextRequest) {
         .eq('id', roomIdNum)
 
       if (roomUpdateError) {
-        // Rollback tenant, user và auth user
+        // Rollback contract, tenant, user và auth user
+        await adminSupabase.from('contracts').delete().eq('tenant_id', tenantData.id)
         await adminSupabase.from('tenants').delete().eq('id', tenantData.id)
         await adminSupabase.from('users').delete().eq('id', newUserProfile.id)
         await adminSupabase.auth.admin.deleteUser(authData.user.id)
@@ -134,9 +196,11 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    return NextResponse.json({ 
+    return NextResponse.json({
       success: true, 
       message: 'Tạo tài khoản thành công',
+      tenantId: createdTenantId,
+      roomId: createdRoomId,
       user: {
         id: authData.user.id,
         phone: formattedPhone,
