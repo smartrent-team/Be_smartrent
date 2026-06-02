@@ -54,6 +54,14 @@ export async function createInvoice(data: {
 
     const invoiceCode = `INV-${yearMonth}-${String(nextNumber).padStart(4, '0')}`
     
+    // Tính electric_usage / water_usage từ chỉ số cũ/mới
+    const electricUsage = (data.electricNew != null && data.electricOld != null)
+      ? Math.max(0, data.electricNew - data.electricOld)
+      : null
+    const waterUsage = (data.waterNew != null && data.waterOld != null)
+      ? Math.max(0, data.waterNew - data.waterOld)
+      : null
+
     // Tạo bản ghi ban đầu để lấy ID
     const { data: invoice, error: insertError } = await supabase
       .from('invoices')
@@ -66,10 +74,12 @@ export async function createInvoice(data: {
         service_cost: data.serviceCost || 0,
         electric_cost: data.electricCost || 0,
         water_cost: data.waterCost || 0,
-        electric_old: data.electricOld || null,
-        electric_new: data.electricNew || null,
-        water_old: data.waterOld || null,
-        water_new: data.waterNew || null,
+        electric_old: data.electricOld ?? null,
+        electric_new: data.electricNew ?? null,
+        electric_usage: electricUsage,
+        water_old: data.waterOld ?? null,
+        water_new: data.waterNew ?? null,
+        water_usage: waterUsage,
         total_amount: totalAmount,
         payment_status: 'unpaid',
         issued_at: new Date().toISOString(),

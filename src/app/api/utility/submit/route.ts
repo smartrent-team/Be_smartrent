@@ -51,7 +51,7 @@ export async function POST(request: NextRequest) {
 
     const { data: previousLog } = await supabase
       .from('utility_logs')
-      .select('electric_new, water_new')
+      .select('electric_new, water_new, electric_usage, water_usage')
       .eq('room_id', roomId)
       .eq('month', previousMonth)
       .eq('year', previousYear)
@@ -67,23 +67,25 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Chỉ số mới không được nhỏ hơn tháng trước' }, { status: 400 })
     }
 
-    // Thuật toán kiểm tra bất thường cơ bản:
-    // Nếu dùng nhiều hơn 50% so với tháng trước và > 100 số điện / 10 khối nước
+    // Thuật toán kiểm tra bất thường:
+    // So sánh lượng tiêu thụ tháng này với lượng tiêu thụ tháng trước (electric_usage / water_usage)
     let hasAnomaly = false
     const anomalyMessages = []
 
     if (previousLog) {
-      // Logic so sánh
-      const elecIncrease = electricityUsed - prevElectricity
-      if (prevElectricity > 0 && elecIncrease > prevElectricity * 0.5 && electricityUsed > 100) {
+      const prevElecUsage = previousLog.electric_usage || 0
+      const prevWaterUsage = previousLog.water_usage || 0
+
+      // Điện tăng > 50% so với lượng dùng tháng trước và tuyệt đối > 100 kWh
+      if (prevElecUsage > 0 && electricityUsed > prevElecUsage * 1.5 && electricityUsed > 100) {
         hasAnomaly = true
-        anomalyMessages.push('Lượng điện tăng bất thường (>50%).')
+        anomalyMessages.push('Lượng điện tăng bất thường (>50% so với tháng trước).')
       }
-      
-      const waterIncrease = waterUsed - prevWater
-      if (prevWater > 0 && waterIncrease > prevWater * 0.5 && waterUsed > 10) {
+
+      // Nước tăng > 50% so với lượng dùng tháng trước và tuyệt đối > 10 m³
+      if (prevWaterUsage > 0 && waterUsed > prevWaterUsage * 1.5 && waterUsed > 10) {
         hasAnomaly = true
-        anomalyMessages.push('Lượng nước tăng bất thường (>50%).')
+        anomalyMessages.push('Lượng nước tăng bất thường (>50% so với tháng trước).')
       }
     }
 
