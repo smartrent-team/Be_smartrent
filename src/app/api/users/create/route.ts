@@ -3,6 +3,14 @@ import { verifyRole, canCreateUser } from '@/lib/rbac'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { createContractDirectly } from '@/lib/contracts'
 
+function normalizeDateTimeValue(value: unknown): string | null {
+  if (typeof value !== 'string') return null
+  const raw = value.trim()
+  if (!raw) return null
+  const parsed = new Date(raw)
+  return Number.isNaN(parsed.getTime()) ? null : parsed.toISOString()
+}
+
 export async function POST(request: NextRequest) {
   try {
     // 1. Kiểm tra JWT của người gọi API
@@ -12,13 +20,14 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json()
-    const { phone, password, full_name, role: targetRole, branch_id: targetBranchId, room_id, email, identity_number, contractImages: rawContractImages } = body
+    const { phone, password, full_name, role: targetRole, branch_id: targetBranchId, room_id, email, identity_number, contractImages: rawContractImages, contractEndDate: rawContractEndDate, contract_end_date: rawContractEndDateSnake } = body
 
     const contractImages = Array.isArray(rawContractImages)
       ? rawContractImages.filter(
           (url: unknown): url is string => typeof url === 'string' && url.startsWith('http')
         )
       : []
+    const contractEndDate = normalizeDateTimeValue(rawContractEndDate ?? rawContractEndDateSnake)
 
     if (!phone || !password || !targetRole || !email) {
       return NextResponse.json({ error: 'Thiếu thông tin bắt buộc (phone, password, role, email)' }, { status: 400 })
@@ -148,6 +157,7 @@ export async function POST(request: NextRequest) {
             tenantId: tenantData.id,
             roomId: roomIdNum,
             startDate: new Date().toISOString(),
+            endDate: contractEndDate,
             depositAmount: 0,
             monthlyPrice: roomData?.base_price ?? 0,
             status: 'active',
@@ -162,6 +172,7 @@ export async function POST(request: NextRequest) {
           tenant_id: tenantData.id,
           room_id: roomIdNum,
           start_date: new Date().toISOString(),
+          end_date: contractEndDate,
           deposit_amount: 0,
           monthly_price: roomData?.base_price ?? 0,
           status: 'active',

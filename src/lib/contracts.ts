@@ -17,6 +17,7 @@ export type CreateContractInput = {
   tenantId: number
   roomId: number
   startDate: string
+  endDate?: string | null
   depositAmount: number
   monthlyPrice: number
   status?: 'active' | 'expired' | 'terminated'
@@ -143,15 +144,16 @@ export async function createContractDirectly(
     client.query<{ id: number; contract_images: ContractImagesDbValue }>(
       `INSERT INTO contracts (
          contract_code, tenant_id, room_id, start_date,
-         status, deposit_amount, monthly_price, contract_images
+         end_date, status, deposit_amount, monthly_price, contract_images
        )
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8::jsonb)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9::jsonb)
        RETURNING id, contract_images`,
       [
         input.contractCode,
         input.tenantId,
         input.roomId,
         input.startDate,
+        input.endDate ?? null,
         input.status ?? 'active',
         input.depositAmount,
         input.monthlyPrice,
