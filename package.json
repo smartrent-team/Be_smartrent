@@ -7,10 +7,7 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
-    "test": "npx tsx tests/test-flows.ts",
-    "test:unit": "jest",
-    "db:migrate-invoices": "npx tsx scripts/alter-invoices-table.ts",
-    "db:migrate-contract-images": "npx tsx scripts/alter-contract-images.ts"
+    "test:unit": "jest"
   },
   "dependencies": {
     "@base-ui/react": "^1.5.0",
