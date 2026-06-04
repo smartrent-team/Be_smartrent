@@ -1,5 +1,6 @@
 import { NextResponse, type NextRequest } from 'next/server'
 import { verifyRole } from '@/lib/rbac'
+import { dispatchNotification } from '@/lib/notification_dispatch'
 
 export async function GET(
   request: NextRequest,
@@ -71,7 +72,7 @@ export async function PATCH(
       return NextResponse.json({ error: auth.error }, { status: auth.status })
     }
     if (auth.role !== 'manager' && auth.role !== 'super_admin') {
-      return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+      return NextResponse.json({ error: 'Không có quyền' }, { status: 403 })
     }
 
     const { id } = await params
@@ -110,6 +111,53 @@ export async function PATCH(
 
     if (error) {
       return NextResponse.json({ error: error.message }, { status: 400 })
+    }
+
+    const { data: ticketInfo } = await supabase
+      .from('maintenance_tickets')
+      .select(`
+        id,
+        tenant_id,
+        room:rooms(room_code),
+        tenant:tenants(user_id)
+      `)
+      .eq('id', id)
+      .single()
+
+    const tenantData = (ticketInfo as any)?.tenant || (ticketInfo as any)?.tenants
+    const tenant = Array.isArray(tenantData)
+      ? tenantData[0] as { user_id?: string } | null
+      : tenantData as { user_id?: string } | null
+
+    const roomData = (ticketInfo as any)?.room || (ticketInfo as any)?.rooms
+    const room = Array.isArray(roomData)
+      ? roomData[0] as { room_code?: string } | null
+      : roomData as { room_code?: string } | null
+
+    if (tenant?.user_id) {
+      const statusLabels: Record<string, string> = {
+        pending: 'đang chờ xử lý',
+        'in-progress': 'đang được xử lý',
+        resolved: 'đã được xử lý',
+      }
+      const statusLabel = statusLabels[status as string] || 'cập nhật'
+
+      await dispatchNotification(
+        supabase,
+        {
+          userId: tenant.user_id,
+          tenantId: ticketInfo?.tenant_id ?? null,
+        },
+        {
+          title: 'Cập nhật sự cố',
+          body: `Phòng ${room?.room_code ?? id}: sự cố ${statusLabel}.`,
+          type: 'ticket',
+          data: {
+            ticketId: String(id),
+            status,
+          },
+        }
+      )
     }
 
     return NextResponse.json({

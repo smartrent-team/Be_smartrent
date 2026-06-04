@@ -46,7 +46,7 @@ function toJsonb(images: string[]) {
 
 function getDirectHost(): string {
   const connectionString = process.env.DATABASE_URL
-  if (!connectionString) throw new Error('DATABASE_URL is not configured')
+  if (!connectionString) throw new Error('Chưa cấu hình DATABASE_URL')
 
   const parsed = new URL(connectionString)
   const userParts = parsed.username.split('.')
@@ -56,7 +56,7 @@ function getDirectHost(): string {
 
 async function withPgClient<T>(executor: (client: Client) => Promise<T>): Promise<T> {
   const connectionString = process.env.DATABASE_URL
-  if (!connectionString) throw new Error('DATABASE_URL is not configured')
+  if (!connectionString) throw new Error('Chưa cấu hình DATABASE_URL')
 
   const parsed = new URL(connectionString)
   const password = decodeURIComponent(parsed.password)
@@ -87,7 +87,7 @@ async function withPgClient<T>(executor: (client: Client) => Promise<T>): Promis
     }
   }
 
-  throw lastError instanceof Error ? lastError : new Error('DB connection failed')
+  throw lastError instanceof Error ? lastError : new Error('Kết nối cơ sở dữ liệu thất bại')
 }
 
 // ---------------------------------------------------------------------------

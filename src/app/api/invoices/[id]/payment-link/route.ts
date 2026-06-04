@@ -24,7 +24,7 @@ export async function POST(_request: Request, context: RouteContext) {
   try {
     const auth = await verifyRole()
     if (auth.error || !auth.user || !auth.role) {
-      return NextResponse.json({ error: auth.error || 'Unauthorized' }, { status: auth.status || 401 })
+      return NextResponse.json({ error: auth.error || 'Chưa xác thực' }, { status: auth.status || 401 })
     }
 
     if (auth.role !== 'tenant') {

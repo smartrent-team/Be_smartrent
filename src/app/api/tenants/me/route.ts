@@ -6,7 +6,7 @@ export async function GET() {
     // 1. Xác thực JWT của người dùng
     const auth = await verifyRole()
     if (auth.error || !auth.user) {
-      return NextResponse.json({ error: auth.error || 'Unauthorized' }, { status: auth.status || 401 })
+      return NextResponse.json({ error: auth.error || 'Chưa xác thực' }, { status: auth.status || 401 })
     }
 
     // Chỉ cho phép tenant (hoặc manager muốn tự xem nếu họ có cấu hình là tenant - mặc dù hiếm)
@@ -131,6 +131,7 @@ export async function GET() {
         start_date: activeContract.start_date,
         end_date: activeContract.end_date
       } : null,
+      contracts: contractsData || [],
       recent_invoices: tenant.invoices || [],
       maintenance_tickets: tenant.maintenance_tickets || [],
     }

@@ -6,7 +6,7 @@ export async function GET() {
     // 1. Kiểm tra JWT của người gọi API qua RBAC
     const auth = await verifyRole()
     if (auth.error || !auth.user || !auth.role) {
-      return NextResponse.json({ error: auth.error || 'Unauthorized' }, { status: auth.status || 401 })
+      return NextResponse.json({ error: auth.error || 'Chưa xác thực' }, { status: auth.status || 401 })
     }
 
     const supabase = auth.supabase!

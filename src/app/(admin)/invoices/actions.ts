@@ -1,30 +1,34 @@
 'use server'
 
+import type { SupabaseClient } from '@supabase/supabase-js'
 import { verifySuperAdmin } from '@/lib/rbac'
 import { attachVNPayToInvoice } from '@/lib/invoice-payment'
 import { revalidatePath } from 'next/cache'
 import { calculateElectricityCost, calculateWaterCost } from '@/lib/billing'
-import { sendPushNotification } from '@/lib/push'
+import { dispatchNotification } from '@/lib/notification_dispatch'
+import { invoiceSchema, formatZodError } from '@/lib/validations'
 
-export async function createInvoice(data: {
-  room_id: number
-  tenant_id?: number
-  utility_log_id?: number
-  roomPrice: number
-  serviceCost?: number
-  electricCost?: number
-  waterCost?: number
-  electricOld?: number
-  electricNew?: number
-  waterOld?: number
-  waterNew?: number
-}, supabaseClient?: any) {
+export async function createInvoice(
+  data: {
+    room_id: number
+    tenant_id?: number
+    utility_log_id?: number
+    roomPrice: number
+    serviceCost?: number
+    electricCost?: number
+    waterCost?: number
+    electricOld?: number
+    electricNew?: number
+    waterOld?: number
+    waterNew?: number
+  },
+  supabaseClient?: SupabaseClient
+) {
   try {
-    const supabase = supabaseClient || await verifySuperAdmin()
+    const supabase = supabaseClient || (await verifySuperAdmin())
 
     const totalAmount = data.roomPrice + (data.serviceCost || 0) + (data.electricCost || 0) + (data.waterCost || 0)
-    
-    // 1. Sinh mã hóa đơn (INV-YYYYMM-XXXX) và kiểm tra trùng lặp
+
     const date = new Date()
     const yearMonth = `${date.getFullYear()}${String(date.getMonth() + 1).padStart(2, '0')}`
 
@@ -36,7 +40,9 @@ export async function createInvoice(data: {
       .maybeSingle()
 
     if (existingInvoice) {
-      throw new Error(`Phòng này đã được tạo hóa đơn trong tháng ${date.getMonth() + 1}/${date.getFullYear()}. Vui lòng kiểm tra lại danh sách Hóa đơn.`)
+      throw new Error(
+        `Phòng này đã được tạo hóa đơn trong tháng ${date.getMonth() + 1}/${date.getFullYear()}. Vui lòng kiểm tra lại danh sách Hóa đơn.`
+      )
     }
 
     const { data: lastInvoices } = await supabase
@@ -53,16 +59,7 @@ export async function createInvoice(data: {
     }
 
     const invoiceCode = `INV-${yearMonth}-${String(nextNumber).padStart(4, '0')}`
-    
-    // Tính electric_usage / water_usage từ chỉ số cũ/mới
-    const electricUsage = (data.electricNew != null && data.electricOld != null)
-      ? Math.max(0, data.electricNew - data.electricOld)
-      : null
-    const waterUsage = (data.waterNew != null && data.waterOld != null)
-      ? Math.max(0, data.waterNew - data.waterOld)
-      : null
 
-    // Tạo bản ghi ban đầu để lấy ID
     const { data: invoice, error: insertError } = await supabase
       .from('invoices')
       .insert({
@@ -76,10 +73,8 @@ export async function createInvoice(data: {
         water_cost: data.waterCost || 0,
         electric_old: data.electricOld ?? null,
         electric_new: data.electricNew ?? null,
-        electric_usage: electricUsage,
         water_old: data.waterOld ?? null,
         water_new: data.waterNew ?? null,
-        water_usage: waterUsage,
         total_amount: totalAmount,
         payment_status: 'unpaid',
         issued_at: new Date().toISOString(),
@@ -89,7 +84,6 @@ export async function createInvoice(data: {
 
     if (insertError) throw insertError
 
-    // Gán tenant_id từ phòng nếu chưa có
     let tenantId = data.tenant_id
     if (!tenantId) {
       const { data: activeTenant } = await supabase
@@ -104,13 +98,14 @@ export async function createInvoice(data: {
       }
     }
 
-    // 2. Tạo link thanh toán VNPay
     let paymentWarning: string | null = null
-    let payment: {
-      checkoutUrl: string
-      amount: number
-      invoiceCode: string
-    } | null = null
+    let payment:
+      | {
+          checkoutUrl: string
+          amount: number
+          invoiceCode: string
+        }
+      | null = null
 
     if (totalAmount > 0 && totalAmount >= 5000) {
       const { payment: pay, warning } = await attachVNPayToInvoice(supabase, {
@@ -130,21 +125,22 @@ export async function createInvoice(data: {
       }
     }
 
-    // 3. Tự động gửi thông báo (Push Notification) cho người thuê
     if (tenantId) {
-      // Gọi ngầm không cần await để tránh block luồng trả về
-      resendInvoiceNotification(invoice.id).catch(err => {
+      try {
+        await resendInvoiceNotification(invoice.id, supabase)
+      } catch (err) {
         console.error('Lỗi khi gửi thông báo tự động:', err)
-      })
+      }
     }
 
     return { success: true, invoiceId: invoice.id, invoiceCode, paymentWarning, payment, tenantId }
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error('Lỗi khi tạo hóa đơn:', error)
     let errorMessage = 'Lỗi không xác định'
     if (error) {
       if (typeof error === 'object') {
-        errorMessage = error.message || error.details || JSON.stringify(error)
+        const typedError = error as { message?: string; details?: string }
+        errorMessage = typedError.message || typedError.details || JSON.stringify(error)
       } else {
         errorMessage = String(error)
       }
@@ -153,11 +149,13 @@ export async function createInvoice(data: {
   }
 }
 
-export async function resendInvoiceNotification(invoiceId: string | number) {
+export async function resendInvoiceNotification(
+  invoiceId: string | number,
+  supabaseClient?: SupabaseClient
+) {
   try {
-    const supabase = await verifySuperAdmin()
-    
-    // Lấy thông tin hoá đơn & user
+    const supabase = supabaseClient || (await verifySuperAdmin())
+
     const { data: invoice, error } = await supabase
       .from('invoices')
       .select('id, invoice_code, total_amount, tenant_id, room:rooms(room_code), tenant:tenants(user_id)')
@@ -165,51 +163,45 @@ export async function resendInvoiceNotification(invoiceId: string | number) {
       .single()
 
     if (error || !invoice || !invoice.tenant_id) {
-      throw new Error('Không tìm thấy hoá đơn hoặc người thuê')
+      throw new Error('Không tìm thấy hóa đơn hoặc người thuê')
     }
 
-    const tenantData = invoice.tenant as unknown;
-    const tenantObj = Array.isArray(tenantData) ? tenantData[0] as { user_id: string } : tenantData as { user_id: string } | null;
-    const tenantUserId = tenantObj?.user_id;
+    const tenantData = invoice.tenant as unknown
+    const tenantObj = Array.isArray(tenantData)
+      ? (tenantData[0] as { user_id?: string } | undefined)
+      : (tenantData as { user_id?: string } | null)
+    const tenantUserId = tenantObj?.user_id
 
-    const roomData = invoice.room as unknown;
-    const roomObj = Array.isArray(roomData) ? roomData[0] as { room_code: string } : roomData as { room_code: string } | null;
-    const roomCode = roomObj?.room_code || '?';
+    const roomData = invoice.room as unknown
+    const roomObj = Array.isArray(roomData)
+      ? (roomData[0] as { room_code?: string } | undefined)
+      : (roomData as { room_code?: string } | null)
+    const roomCode = roomObj?.room_code || '?'
 
-    const title = '🔔 Hoá đơn mới'
-    const body = `Phòng ${roomCode} có hoá đơn tháng này. Tổng tiền: ${invoice.total_amount?.toLocaleString('vi-VN')}đ. Vui lòng thanh toán!`
-
-    // Lấy token thiết bị
-    const { data: tokens } = await supabase
-      .from('device_tokens')
-      .select('token')
-      .eq('tenant_id', invoice.tenant_id)
-
-    if (tokens && tokens.length > 0) {
-      for (const item of tokens) {
-        await sendPushNotification(item.token, title, body)
-      }
-    }
-
-    // Lưu notification vào DB
     if (tenantUserId) {
-      await supabase.from('notifications').insert({
-        user_id: tenantUserId,
-        title,
-        body,
-        type: 'invoice',
-        isRead: false,
-      })
+      await dispatchNotification(
+        supabase,
+        {
+          userId: tenantUserId,
+          tenantId: invoice.tenant_id,
+        },
+        {
+          title: 'Hóa đơn mới',
+          body: `Phòng ${roomCode} có hóa đơn tháng này. Tổng tiền: ${Number(invoice.total_amount).toLocaleString('vi-VN')}đ. Vui lòng thanh toán!`,
+          type: 'invoice',
+        }
+      )
     }
 
     return { success: true }
-  } catch (err: any) {
+  } catch (err: unknown) {
     console.error('Gửi thông báo lỗi:', err)
-    return { success: false, error: err.message }
+    return {
+      success: false,
+      error: err instanceof Error ? err.message : String(err),
+    }
   }
 }
-
-import { invoiceSchema, formatZodError } from '@/lib/validations'
 
 export async function addInvoiceAction(formData: FormData) {
   const data = {
@@ -227,14 +219,22 @@ export async function addInvoiceAction(formData: FormData) {
     throw new Error(formatZodError(parsed.error))
   }
 
-  const { room_id: roomId, roomPrice, serviceCost, electricOld, electricNew, waterOld, waterNew } = parsed.data as unknown as {
-    room_id: number;
-    roomPrice: number;
-    serviceCost: number;
-    electricOld: number;
-    electricNew: number;
-    waterOld: number;
-    waterNew: number;
+  const {
+    room_id: roomId,
+    roomPrice,
+    serviceCost,
+    electricOld,
+    electricNew,
+    waterOld,
+    waterNew,
+  } = parsed.data as unknown as {
+    room_id: number
+    roomPrice: number
+    serviceCost: number
+    electricOld: number
+    electricNew: number
+    waterOld: number
+    waterNew: number
   }
 
   let electricCost = 0
@@ -256,7 +256,7 @@ export async function addInvoiceAction(formData: FormData) {
     electricOld,
     electricNew,
     waterOld,
-    waterNew
+    waterNew,
   })
 
   if (!result.success) {

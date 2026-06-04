@@ -20,7 +20,7 @@ if (fs.existsSync(envPath)) {
   })
 }
 
-const connectionString = process.env.DATABASE_URL
+const connectionString = process.env.DATABASE_URL as string
 
 if (!connectionString) {
   console.error('DATABASE_URL not found in .env')

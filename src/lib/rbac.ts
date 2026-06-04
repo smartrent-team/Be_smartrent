@@ -17,7 +17,7 @@ export async function verifyRole() {
 
   if (authError || !user) {
     console.error('verifyRole Auth Error:', authError?.message || 'No user found', 'Token length:', token?.length)
-    return { error: 'Unauthorized', status: 401 }
+    return { error: 'Chưa xác thực', status: 401 }
   }
 
   // Khởi tạo Admin Client để bypass RLS (Do RLS sẽ bị khóa lại bằng USING (false))
@@ -31,7 +31,7 @@ export async function verifyRole() {
     .single()
 
   if (profileError || !userProfile) {
-    return { error: 'Profile not found', status: 403 }
+    return { error: 'Không tìm thấy hồ sơ', status: 403 }
   }
 
   return {
