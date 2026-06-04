@@ -8,6 +8,7 @@
     "start": "next start",
     "lint": "eslint",
     "test": "npx tsx tests/test-flows.ts",
+    "test:unit": "jest",
     "db:migrate-invoices": "npx tsx scripts/alter-invoices-table.ts",
     "db:migrate-contract-images": "npx tsx scripts/alter-contract-images.ts"
   },
@@ -39,6 +40,9 @@
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4",
+    "@testing-library/jest-dom": "^6.9.1",
+    "@testing-library/react": "^16.3.2",
+    "@types/jest": "^30.0.0",
     "@types/node": "^20",
     "@types/pg": "^8.20.0",
     "@types/qs": "^6.15.1",
@@ -48,7 +52,10 @@
     "@types/swagger-ui-react": "^5.18.0",
     "eslint": "^9",
     "eslint-config-next": "16.2.6",
+    "jest": "^30.4.2",
+    "jest-environment-jsdom": "^30.4.1",
     "tailwindcss": "^4",
+    "ts-node": "^10.9.2",
     "typescript": "^5"
   }
 }
