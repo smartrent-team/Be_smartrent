@@ -13,6 +13,10 @@ import {
 import { createBrowserClient } from '@supabase/ssr'
 import { useRouter, usePathname } from 'next/navigation'
 import React from 'react'
+import { Menu } from 'lucide-react'
+import { Sheet, SheetContent, SheetTrigger } from '@/components/ui/sheet'
+import { Button } from '@/components/ui/button'
+import { Sidebar } from '@/components/shared/Sidebar'
 
 const breadcrumbMap: Record<string, string> = {
   'dashboard': 'Bảng điều khiển',
@@ -41,6 +45,19 @@ export function Header({ email }: { email?: string }) {
 
   return (
     <header className="flex h-14 items-center gap-4 border-b bg-gray-50/40 px-4 lg:h-[60px] lg:px-6">
+      <div className="md:hidden flex items-center">
+        <Sheet>
+          <SheetTrigger asChild>
+            <Button variant="outline" size="icon" className="shrink-0">
+              <Menu className="h-5 w-5" />
+              <span className="sr-only">Toggle navigation menu</span>
+            </Button>
+          </SheetTrigger>
+          <SheetContent side="left" className="p-0 w-[280px]">
+            <Sidebar />
+          </SheetContent>
+        </Sheet>
+      </div>
       <div className="w-full flex-1">
         <Breadcrumb className="hidden md:flex">
           <BreadcrumbList>

@@ -2,7 +2,7 @@ import fs from 'fs'
 import path from 'path'
 import { Client } from 'pg'
 
-const envPath = path.resolve(__dirname, '../.env')
+const envPath = path.resolve(__dirname, '../.env.local')
 if (fs.existsSync(envPath)) {
   const envContent = fs.readFileSync(envPath, 'utf8')
   envContent.split('\n').forEach(line => {
@@ -23,7 +23,7 @@ if (fs.existsSync(envPath)) {
 const connectionString = process.env.DATABASE_URL
 
 if (!connectionString) {
-  console.error('DATABASE_URL not found in .env')
+  console.error('DATABASE_URL not found in .env.local')
   process.exit(1)
 }
 
@@ -84,14 +84,51 @@ async function tryConnectAndMigrate() {
       console.log('Connected successfully!')
 
       const queries = [
-        `ALTER TABLE contracts ADD COLUMN IF NOT EXISTS contract_images jsonb NOT NULL DEFAULT '[]'::jsonb;`,
-        `COMMENT ON COLUMN contracts.contract_images IS 'Danh sách URL ảnh hợp đồng giấy (Cloudinary)';`,
-        `NOTIFY pgrst, 'reload schema';`,
+        `CREATE TABLE IF NOT EXISTS marketplace_posts (
+          id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+          branch_id INTEGER REFERENCES branches(id) ON DELETE CASCADE,
+          tenant_id INTEGER REFERENCES tenants(id) ON DELETE SET NULL,
+          title VARCHAR(255) NOT NULL,
+          description TEXT NOT NULL,
+          price NUMERIC NOT NULL DEFAULT 0,
+          images JSONB NOT NULL DEFAULT '[]'::jsonb,
+          status VARCHAR(50) NOT NULL DEFAULT 'pending_approval' CHECK (status IN ('pending_approval', 'active', 'rejected', 'sold')),
+          created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+          updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+        );`,
+        `CREATE INDEX IF NOT EXISTS idx_marketplace_posts_branch_id ON marketplace_posts(branch_id);`,
+        `CREATE INDEX IF NOT EXISTS idx_marketplace_posts_status ON marketplace_posts(status);`,
+        `-- Tạo hoặc thay thế hàm tự động cập nhật updated_at
+         CREATE OR REPLACE FUNCTION update_updated_at_column()
+         RETURNS TRIGGER AS $$
+         BEGIN
+            NEW.updated_at = NOW();
+            RETURN NEW;
+         END;
+         $$ language 'plpgsql';`,
+        `DROP TRIGGER IF EXISTS trg_marketplace_posts_updated_at ON marketplace_posts;`,
+        `CREATE TRIGGER trg_marketplace_posts_updated_at
+         BEFORE UPDATE ON marketplace_posts
+         FOR EACH ROW
+         EXECUTE PROCEDURE update_updated_at_column();`,
+        `-- Bật realtime cho bảng marketplace_posts
+         DO $$
+         BEGIN
+           IF NOT EXISTS (
+             SELECT 1
+             FROM pg_publication_tables
+             WHERE pubname = 'supabase_realtime' AND tablename = 'marketplace_posts'
+           ) THEN
+             ALTER PUBLICATION supabase_realtime ADD TABLE marketplace_posts;
+           END IF;
+         END
+         $$;`,
+        `NOTIFY pgrst, 'reload schema';`
       ]
 
       for (const query of queries) {
         try {
-          console.log(`Executing: ${query}`)
+          console.log(`Executing query...`)
           await client.query(query)
           console.log('Success!')
         } catch (err: any) {
