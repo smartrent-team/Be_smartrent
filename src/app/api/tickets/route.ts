@@ -1,12 +1,13 @@
 import { NextResponse, type NextRequest } from 'next/server'
 import { verifyRole } from '@/lib/rbac'
+import { dispatchNotification } from '@/lib/notification_dispatch'
 import { ticketSchema, formatZodError } from '@/lib/validations'
 
 export async function GET(request: NextRequest) {
   try {
     const auth = await verifyRole()
     if (auth.error || !auth.user || !auth.role) {
-      return NextResponse.json({ error: auth.error || 'Unauthorized' }, { status: auth.status || 401 })
+      return NextResponse.json({ error: auth.error || 'Chưa xác thực' }, { status: auth.status || 401 })
     }
     const supabase = auth.supabase!
 
@@ -76,7 +77,7 @@ export async function POST(request: NextRequest) {
   try {
     const auth = await verifyRole()
     if (auth.error || !auth.user) {
-      return NextResponse.json({ error: auth.error || 'Unauthorized' }, { status: auth.status || 401 })
+      return NextResponse.json({ error: auth.error || 'Chưa xác thực' }, { status: auth.status || 401 })
     }
     const supabase = auth.supabase!
 
@@ -122,6 +123,37 @@ export async function POST(request: NextRequest) {
       .single()
 
     if (error) throw error
+
+    const { data: room } = await supabase
+      .from('rooms')
+      .select('room_code, branch_id')
+      .eq('id', finalRoomId)
+      .single()
+
+    const notificationTitle = 'Có sự cố mới'
+    const notificationBody = `Phòng ${room?.room_code ?? 'chưa xác định'}: ${title}`
+
+    let managerQuery = supabase.from('users').select('id')
+    if (room?.branch_id != null) {
+      managerQuery = managerQuery.or(`role.eq.super_admin,and(role.eq.manager,branch_id.eq.${room.branch_id})`)
+    } else {
+      managerQuery = managerQuery.eq('role', 'super_admin')
+    }
+
+    const { data: managers } = await managerQuery
+
+    for (const manager of managers ?? []) {
+      await dispatchNotification(supabase, { userId: manager.id }, {
+        title: notificationTitle,
+        body: notificationBody,
+        type: 'ticket',
+        data: {
+          ticketId: String(ticket.id),
+          roomId: String(finalRoomId),
+          status: 'pending',
+        },
+      })
+    }
 
     return NextResponse.json({ success: true, data: ticket })
   } catch (error: unknown) {

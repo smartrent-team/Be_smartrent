@@ -25,7 +25,7 @@ export default async function TenantDetailPage({ params }: { params: Promise<{ i
       user:users(*),
       room:rooms(id, room_code, base_price),
       invoices(id, invoice_code, total_amount, payment_status, issued_at),
-      contracts(id, status, deposit_amount)
+      contracts(id, status, deposit_amount, end_date)
     `)
     .eq('id', id)
     .single()
@@ -35,6 +35,7 @@ export default async function TenantDetailPage({ params }: { params: Promise<{ i
     status: string;
     contract_images?: string[];
     deposit_amount?: number;
+    end_date?: string | null;
   }
 
   const activeContract = (tenant?.contracts as unknown as ContractData[])?.find((c) => c.status === 'active')
@@ -127,8 +128,12 @@ export default async function TenantDetailPage({ params }: { params: Promise<{ i
                 <p className="font-medium">{new Date(tenant.move_in_date).toLocaleDateString('vi-VN')}</p>
               </div>
               <div>
-                <p className="text-sm text-muted-foreground">Ngày chuyển ra</p>
-                <p className="font-medium">{tenant.move_out_date ? new Date(tenant.move_out_date).toLocaleDateString('vi-VN') : '---'}</p>
+                <p className="text-sm text-muted-foreground">Ngày hết hạn hợp đồng</p>
+                <p className="font-medium">
+                  {activeContract?.end_date
+                    ? new Date(activeContract.end_date).toLocaleDateString('vi-VN')
+                    : '---'}
+                </p>
               </div>
             </div>
           </CardContent>

@@ -7,7 +7,7 @@ export async function GET(request: NextRequest) {
     // 1. Chỉ cho phép user đã đăng nhập (Quản lý / Khách thuê) mới được tải ảnh
     const auth = await verifyRole()
     if (auth.error || !auth.user) {
-      return NextResponse.json({ error: auth.error || 'Unauthorized' }, { status: auth.status || 401 })
+      return NextResponse.json({ error: auth.error || 'Chưa xác thực' }, { status: auth.status || 401 })
     }
 
     // 2. Tạo timestamp hiện tại

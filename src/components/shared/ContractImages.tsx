@@ -50,7 +50,7 @@ export function ContractImages({ tenantId, roomId, initialImages }: ContractImag
       // 1. Get Signature
       const sigRes = await fetch(`/api/upload/signature?folder=contracts_${tenantId}`)
       const sigData = await sigRes.json()
-      if (!sigRes.ok) throw new Error(sigData.error || 'Failed to get signature')
+      if (!sigRes.ok) throw new Error(sigData.error || 'Không thể lấy chữ ký')
 
       toast.loading('Đang tải ảnh lên Cloudinary...', { id: toastId })
 
@@ -67,7 +67,7 @@ export function ContractImages({ tenantId, roomId, initialImages }: ContractImag
         body: formData
       })
       const uploadData = await uploadRes.json()
-      if (!uploadRes.ok) throw new Error(uploadData.error?.message || 'Failed to upload')
+      if (!uploadRes.ok) throw new Error(uploadData.error?.message || 'Không thể tải ảnh lên')
 
       const newImageUrl = uploadData.secure_url
 
