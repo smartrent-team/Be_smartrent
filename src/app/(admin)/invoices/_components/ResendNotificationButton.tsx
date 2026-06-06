@@ -18,7 +18,7 @@ export function ResendNotificationButton({ invoiceId }: { invoiceId: string }) {
       } else {
         alert('Lỗi: ' + res.error)
       }
-    } catch (error) {
+    } catch {
       alert('Có lỗi xảy ra khi gửi thông báo.')
     } finally {
       setLoading(false)

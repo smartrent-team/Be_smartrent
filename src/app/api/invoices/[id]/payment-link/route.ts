@@ -10,6 +10,7 @@ const SELECT_FIELDS = `
 `
 
 async function fetchInvoice(
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   supabase: { from: (table: string) => any },
   invoiceId: number
 ) {

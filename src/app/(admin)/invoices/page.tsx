@@ -8,7 +8,7 @@ import {
 } from '@/components/ui/table'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
-import { Send, CheckCircle2, Clock, Plus } from 'lucide-react'
+import { CheckCircle2, Clock, Plus } from 'lucide-react'
 import {
   Sheet,
   SheetContent,
@@ -26,6 +26,7 @@ import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { addInvoiceAction } from './actions'
 import { ResendNotificationButton } from './_components/ResendNotificationButton'
+import { ViewQRButton } from './_components/ViewQRButton'
 
 export default async function InvoicesPage({ searchParams }: { searchParams: Promise<{ [key: string]: string | string[] | undefined }> }) {
   const params = await searchParams
@@ -44,7 +45,7 @@ export default async function InvoicesPage({ searchParams }: { searchParams: Pro
 
   let query = adminSupabase
     .from('invoices')
-    .select('id, invoice_code, total_amount, payment_status, issued_at, room:rooms(room_code), tenant:tenants(user:users(full_name))', { count: 'exact' })
+    .select('id, invoice_code, total_amount, payment_status, issued_at, payment_bank_bin, payment_account_number, payment_account_name, room:rooms(room_code), tenant:tenants(user:users(full_name))', { count: 'exact' })
     .order('created_at', { ascending: false })
 
   if (status !== 'all') {
@@ -61,6 +62,9 @@ export default async function InvoicesPage({ searchParams }: { searchParams: Pro
     total_amount?: number;
     payment_status?: string;
     issued_at?: string;
+    payment_bank_bin?: string;
+    payment_account_number?: string;
+    payment_account_name?: string;
     room?: { room_code: string };
     tenant?: { user?: { full_name: string } };
   }
@@ -72,6 +76,9 @@ export default async function InvoicesPage({ searchParams }: { searchParams: Pro
     status: inv.payment_status || 'unpaid',
     date: inv.issued_at ? new Date(inv.issued_at).toLocaleDateString('vi-VN') : 'N/A',
     tenant: inv.tenant?.user?.full_name || 'Khách vãng lai',
+    bankBin: inv.payment_bank_bin,
+    accountNumber: inv.payment_account_number,
+    accountName: inv.payment_account_name,
   }))
 
   const { data: rooms } = await adminSupabase.from('rooms').select('id, room_code').order('room_code')
@@ -177,6 +184,9 @@ interface InvoiceFormatted {
   date: string;
   amount: number;
   status: string;
+  bankBin?: string;
+  accountNumber?: string;
+  accountName?: string;
 }
 
 function InvoiceTable({ invoices }: { invoices: InvoiceFormatted[] }) {
@@ -210,7 +220,18 @@ function InvoiceTable({ invoices }: { invoices: InvoiceFormatted[] }) {
                 </TableCell>
                 <TableCell className="text-right">
                   {inv.status !== 'paid' && (
-                    <ResendNotificationButton invoiceId={inv.id} />
+                    <div className="flex items-center justify-end">
+                      <ResendNotificationButton invoiceId={inv.id} />
+                      {inv.bankBin && inv.accountNumber && inv.accountName && (
+                        <ViewQRButton 
+                          invoiceId={inv.id}
+                          amount={inv.amount}
+                          bankBin={inv.bankBin}
+                          accountNumber={inv.accountNumber}
+                          accountName={inv.accountName}
+                        />
+                      )}
+                    </div>
                   )}
                 </TableCell>
               </TableRow>

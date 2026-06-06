@@ -18,6 +18,7 @@ export async function createInvoice(data: {
   electricNew?: number
   waterOld?: number
   waterNew?: number
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
 }, supabaseClient?: any) {
   try {
     const supabase = supabaseClient || await verifySuperAdmin()
@@ -62,6 +63,31 @@ export async function createInvoice(data: {
       ? Math.max(0, data.waterNew - data.waterOld)
       : null
 
+    // 1.5 Get Payment Config from Super Admin's Organization
+    let paymentBankBin = null, paymentAccountNumber = null, paymentAccountName = null
+    const { data: authData } = await supabase.auth.getUser()
+    if (authData?.user?.email) {
+      const { data: userProfile } = await supabase
+        .from('users')
+        .select('organization_id')
+        .eq('email', authData.user.email)
+        .maybeSingle()
+      
+      if (userProfile?.organization_id) {
+        const { data: orgData } = await supabase
+          .from('organizations')
+          .select('payment_bank_bin, payment_account_number, payment_account_name')
+          .eq('id', userProfile.organization_id)
+          .maybeSingle()
+        
+        if (orgData) {
+          paymentBankBin = orgData.payment_bank_bin
+          paymentAccountNumber = orgData.payment_account_number
+          paymentAccountName = orgData.payment_account_name
+        }
+      }
+    }
+
     // Tạo bản ghi ban đầu để lấy ID
     const { data: invoice, error: insertError } = await supabase
       .from('invoices')
@@ -83,6 +109,9 @@ export async function createInvoice(data: {
         total_amount: totalAmount,
         payment_status: 'unpaid',
         issued_at: new Date().toISOString(),
+        payment_bank_bin: paymentBankBin,
+        payment_account_number: paymentAccountNumber,
+        payment_account_name: paymentAccountName,
       })
       .select()
       .single()
@@ -139,12 +168,13 @@ export async function createInvoice(data: {
     }
 
     return { success: true, invoiceId: invoice.id, invoiceCode, paymentWarning, payment, tenantId }
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error('Lỗi khi tạo hóa đơn:', error)
     let errorMessage = 'Lỗi không xác định'
     if (error) {
       if (typeof error === 'object') {
-        errorMessage = error.message || error.details || JSON.stringify(error)
+        const errObj = error as Record<string, unknown>
+        errorMessage = String(errObj.message || errObj.details || JSON.stringify(error))
       } else {
         errorMessage = String(error)
       }
@@ -203,9 +233,10 @@ export async function resendInvoiceNotification(invoiceId: string | number) {
     }
 
     return { success: true }
-  } catch (err: any) {
+  } catch (err: unknown) {
     console.error('Gửi thông báo lỗi:', err)
-    return { success: false, error: err.message }
+    const errorMessage = err instanceof Error ? err.message : String(err)
+    return { success: false, error: errorMessage }
   }
 }
 

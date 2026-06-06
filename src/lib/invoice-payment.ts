@@ -6,6 +6,7 @@ export type InvoicePaymentPayload = {
 }
 
 export async function attachVNPayToInvoice(
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   supabase: { from: (table: string) => any },
   invoice: { id: number; invoice_code: string; total_amount: number },
   ipAddr: string = '127.0.0.1'

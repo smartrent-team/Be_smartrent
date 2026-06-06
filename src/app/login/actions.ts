@@ -3,9 +3,16 @@
 import { revalidatePath } from 'next/cache'
 import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
+import { createClient as createSupabaseClient } from '@supabase/supabase-js'
 
 export async function login(formData: FormData) {
   const supabase = await createClient()
+
+  // We use admin client here because the normal supabase client might not have the updated session cookie yet in the same execution context.
+  const supabaseAdmin = createSupabaseClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.SUPABASE_SERVICE_ROLE_KEY!
+  )
 
   // type-casting here for convenience
   // in practice, you should validate your inputs
@@ -39,6 +46,18 @@ export async function login(formData: FormData) {
     redirect(`/login?message=${encodeURIComponent(error.message)}`)
   }
 
+  // Get user role to determine redirect destination
+  const { data: userData } = await supabaseAdmin
+    .from('users')
+    .select('role')
+    .eq('email', targetEmail.trim())
+    .single()
+
   revalidatePath('/', 'layout')
-  redirect('/dashboard')
+
+  if (userData?.role === 'system_admin') {
+    redirect('/system-admin/dashboard')
+  } else {
+    redirect('/dashboard')
+  }
 }

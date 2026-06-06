@@ -98,6 +98,7 @@ export async function GET() {
       branch: { name: string } | null
     }
 
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const docs = ((invoices as any[]) || []).map((inv: any) => {
       const room = inv.rooms as unknown as InvoiceRoom | null
       return {

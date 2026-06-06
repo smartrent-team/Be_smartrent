@@ -1,67 +1,85 @@
 import Link from 'next/link'
 import Image from 'next/image'
 import { Button } from '@/components/ui/button'
-import { Building2, Sparkles, ShieldCheck, ChevronRight, BarChart3, Smartphone, BrainCircuit, Users, LayoutDashboard } from 'lucide-react'
+import { Building2, Zap, ChevronRight, BarChart3, BrainCircuit, Users, LayoutDashboard, Fingerprint } from 'lucide-react'
 
 export default function Home() {
   return (
-    <div className="flex flex-col min-h-screen bg-slate-950 text-slate-50 selection:bg-indigo-500/30 overflow-hidden relative">
-      {/* Background Gradients */}
-      <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[1000px] h-[500px] bg-indigo-600/20 rounded-full blur-[120px] pointer-events-none -z-10 animate-[pulse_6s_ease-in-out_infinite]" />
-      <div className="absolute bottom-0 right-0 w-[800px] h-[600px] bg-purple-600/10 rounded-full blur-[100px] pointer-events-none -z-10 animate-[pulse_8s_ease-in-out_infinite] delay-1000" />
-      <div className="absolute top-[40%] left-[-10%] w-[500px] h-[500px] bg-pink-600/10 rounded-full blur-[120px] pointer-events-none -z-10 animate-[pulse_7s_ease-in-out_infinite]" />
+    <div className="flex flex-col min-h-screen bg-[#030712] text-slate-50 selection:bg-indigo-500/30 overflow-hidden relative font-sans">
+      
+      {/* --- PREMIUM BACKGROUND EFFECTS --- */}
+      <div className="fixed inset-0 z-0 pointer-events-none">
+        {/* Deep dark background noise/texture could go here, simulating with color stops */}
+        <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-indigo-900/20 via-[#030712] to-[#030712]"></div>
+        
+        {/* Animated Glowing Orbs */}
+        <div className="absolute top-[-10%] left-[-10%] w-[40vw] h-[40vw] rounded-full bg-indigo-600/10 blur-[120px] animate-[pulse_8s_ease-in-out_infinite]" />
+        <div className="absolute top-[20%] right-[-10%] w-[30vw] h-[30vw] rounded-full bg-purple-600/10 blur-[120px] animate-[pulse_10s_ease-in-out_infinite_reverse]" />
+        <div className="absolute bottom-[-20%] left-[20%] w-[50vw] h-[50vw] rounded-full bg-pink-600/5 blur-[150px] animate-[pulse_12s_ease-in-out_infinite]" />
+      </div>
 
-      {/* Header */}
-      <header className="px-6 lg:px-12 h-20 flex items-center border-b border-white/10 bg-slate-950/50 backdrop-blur-md z-50 sticky top-0 transition-all duration-300 shadow-[0_4px_30px_rgba(0,0,0,0.1)]">
-        <Link className="flex items-center justify-center gap-2 group" href="/">
-          <div className="p-2 rounded-xl bg-gradient-to-br from-indigo-500 to-purple-600 group-hover:scale-110 group-hover:rotate-[15deg] transition-all duration-300 shadow-lg shadow-indigo-500/30">
-            <Building2 className="h-5 w-5 text-white" />
+      {/* --- HEADER --- */}
+      <header className="px-6 lg:px-12 h-20 flex items-center border-b border-white/[0.05] bg-[#030712]/40 backdrop-blur-xl z-50 sticky top-0 supports-[backdrop-filter]:bg-background/60">
+        <Link className="flex items-center justify-center gap-3 group" href="/">
+          <div className="relative flex items-center justify-center w-10 h-10 rounded-xl bg-gradient-to-br from-indigo-500 via-purple-500 to-pink-500 p-[1px] group-hover:scale-105 transition-transform duration-500">
+            <div className="absolute inset-0 bg-gradient-to-br from-indigo-500 via-purple-500 to-pink-500 blur-md opacity-50 group-hover:opacity-100 transition-opacity duration-500" />
+            <div className="relative flex items-center justify-center w-full h-full bg-[#030712] rounded-xl">
+              <Building2 className="h-5 w-5 text-indigo-400 group-hover:text-white transition-colors duration-500" />
+            </div>
           </div>
-          <span className="font-bold text-xl tracking-tight bg-clip-text text-transparent bg-gradient-to-r from-white to-slate-400">
+          <span className="font-bold text-xl tracking-tight text-white">
             SmartRent
           </span>
         </Link>
         <nav className="ml-auto flex gap-4 sm:gap-6 items-center">
-          <Link className="text-sm font-medium text-slate-300 hover:text-white transition-colors hover:underline underline-offset-4" href="/login">
+          <Link className="text-sm font-medium text-slate-400 hover:text-white transition-colors" href="/login">
             Đăng nhập
           </Link>
           <Link href="/register">
-            <Button className="bg-white text-slate-950 hover:bg-slate-200 hover:-translate-y-1 rounded-full px-6 font-semibold shadow-[0_0_20px_rgba(255,255,255,0.15)] transition-all duration-300 hover:shadow-[0_0_40px_rgba(255,255,255,0.4)] active:scale-95">
-              Đăng ký miễn phí
+            <Button className="relative h-10 px-6 rounded-full bg-white text-black font-semibold text-sm hover:scale-105 transition-all duration-300 overflow-hidden group">
+              <span className="relative z-10">Đăng ký ngay</span>
+              <div className="absolute inset-0 bg-gradient-to-r from-indigo-200 via-purple-200 to-pink-200 opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
             </Button>
           </Link>
         </nav>
       </header>
 
-      <main className="flex-1">
-        {/* Hero Section */}
-        <section className="w-full pt-24 pb-12 md:pt-32 md:pb-20 lg:pt-40 lg:pb-24 flex justify-center relative px-4 md:px-6 z-10">
-          <div className="flex flex-col items-center space-y-8 text-center max-w-5xl mx-auto">
-            <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-indigo-500/10 border border-indigo-500/30 text-sm text-indigo-300 backdrop-blur-sm animate-[fade-in-down_0.5s_ease-out] hover:bg-indigo-500/20 transition-colors cursor-default shadow-[0_0_15px_rgba(99,102,241,0.2)]">
-              <Sparkles className="w-4 h-4 animate-spin-slow" style={{ animationDuration: '3s' }} />
-              <span className="font-medium tracking-wide">Hệ Sinh Thái Quản Lý Bất Động Sản Số 1</span>
+      <main className="flex-1 relative z-10 flex flex-col items-center">
+        
+        {/* --- HERO SECTION --- */}
+        <section className="w-full pt-28 pb-16 md:pt-40 md:pb-24 flex justify-center px-4 md:px-6">
+          <div className="flex flex-col items-center space-y-10 text-center max-w-5xl mx-auto">
+            
+            {/* Pill Badge */}
+            <div className="group inline-flex items-center gap-2 px-4 py-2 rounded-full bg-white/[0.03] border border-white/[0.08] backdrop-blur-md animate-[fade-in-down_0.6s_ease-out] hover:bg-white/[0.06] transition-all duration-500 cursor-pointer">
+              <span className="flex h-2 w-2 rounded-full bg-indigo-500 animate-pulse" />
+              <span className="text-sm font-medium text-slate-300 tracking-wide">Nền tảng SaaS Quản Lý Bất Động Sản</span>
+              <ChevronRight className="w-4 h-4 text-slate-500 group-hover:text-slate-300 group-hover:translate-x-1 transition-all" />
             </div>
             
-            <h1 className="text-4xl font-extrabold tracking-tight sm:text-5xl md:text-6xl animate-[fade-in-up_0.6s_ease-out]">
-              Quản lý phòng trọ <br className="hidden sm:block" />
-              <span className="bg-clip-text text-transparent bg-gradient-to-r from-indigo-400 via-purple-400 to-pink-400 animate-[gradient_8s_ease_infinite] bg-[length:200%_200%] filter drop-shadow-[0_0_15px_rgba(168,85,247,0.4)]">
-                tự động & thông minh
+            {/* Main Headline */}
+            <h1 className="text-5xl font-extrabold tracking-tighter sm:text-6xl md:text-7xl lg:text-8xl animate-[fade-in-up_0.8s_ease-out]">
+              <span className="block text-white mb-2">Quản lý tự động.</span>
+              <span className="bg-clip-text text-transparent bg-gradient-to-r from-indigo-400 via-purple-400 to-pink-400 animate-[gradient_6s_ease_infinite] bg-[length:200%_200%] pb-2">
+                Tăng trưởng tối đa.
               </span>
             </h1>
             
-            <p className="mx-auto max-w-[750px] text-slate-400 md:text-xl leading-relaxed animate-[fade-in-up_0.8s_ease-out]">
-              Trải nghiệm sức mạnh của AI, ứng dụng Mobile cho khách thuê & chủ nhà, cùng hệ thống thanh toán tự động hoàn toàn. Tự động hóa 90% công việc quản lý.
+            {/* Subheadline */}
+            <p className="mx-auto max-w-2xl text-slate-400 md:text-xl font-light leading-relaxed tracking-wide animate-[fade-in-up_1s_ease-out]">
+              Giải pháp toàn diện tích hợp AI, Mobile App Manager và hệ thống thanh toán tự động. Xóa bỏ 90% khối lượng công việc thủ công của bạn.
             </p>
             
-            <div className="flex flex-col sm:flex-row gap-4 pt-6 w-full sm:w-auto animate-[fade-in-up_1s_ease-out]">
+            {/* CTA Buttons */}
+            <div className="flex flex-col sm:flex-row gap-5 pt-4 w-full sm:w-auto animate-[fade-in-up_1.2s_ease-out]">
               <Link href="/register" className="w-full sm:w-auto">
-                <Button size="lg" className="w-full h-14 px-8 text-lg rounded-full bg-gradient-to-r from-indigo-500 to-purple-600 hover:from-indigo-600 hover:to-purple-700 text-white border-0 shadow-[0_0_25px_rgba(99,102,241,0.4)] hover:shadow-[0_0_40px_rgba(99,102,241,0.6)] hover:-translate-y-1.5 transition-all duration-300 group">
-                  Dùng thử miễn phí
-                  <ChevronRight className="ml-2 w-5 h-5 group-hover:translate-x-1.5 transition-transform" />
+                <Button size="lg" className="w-full h-14 px-8 text-base font-semibold rounded-full bg-white text-black hover:bg-slate-200 hover:scale-105 hover:shadow-[0_0_40px_rgba(255,255,255,0.3)] transition-all duration-300 group">
+                  Bắt đầu miễn phí
+                  <ChevronRight className="ml-2 w-5 h-5 group-hover:translate-x-1 transition-transform" />
                 </Button>
               </Link>
               <Link href="/login" className="w-full sm:w-auto">
-                <Button size="lg" variant="outline" className="w-full h-14 px-8 text-lg rounded-full border-white/20 bg-white/5 hover:bg-white/10 text-white backdrop-blur-md hover:-translate-y-1.5 hover:shadow-[0_0_20px_rgba(255,255,255,0.1)] transition-all duration-300">
+                <Button size="lg" variant="outline" className="w-full h-14 px-8 text-base font-semibold rounded-full border-white/10 bg-white/[0.03] hover:bg-white/[0.08] text-white backdrop-blur-md hover:scale-105 transition-all duration-300">
                   Xem Demo Dashboard
                 </Button>
               </Link>
@@ -69,101 +87,139 @@ export default function Home() {
           </div>
         </section>
 
-        {/* Dashboard Mockup Image with 3D Effect */}
-        <section className="w-full pb-20 flex justify-center px-4 md:px-6 relative z-20">
-          <div className="max-w-5xl w-full mx-auto relative group perspective-[2000px] animate-[fade-in-up_1.2s_ease-out]">
-            <div className="absolute inset-0 bg-gradient-to-t from-slate-950 via-transparent to-transparent z-10 bottom-0 top-[50%] pointer-events-none" />
-            <div className="absolute -inset-2 bg-gradient-to-r from-indigo-500 via-purple-500 to-pink-500 rounded-3xl blur-[40px] opacity-30 group-hover:opacity-60 transition duration-1000 group-hover:duration-500 animate-[pulse_4s_ease-in-out_infinite]" />
-            <div className="relative rounded-2xl overflow-hidden border border-white/10 bg-slate-900 shadow-2xl shadow-black/80 transform transition-all duration-700 hover:scale-[1.03] hover:-translate-y-4">
+        {/* --- DASHBOARD MOCKUP --- */}
+        <section className="w-full max-w-6xl mx-auto pb-32 px-4 md:px-6">
+          <div className="relative group perspective-[2000px] animate-[fade-in-up_1.5s_ease-out]">
+            {/* Glowing Backdrop */}
+            <div className="absolute -inset-1 bg-gradient-to-b from-indigo-500/20 via-purple-500/10 to-transparent rounded-3xl blur-2xl opacity-50 group-hover:opacity-100 transition duration-1000" />
+            
+            {/* Image Container */}
+            <div className="relative rounded-2xl overflow-hidden border border-white/[0.08] bg-[#0A0A0A] shadow-[0_20px_60px_-15px_rgba(0,0,0,1)] transform transition-all duration-700 hover:-translate-y-2">
+              <div className="absolute inset-0 bg-gradient-to-t from-[#030712] via-transparent to-transparent z-10 opacity-60 pointer-events-none" />
               <Image 
                 src="/images/dashboard-mockup.png" 
-                alt="SmartRent Dashboard Interface" 
-                width={1200} 
-                height={800} 
-                className="w-full h-auto object-cover opacity-90 group-hover:opacity-100 transition-opacity duration-500"
+                alt="SmartRent Premium Dashboard" 
+                width={1400} 
+                height={900} 
+                className="w-full h-auto object-cover opacity-90 group-hover:opacity-100 group-hover:scale-[1.01] transition-all duration-700"
                 priority
               />
+              
+              {/* Floating Element - Example */}
+              <div className="absolute top-10 right-10 z-20 bg-[#030712]/80 backdrop-blur-xl border border-white/10 rounded-2xl p-4 shadow-2xl flex items-center gap-4 animate-bounce-slow" style={{ animationDuration: '4s' }}>
+                <div className="w-10 h-10 rounded-full bg-green-500/20 flex items-center justify-center border border-green-500/30">
+                  <BarChart3 className="w-5 h-5 text-green-400" />
+                </div>
+                <div>
+                  <p className="text-xs text-slate-400 font-medium">Doanh thu tháng này</p>
+                  <p className="text-sm text-white font-bold">+24.5%</p>
+                </div>
+              </div>
             </div>
           </div>
         </section>
 
-        {/* Extended Features Bento Grid */}
-        <section className="w-full py-24 flex justify-center bg-slate-900/40 border-t border-white/5 relative z-10 backdrop-blur-sm">
-          <div className="container px-4 md:px-6 max-w-7xl">
-            <div className="text-center mb-20 animate-[fade-in_1s_ease-out]">
-              <div className="inline-block px-4 py-1.5 mb-6 rounded-full bg-purple-500/10 border border-purple-500/20 text-sm text-purple-300 shadow-[0_0_15px_rgba(168,85,247,0.2)]">
-                Hệ Sinh Thái Toàn Diện
-              </div>
-              <h2 className="text-4xl font-bold tracking-tight sm:text-5xl bg-clip-text text-transparent bg-gradient-to-r from-white via-slate-200 to-slate-400">
-                Tính năng vượt trội, dẫn đầu công nghệ
+        {/* --- BENTO GRID FEATURES --- */}
+        <section className="w-full py-32 relative border-t border-white/[0.05] bg-[#030712]/50">
+          <div className="container px-4 md:px-6 max-w-7xl mx-auto relative z-10">
+            <div className="flex flex-col items-center text-center mb-20">
+              <h2 className="text-3xl md:text-5xl font-bold tracking-tight text-white mb-6">
+                Kiến trúc <span className="text-transparent bg-clip-text bg-gradient-to-r from-indigo-400 to-purple-400">công nghệ lõi</span>
               </h2>
+              <p className="max-w-2xl text-slate-400 text-lg">
+                Thiết kế nguyên khối mang lại trải nghiệm mượt mà, tối ưu hóa từ phần mềm quản lý đến ứng dụng di động cho mọi đối tượng.
+              </p>
             </div>
             
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-              {[
-                {
-                  icon: <BrainCircuit className="w-7 h-7 text-yellow-400" />,
-                  title: 'Nhận diện số điện nước AI',
-                  desc: 'Core AI mạnh mẽ viết bằng FastAPI Python giúp quét ảnh đồng hồ điện nước và xuất ra số liệu chính xác 99.9%, không cần ghi chép thủ công.',
-                  colSpan: 'md:col-span-2 lg:col-span-2',
-                  bg: 'bg-gradient-to-br from-yellow-500/10 via-orange-500/5 to-transparent'
-                },
-                {
-                  icon: <LayoutDashboard className="w-7 h-7 text-blue-400" />,
-                  title: 'Mobile App Chủ Nhà',
-                  desc: 'Theo dõi báo cáo, gạch nợ, và phê duyệt hợp đồng ngay trên điện thoại di động mọi lúc mọi nơi.',
-                  colSpan: 'md:col-span-2 lg:col-span-1',
-                  bg: 'bg-gradient-to-br from-blue-500/10 to-cyan-500/5'
-                },
-                {
-                  icon: <Users className="w-7 h-7 text-pink-400" />,
-                  title: 'Mobile App Khách Thuê',
-                  desc: 'Trải nghiệm xịn sò cho khách thuê: Xem hóa đơn, quét mã thanh toán, và gửi ticket báo lỗi sự cố phòng.',
-                  colSpan: 'md:col-span-2 lg:col-span-1',
-                  bg: 'bg-gradient-to-br from-pink-500/10 to-rose-500/5'
-                },
-                {
-                  icon: <Smartphone className="w-7 h-7 text-emerald-400" />,
-                  title: 'Thanh toán PayOS siêu tốc',
-                  desc: 'Mỗi hóa đơn sinh ra một mã QR động. Khách quét mã, tiền vào tài khoản chủ nhà, hệ thống tự động gạch nợ trong 1 giây.',
-                  colSpan: 'md:col-span-2 lg:col-span-2',
-                  bg: 'bg-gradient-to-br from-emerald-500/10 via-teal-500/5 to-transparent'
-                },
-                {
-                  icon: <BarChart3 className="w-7 h-7 text-purple-400" />,
-                  title: 'Báo cáo Realtime',
-                  desc: 'Dashboard trực quan, phân tích doanh thu và công nợ liên tục 24/7.',
-                  colSpan: 'md:col-span-2 lg:col-span-1',
-                  bg: 'bg-gradient-to-br from-purple-500/10 to-violet-500/5'
-                },
-                {
-                  icon: <ShieldCheck className="w-7 h-7 text-indigo-400" />,
-                  title: 'Chuẩn SaaS Đa Tầng',
-                  desc: 'Dữ liệu được cô lập an toàn, quy mô hàng ngàn tòa nhà.',
-                  colSpan: 'md:col-span-2 lg:col-span-1',
-                  bg: 'bg-gradient-to-br from-indigo-500/10 to-blue-500/5'
-                }
-              ].map((feat, i) => (
-                <div key={i} className={`group flex flex-col p-8 rounded-[2rem] border border-white/10 backdrop-blur-md transition-all duration-500 hover:-translate-y-3 hover:shadow-2xl hover:shadow-indigo-500/20 hover:border-white/20 cursor-default overflow-hidden relative ${feat.colSpan} ${feat.bg}`}>
-                  <div className="absolute -right-10 -top-10 w-40 h-40 bg-white/5 rounded-full blur-3xl group-hover:bg-white/10 transition-colors duration-500" />
-                  <div className="w-14 h-14 rounded-2xl bg-white/5 flex items-center justify-center mb-6 shadow-inner border border-white/10 group-hover:scale-110 group-hover:rotate-6 transition-all duration-500 relative z-10">
-                    {feat.icon}
+            <div className="grid grid-cols-1 md:grid-cols-6 lg:grid-cols-12 gap-6">
+              
+              {/* Card 1 - AI */}
+              <div className="col-span-1 md:col-span-6 lg:col-span-8 group relative overflow-hidden rounded-3xl border border-white/[0.08] bg-white/[0.02] p-8 md:p-10 hover:bg-white/[0.04] transition-colors duration-500">
+                <div className="absolute top-0 right-0 w-[500px] h-[500px] bg-indigo-500/10 rounded-full blur-[80px] -translate-y-1/2 translate-x-1/3 group-hover:bg-indigo-500/20 transition-colors duration-700 pointer-events-none" />
+                <div className="relative z-10 flex flex-col h-full">
+                  <div className="w-14 h-14 rounded-2xl bg-indigo-500/20 flex items-center justify-center mb-8 border border-indigo-500/30 text-indigo-400 group-hover:scale-110 transition-transform duration-500">
+                    <BrainCircuit className="w-7 h-7" />
                   </div>
-                  <h3 className="text-2xl font-semibold mb-4 text-white relative z-10 group-hover:text-indigo-200 transition-colors">{feat.title}</h3>
-                  <p className="text-slate-400 leading-relaxed relative z-10 text-lg">{feat.desc}</p>
+                  <h3 className="text-2xl md:text-3xl font-bold text-white mb-4">Nhận diện AI (FastAPI Python)</h3>
+                  <p className="text-slate-400 text-lg leading-relaxed max-w-xl">
+                    Hệ thống AI xử lý hình ảnh mạnh mẽ, quét tự động đồng hồ điện/nước và trả về kết quả chính xác 99.9%. Chốt sổ siêu tốc chỉ trong 1 nốt nhạc.
+                  </p>
                 </div>
-              ))}
+              </div>
+
+              {/* Card 2 - Mobile App Manager */}
+              <div className="col-span-1 md:col-span-6 lg:col-span-4 group relative overflow-hidden rounded-3xl border border-white/[0.08] bg-white/[0.02] p-8 md:p-10 hover:bg-white/[0.04] transition-colors duration-500">
+                 <div className="absolute bottom-0 right-0 w-[300px] h-[300px] bg-purple-500/10 rounded-full blur-[60px] translate-y-1/3 translate-x-1/3 group-hover:bg-purple-500/20 transition-colors duration-700 pointer-events-none" />
+                <div className="relative z-10 flex flex-col h-full">
+                  <div className="w-14 h-14 rounded-2xl bg-purple-500/20 flex items-center justify-center mb-8 border border-purple-500/30 text-purple-400 group-hover:scale-110 transition-transform duration-500">
+                    <LayoutDashboard className="w-7 h-7" />
+                  </div>
+                  <h3 className="text-2xl font-bold text-white mb-4">Mobile App Manager</h3>
+                  <p className="text-slate-400 leading-relaxed">
+                    Theo dõi báo cáo, phê duyệt hợp đồng, quản lý khách thuê toàn diện ngay trên thiết bị di động cá nhân của bạn.
+                  </p>
+                </div>
+              </div>
+
+              {/* Card 3 - Mobile Tenant */}
+              <div className="col-span-1 md:col-span-6 lg:col-span-4 group relative overflow-hidden rounded-3xl border border-white/[0.08] bg-white/[0.02] p-8 md:p-10 hover:bg-white/[0.04] transition-colors duration-500">
+                 <div className="absolute top-0 left-0 w-[300px] h-[300px] bg-pink-500/10 rounded-full blur-[60px] -translate-y-1/3 -translate-x-1/3 group-hover:bg-pink-500/20 transition-colors duration-700 pointer-events-none" />
+                <div className="relative z-10 flex flex-col h-full">
+                  <div className="w-14 h-14 rounded-2xl bg-pink-500/20 flex items-center justify-center mb-8 border border-pink-500/30 text-pink-400 group-hover:scale-110 transition-transform duration-500">
+                    <Users className="w-7 h-7" />
+                  </div>
+                  <h3 className="text-2xl font-bold text-white mb-4">Mobile App Tenant</h3>
+                  <p className="text-slate-400 leading-relaxed">
+                    Khách thuê xem hóa đơn minh bạch, quét mã thanh toán, phản ánh sự cố ngay lập tức.
+                  </p>
+                </div>
+              </div>
+
+              {/* Card 4 - PayOS */}
+              <div className="col-span-1 md:col-span-6 lg:col-span-4 group relative overflow-hidden rounded-3xl border border-white/[0.08] bg-white/[0.02] p-8 md:p-10 hover:bg-white/[0.04] transition-colors duration-500">
+                 <div className="absolute top-1/2 left-1/2 w-[300px] h-[300px] bg-emerald-500/10 rounded-full blur-[60px] -translate-y-1/2 -translate-x-1/2 group-hover:bg-emerald-500/20 transition-colors duration-700 pointer-events-none" />
+                <div className="relative z-10 flex flex-col h-full items-center text-center">
+                  <div className="w-14 h-14 rounded-2xl bg-emerald-500/20 flex items-center justify-center mb-8 border border-emerald-500/30 text-emerald-400 group-hover:scale-110 transition-transform duration-500">
+                    <Zap className="w-7 h-7" />
+                  </div>
+                  <h3 className="text-2xl font-bold text-white mb-4">Thanh toán PayOS</h3>
+                  <p className="text-slate-400 leading-relaxed">
+                    Gạch nợ tự động trong 1 giây qua mã QR động riêng biệt.
+                  </p>
+                </div>
+              </div>
+
+              {/* Card 5 - Security */}
+              <div className="col-span-1 md:col-span-12 lg:col-span-4 group relative overflow-hidden rounded-3xl border border-white/[0.08] bg-white/[0.02] p-8 md:p-10 hover:bg-white/[0.04] transition-colors duration-500">
+                 <div className="absolute bottom-0 left-0 w-[400px] h-[400px] bg-blue-500/10 rounded-full blur-[80px] translate-y-1/3 -translate-x-1/3 group-hover:bg-blue-500/20 transition-colors duration-700 pointer-events-none" />
+                <div className="relative z-10 flex flex-col h-full">
+                  <div className="w-14 h-14 rounded-2xl bg-blue-500/20 flex items-center justify-center mb-8 border border-blue-500/30 text-blue-400 group-hover:scale-110 transition-transform duration-500">
+                    <Fingerprint className="w-7 h-7" />
+                  </div>
+                  <h3 className="text-2xl font-bold text-white mb-4">Bảo mật cấp độ Enterprise</h3>
+                  <p className="text-slate-400 leading-relaxed">
+                    Dữ liệu được cách ly an toàn giữa các tổ chức (Multi-tenant SaaS). An toàn tuyệt đối 24/7.
+                  </p>
+                </div>
+              </div>
+
             </div>
           </div>
         </section>
+
       </main>
 
-      <footer className="py-10 border-t border-white/10 text-center text-slate-500 text-sm bg-slate-950 relative z-10">
-        <p className="flex items-center justify-center gap-2">
-          © {new Date().getFullYear()} SmartRent SaaS Platform. Build with 
-          <span className="text-red-500 animate-pulse">❤️</span> 
-          and AI.
-        </p>
+      {/* --- FOOTER --- */}
+      <footer className="py-12 border-t border-white/[0.05] bg-[#030712] relative z-10">
+        <div className="container mx-auto px-4 flex flex-col items-center">
+          <div className="flex items-center gap-2 mb-6">
+            <Building2 className="h-6 w-6 text-indigo-400" />
+            <span className="font-bold text-xl text-white">SmartRent</span>
+          </div>
+          <p className="flex items-center gap-2 text-slate-500 text-sm font-medium">
+            Thiết kế với <span className="text-red-500 animate-pulse">❤</span> bởi SmartRent Team
+          </p>
+        </div>
       </footer>
     </div>
   )

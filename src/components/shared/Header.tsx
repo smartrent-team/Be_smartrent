@@ -43,15 +43,19 @@ export function Header({ email }: { email?: string }) {
     router.push('/login')
   }
 
+  const isSystemAdmin = pathname.startsWith('/system-admin')
+  const rootHref = isSystemAdmin ? '/system-admin/dashboard' : '/dashboard'
+  const rootName = isSystemAdmin ? 'Master Admin' : 'Chủ trọ'
+
   return (
     <header className="flex h-14 items-center gap-4 border-b bg-gray-50/40 px-4 lg:h-[60px] lg:px-6">
       <div className="md:hidden flex items-center">
         <Sheet>
-          <SheetTrigger asChild>
-            <Button variant="outline" size="icon" className="shrink-0">
-              <Menu className="h-5 w-5" />
-              <span className="sr-only">Toggle navigation menu</span>
-            </Button>
+          <SheetTrigger 
+            render={<Button variant="outline" size="icon" className="shrink-0" />}
+          >
+            <Menu className="h-5 w-5" />
+            <span className="sr-only">Toggle navigation menu</span>
           </SheetTrigger>
           <SheetContent side="left" className="p-0 w-[280px]">
             <Sidebar />
@@ -62,7 +66,7 @@ export function Header({ email }: { email?: string }) {
         <Breadcrumb className="hidden md:flex">
           <BreadcrumbList>
             <BreadcrumbItem>
-              <BreadcrumbLink href="/dashboard">Admin</BreadcrumbLink>
+              <BreadcrumbLink href={rootHref}>{rootName}</BreadcrumbLink>
             </BreadcrumbItem>
             <BreadcrumbSeparator />
             <BreadcrumbItem>

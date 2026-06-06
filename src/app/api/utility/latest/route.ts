@@ -1,7 +1,7 @@
 import { verifyRole } from '@/lib/rbac'
-import { NextResponse, type NextRequest } from 'next/server'
+import { NextResponse } from 'next/server'
 
-export async function GET(request: NextRequest) {
+export async function GET() {
   try {
     const auth = await verifyRole()
     if (auth.error || !auth.user || !auth.role) {
@@ -42,6 +42,7 @@ export async function GET(request: NextRequest) {
     if (logError) throw logError
 
     // Group logs by room_id and pick the latest one
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const latestLogsMap: Record<number, any> = {}
     if (logs) {
       for (const log of logs) {
