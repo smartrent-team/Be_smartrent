@@ -23,25 +23,28 @@ export default async function ManagersPage() {
   // Dùng admin client để bypass RLS
   const adminSupabase = createAdminClient()
 
-  // 1. Fetch branches for selector and mapping
-  const { data: rawBranches } = await adminSupabase
-    .from('branches')
-    .select('id, name')
-    .order('name')
+  // 1. Fetch branches and managers in parallel
+  const [
+    { data: rawBranches },
+    { data: rawManagers }
+  ] = await Promise.all([
+    adminSupabase
+      .from('branches')
+      .select('id, name')
+      .order('name'),
+    adminSupabase
+      .from('users')
+      .select('id, full_name, phone, email, role, branch_id')
+      .eq('role', 'manager')
+      .eq('status', 'active')
+  ])
+
   const branches = rawBranches || []
+  const managers = rawManagers || []
 
   // Create a map for quick branch lookup
   const branchMap = new Map<number, string>()
   branches.forEach((b) => branchMap.set(b.id, b.name))
-
-  // 2. Fetch managers
-  const { data: rawManagers } = await adminSupabase
-    .from('users')
-    .select('id, full_name, phone, email, role, branch_id')
-    .eq('role', 'manager')
-    .eq('status', 'active')
-
-  const managers = rawManagers || []
 
   // Stats calculation
   const totalManagers = managers.length

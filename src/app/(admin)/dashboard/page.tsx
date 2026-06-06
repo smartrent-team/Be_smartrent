@@ -256,30 +256,34 @@ async function ChainAnalytics() {
     : []
 
   // ─── Chain overview chart (6 months) ────────────────────────
-  const chainOverviewData: ChainOverviewData[] = []
-  for (let i = 5; i >= 0; i--) {
+  const monthQueries = Array.from({ length: 6 }, (_, idx) => {
+    const i = 5 - idx;
     const date = new Date(now.getFullYear(), now.getMonth() - i, 1)
     const nextDate = new Date(date.getFullYear(), date.getMonth() + 1, 1)
-    const mStart = date.toISOString()
-    const mEnd = nextDate.toISOString()
+    return {
+      date,
+      promise: supabase
+        .from('invoices')
+        .select('total_amount')
+        .eq('payment_status', 'paid')
+        .gte('paid_at', date.toISOString())
+        .lt('paid_at', nextDate.toISOString())
+    }
+  })
 
-    const { data: mInvoices } = await supabase
-      .from('invoices')
-      .select('total_amount')
-      .eq('payment_status', 'paid')
-      .gte('paid_at', mStart)
-      .lt('paid_at', mEnd)
+  const monthResults = await Promise.all(monthQueries.map(q => q.promise))
 
+  const chainOverviewData: ChainOverviewData[] = monthQueries.map((q, idx) => {
+    const { data: mInvoices } = monthResults[idx]
     const rev = (mInvoices || []).reduce((s, inv) => s + (inv.total_amount || 0), 0)
 
-    // For occupancy over time, we approximate with current snapshot
-    // (accurate historical tracking would need a separate table)
-    chainOverviewData.push({
-      month: date.toLocaleDateString('vi-VN', { month: 'short', year: '2-digit' }),
+    return {
+      month: q.date.toLocaleDateString('vi-VN', { month: 'short', year: '2-digit' }),
       revenue: rev,
       occupancyRate: avgOccupancy,
-    })
-  }
+    }
+  })
+
   // Override current month with actual occupancy
   if (chainOverviewData.length > 0) {
     chainOverviewData[chainOverviewData.length - 1].occupancyRate = avgOccupancy

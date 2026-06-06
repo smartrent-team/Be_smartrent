@@ -7,27 +7,35 @@ export default async function RevenueChart() {
   const supabase = createAdminClient()
 
   // Lấy doanh thu 6 tháng gần nhất
-  const months: { month: string; revenue: number }[] = []
   const now = new Date()
 
-  for (let i = 5; i >= 0; i--) {
+  const monthQueries = Array.from({ length: 6 }, (_, idx) => {
+    const i = 5 - idx;
     const date = new Date(now.getFullYear(), now.getMonth() - i, 1)
     const nextDate = new Date(date.getFullYear(), date.getMonth() + 1, 1)
 
-    const { data } = await supabase
-      .from('invoices')
-      .select('total_amount')
-      .eq('payment_status', 'paid')
-      .gte('paid_at', date.toISOString())
-      .lt('paid_at', nextDate.toISOString())
+    return {
+      date,
+      promise: supabase
+        .from('invoices')
+        .select('total_amount')
+        .eq('payment_status', 'paid')
+        .gte('paid_at', date.toISOString())
+        .lt('paid_at', nextDate.toISOString())
+    }
+  })
 
+  const monthResults = await Promise.all(monthQueries.map(q => q.promise))
+
+  const months: { month: string; revenue: number }[] = monthQueries.map((q, idx) => {
+    const { data } = monthResults[idx]
     const revenue = (data || []).reduce((sum, inv) => sum + (inv.total_amount || 0), 0)
 
-    months.push({
-      month: date.toLocaleDateString('vi-VN', { month: 'short', year: '2-digit' }),
+    return {
+      month: q.date.toLocaleDateString('vi-VN', { month: 'short', year: '2-digit' }),
       revenue,
-    })
-  }
+    }
+  })
 
   const totalSixMonths = months.reduce((s, m) => s + m.revenue, 0)
 

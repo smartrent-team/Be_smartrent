@@ -22,25 +22,28 @@ export default async function BranchesPage() {
   // Dùng admin client để bypass RLS
   const adminSupabase = createAdminClient()
 
-  // 1. Fetch branches
-  const { data: rawBranches } = await adminSupabase
-    .from('branches')
-    .select('*')
-    .order('created_at', { ascending: false })
+  // 1. Fetch data in parallel
+  const [
+    { data: rawBranches },
+    { data: rawRooms },
+    { data: rawManagers }
+  ] = await Promise.all([
+    adminSupabase
+      .from('branches')
+      .select('*')
+      .order('created_at', { ascending: false }),
+    adminSupabase
+      .from('rooms')
+      .select('id, branch_id, status'),
+    adminSupabase
+      .from('users')
+      .select('id, full_name, phone, branch_id')
+      .eq('role', 'manager')
+      .eq('status', 'active')
+  ])
+
   const branches = rawBranches || []
-
-  // 2. Fetch rooms to calculate total rooms and occupancy rate per branch
-  const { data: rawRooms } = await adminSupabase
-    .from('rooms')
-    .select('id, branch_id, status')
   const rooms = rawRooms || []
-
-  // 3. Fetch managers to map responsible manager per branch
-  const { data: rawManagers } = await adminSupabase
-    .from('users')
-    .select('id, full_name, phone, branch_id')
-    .eq('role', 'manager')
-    .eq('status', 'active')
   const managers = rawManagers || []
 
   // Pre-calculate stats per branch

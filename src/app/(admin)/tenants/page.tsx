@@ -31,21 +31,24 @@ export default async function TenantsPage({ searchParams }: { searchParams: Prom
   // Dùng admin client để bypass RLS - đảm bảo super_admin thấy tất cả dữ liệu
   const adminSupabase = createAdminClient()
 
-  // 1. Fetch tenants
-  const { data: rawTenants, count } = await adminSupabase
-    .from('tenants')
-    .select('id, move_in_date, move_out_date, room_id, user_id, room:rooms(room_code, branch:branches(name)), user:users!inner(full_name, email, phone), contracts(deposit_amount, status)', { count: 'exact' })
-    .eq('user.status', 'active')
-    .order('created_at', { ascending: false })
-    .range(from, to)
+  // 1. Fetch tenants & rooms in parallel
+  const [
+    { data: rawTenants, count },
+    { data: rawRooms }
+  ] = await Promise.all([
+    adminSupabase
+      .from('tenants')
+      .select('id, move_in_date, move_out_date, room_id, user_id, room:rooms(room_code, branch:branches(name)), user:users!inner(full_name, email, phone), contracts(deposit_amount, status)', { count: 'exact' })
+      .eq('user.status', 'active')
+      .order('created_at', { ascending: false })
+      .range(from, to),
+    adminSupabase
+      .from('rooms')
+      .select('id, room_code, base_price, status')
+      .order('room_code')
+  ])
 
   const totalPages = count ? Math.ceil(count / limit) : 0
-
-  // 2. Fetch rooms
-  const { data: rawRooms } = await adminSupabase
-    .from('rooms')
-    .select('id, room_code, base_price, status')
-    .order('room_code')
   const allRooms = rawRooms || []
   const availableRooms = allRooms.filter(r => r.status === 'available')
 

@@ -36,12 +36,17 @@ export default async function RoomsPage({ searchParams }: { searchParams: Promis
     query = query.eq('status', status)
   }
 
-  const { data: rooms, error } = await query
+  const [
+    { data: rooms, error },
+    { data: rawBranches }
+  ] = await Promise.all([
+    query,
+    adminSupabase
+      .from('branches')
+      .select('id, name')
+      .order('name')
+  ])
 
-  const { data: rawBranches } = await adminSupabase
-    .from('branches')
-    .select('id, name')
-    .order('name')
   const branches = rawBranches || []
 
   if (error) {
