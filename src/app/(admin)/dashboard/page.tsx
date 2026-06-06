@@ -256,29 +256,31 @@ async function ChainAnalytics() {
     : []
 
   // ─── Chain overview chart (6 months) ────────────────────────
-  const monthQueries = Array.from({ length: 6 }, (_, idx) => {
-    const i = 5 - idx;
+  const sixMonthsAgo = new Date(now.getFullYear(), now.getMonth() - 5, 1)
+  const nextMonth = new Date(now.getFullYear(), now.getMonth() + 1, 1)
+
+  const { data: sixMonthsInvoices } = await supabase
+    .from('invoices')
+    .select('total_amount, paid_at')
+    .eq('payment_status', 'paid')
+    .gte('paid_at', sixMonthsAgo.toISOString())
+    .lt('paid_at', nextMonth.toISOString())
+
+  const chainOverviewData: ChainOverviewData[] = Array.from({ length: 6 }, (_, idx) => {
+    const i = 5 - idx
     const date = new Date(now.getFullYear(), now.getMonth() - i, 1)
     const nextDate = new Date(date.getFullYear(), date.getMonth() + 1, 1)
-    return {
-      date,
-      promise: supabase
-        .from('invoices')
-        .select('total_amount')
-        .eq('payment_status', 'paid')
-        .gte('paid_at', date.toISOString())
-        .lt('paid_at', nextDate.toISOString())
-    }
-  })
-
-  const monthResults = await Promise.all(monthQueries.map(q => q.promise))
-
-  const chainOverviewData: ChainOverviewData[] = monthQueries.map((q, idx) => {
-    const { data: mInvoices } = monthResults[idx]
-    const rev = (mInvoices || []).reduce((s, inv) => s + (inv.total_amount || 0), 0)
+    
+    const rev = (sixMonthsInvoices || [])
+      .filter(inv => {
+        if (!inv.paid_at) return false;
+        const d = new Date(inv.paid_at)
+        return d >= date && d < nextDate
+      })
+      .reduce((sum, inv) => sum + (inv.total_amount || 0), 0)
 
     return {
-      month: q.date.toLocaleDateString('vi-VN', { month: 'short', year: '2-digit' }),
+      month: date.toLocaleDateString('vi-VN', { month: 'short', year: '2-digit' }),
       revenue: rev,
       occupancyRate: avgOccupancy,
     }

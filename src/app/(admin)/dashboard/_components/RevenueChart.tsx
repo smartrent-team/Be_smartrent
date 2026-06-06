@@ -8,32 +8,32 @@ export default async function RevenueChart() {
 
   // Lấy doanh thu 6 tháng gần nhất
   const now = new Date()
+  const sixMonthsAgo = new Date(now.getFullYear(), now.getMonth() - 5, 1)
+  const nextMonth = new Date(now.getFullYear(), now.getMonth() + 1, 1)
 
-  const monthQueries = Array.from({ length: 6 }, (_, idx) => {
-    const i = 5 - idx;
+  const { data: invoices } = await supabase
+    .from('invoices')
+    .select('total_amount, paid_at')
+    .eq('payment_status', 'paid')
+    .gte('paid_at', sixMonthsAgo.toISOString())
+    .lt('paid_at', nextMonth.toISOString())
+
+  const months: { month: string; revenue: number }[] = Array.from({ length: 6 }, (_, idx) => {
+    const i = 5 - idx
     const date = new Date(now.getFullYear(), now.getMonth() - i, 1)
     const nextDate = new Date(date.getFullYear(), date.getMonth() + 1, 1)
+    
+    const rev = (invoices || [])
+      .filter(inv => {
+        if (!inv.paid_at) return false;
+        const d = new Date(inv.paid_at)
+        return d >= date && d < nextDate
+      })
+      .reduce((sum, inv) => sum + (inv.total_amount || 0), 0)
 
     return {
-      date,
-      promise: supabase
-        .from('invoices')
-        .select('total_amount')
-        .eq('payment_status', 'paid')
-        .gte('paid_at', date.toISOString())
-        .lt('paid_at', nextDate.toISOString())
-    }
-  })
-
-  const monthResults = await Promise.all(monthQueries.map(q => q.promise))
-
-  const months: { month: string; revenue: number }[] = monthQueries.map((q, idx) => {
-    const { data } = monthResults[idx]
-    const revenue = (data || []).reduce((sum, inv) => sum + (inv.total_amount || 0), 0)
-
-    return {
-      month: q.date.toLocaleDateString('vi-VN', { month: 'short', year: '2-digit' }),
-      revenue,
+      month: date.toLocaleDateString('vi-VN', { month: 'short', year: '2-digit' }),
+      revenue: rev,
     }
   })
 
