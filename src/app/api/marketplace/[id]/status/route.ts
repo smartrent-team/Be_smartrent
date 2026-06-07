@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { verifyRole } from '@/lib/rbac'
+import { dispatchNotification } from '@/lib/notification_dispatch'
 
 export async function PUT(
   request: Request,
@@ -90,6 +91,17 @@ export async function PUT(
       ownerRoom,
       ownerInitial: initial,
     };
+
+    // Bắn thông báo cho người đăng bài (tenant)
+    if (actualUser?.id) {
+      const statusText = status === 'active' ? 'được duyệt' : status === 'rejected' ? 'bị từ chối' : status === 'sold' ? 'được đánh dấu đã bán' : status;
+      await dispatchNotification(supabase, { userId: actualUser.id }, {
+        title: 'Cập nhật bài đăng',
+        body: `Bài đăng "${data.title}" của bạn đã ${statusText}.`,
+        type: 'marketplace_status',
+        data: { postId: data.id, status }
+      })
+    }
 
     return NextResponse.json({ success: true, doc: formattedDoc })
 

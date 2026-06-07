@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { verifyRole } from '@/lib/rbac'
+import { dispatchNotification } from '@/lib/notification_dispatch'
 
 export async function GET(request: Request) {
   try {
@@ -212,6 +213,26 @@ export async function POST(request: Request) {
       ownerRoom,
       ownerInitial: initial,
     };
+
+    // Bắn thông báo cho các manager của chi nhánh này
+    if (postData.branch_id) {
+      const { data: managers } = await supabase
+        .from('users')
+        .select('id')
+        .eq('role', 'manager')
+        .eq('branch_id', postData.branch_id)
+
+      if (managers && managers.length > 0) {
+        for (const manager of managers) {
+          await dispatchNotification(supabase, { userId: manager.id }, {
+            title: 'Yêu cầu đăng bài mới',
+            body: `Có bài đăng mới "${data.title}" từ ${ownerName} đang chờ duyệt.`,
+            type: 'marketplace_post',
+            data: { postId: data.id }
+          })
+        }
+      }
+    }
 
     return NextResponse.json({ success: true, doc: formattedDoc })
 
