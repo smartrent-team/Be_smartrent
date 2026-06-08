@@ -1,7 +1,9 @@
 import { Suspense } from "react"
 import { Skeleton } from "@/components/ui/skeleton"
 import { createAdminClient } from '@/lib/supabase/admin'
+import { verifyRole } from '@/lib/rbac'
 import DashboardStats from "./_components/DashboardStats"
+import SubscriptionWrapper from "./_components/SubscriptionWrapper"
 import RecentActivities from "./_components/RecentActivities"
 import PendingTickets from "./_components/PendingTickets"
 import RevenueChart from "./_components/RevenueChart"
@@ -316,6 +318,10 @@ export default function DashboardPage() {
         <h1 className="text-3xl font-bold tracking-tight">Tổng quan</h1>
         <p className="text-muted-foreground mt-2">Theo dõi tình hình kinh doanh nhà trọ của bạn trong tháng này.</p>
       </div>
+
+      <Suspense fallback={<Skeleton className="h-32 w-full rounded-xl" />}>
+        <SubscriptionWrapper />
+      </Suspense>
 
       {/* Original Stats Cards */}
       <Suspense fallback={<StatsSkeleton />}>

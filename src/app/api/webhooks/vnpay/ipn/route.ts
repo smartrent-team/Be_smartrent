@@ -28,7 +28,50 @@ export async function GET(request: NextRequest) {
 
     const supabase = createAdminClient()
 
-    // 1. Tìm hóa đơn
+    // 1. Phân biệt giao dịch
+    if (orderId.toString().startsWith('SUB_')) {
+      // --- XỬ LÝ THANH TOÁN GÓI CƯỚC SAAS ---
+      const { data: tx, error: txError } = await supabase
+        .from('saas_transactions')
+        .select('*')
+        .eq('order_id', orderId)
+        .single()
+
+      if (txError || !tx) {
+        return NextResponse.json({ RspCode: '01', Message: 'Transaction not found' }, { status: 200 })
+      }
+
+      if (tx.status === 'paid') {
+        return NextResponse.json({ RspCode: '02', Message: 'Transaction already confirmed' }, { status: 200 })
+      }
+
+      const vnpAmount = Number(vnp_Params['vnp_Amount']) / 100
+      if (vnpAmount !== Number(tx.amount)) {
+        return NextResponse.json({ RspCode: '04', Message: 'invalid amount' }, { status: 200 })
+      }
+
+      // Cập nhật transaction
+      await supabase.from('saas_transactions').update({
+        status: 'paid',
+        paid_at: new Date().toISOString()
+      }).eq('id', tx.id)
+
+      // Nâng cấp gói cước cho organization
+      // Ví dụ: Gói Pro (5 chi nhánh, 200 phòng, thời hạn +30 ngày)
+      const endDate = new Date()
+      endDate.setDate(endDate.getDate() + 30)
+
+      await supabase.from('organizations').update({
+        plan_type: 'pro',
+        max_branches: 5,
+        max_rooms: 200,
+        subscription_end_date: endDate.toISOString()
+      }).eq('id', tx.organization_id)
+
+      return NextResponse.json({ RspCode: '00', Message: 'Confirm Success' }, { status: 200 })
+    }
+
+    // --- XỬ LÝ THANH TOÁN TIỀN PHÒNG (INVOICE) NHƯ CŨ ---
     const { data: invoice, error: fetchError } = await supabase
       .from('invoices')
       .select('id, payment_status, total_amount, invoice_code, tenant:tenant_id(id, user_id)')
