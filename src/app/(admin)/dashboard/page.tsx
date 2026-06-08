@@ -1,7 +1,7 @@
 import { Suspense } from "react"
 import { Skeleton } from "@/components/ui/skeleton"
-import { createAdminClient } from '@/lib/supabase/admin'
 import { verifyRole } from '@/lib/rbac'
+import { redis } from '@/lib/redis'
 import DashboardStats from "./_components/DashboardStats"
 import SubscriptionWrapper from "./_components/SubscriptionWrapper"
 import RecentActivities from "./_components/RecentActivities"
@@ -136,8 +136,26 @@ function TopBranchesSkeleton() {
 
 // ─── Data Fetching Component (Server) ─────────────────────────────────
 async function ChainAnalytics() {
-  const supabase = createAdminClient()
+  const { supabase, organizationId } = await verifyRole()
+  if (!organizationId) return <div className="text-red-500">No organization found</div>
+
   const now = new Date()
+  const currentMonth = `${now.getFullYear()}_${now.getMonth() + 1}`
+  const cacheKey = `dashboard_stats:${organizationId}:${currentMonth}`
+
+  // 1. Kiểm tra Cache Redis
+  try {
+    const cachedData = await redis.get(cacheKey)
+    if (cachedData) {
+      console.log('Dashboard Cache Hit:', cacheKey)
+      const parsed = typeof cachedData === 'string' ? JSON.parse(cachedData) : cachedData
+      return renderAnalytics(parsed)
+    }
+  } catch (err) {
+    console.error('Redis cache error:', err)
+  }
+
+  // 2. Nếu không có cache, tính toán từ Supabase
   const monthStart = new Date(now.getFullYear(), now.getMonth(), 1).toISOString()
   const monthEnd = new Date(now.getFullYear(), now.getMonth() + 1, 1).toISOString()
 
@@ -286,6 +304,28 @@ async function ChainAnalytics() {
   if (chainOverviewData.length > 0) {
     chainOverviewData[chainOverviewData.length - 1].occupancyRate = avgOccupancy
   }
+
+  const resultData = {
+    chainStats,
+    chainOverviewData,
+    branchKPIs,
+    best,
+    worst
+  }
+
+  // 3. Lưu vào Cache (Hết hạn sau 12 tiếng)
+  try {
+    await redis.set(cacheKey, JSON.stringify(resultData), { ex: 43200 })
+    console.log('Dashboard Cache Set:', cacheKey)
+  } catch (err) {
+    console.error('Redis set error:', err)
+  }
+
+  return renderAnalytics(resultData)
+}
+
+function renderAnalytics(data: any) {
+  const { chainStats, chainOverviewData, branchKPIs, best, worst } = data;
 
   return (
     <>

@@ -4,7 +4,7 @@ import { optimizeCloudinaryUrl } from '@/lib/cloudinary'
 import { redis } from '@/lib/redis'
 import { sendPushNotification } from '@/lib/push'
 
-export const runtime = 'edge'
+
 
 
 export async function GET(request: Request) {

@@ -7,6 +7,9 @@ export type OrgPaymentConfig = {
   paymentBankBin: string | null
   paymentAccountNumber: string | null
   paymentAccountName: string | null
+  payosClientId: string | null
+  payosApiKey: string | null
+  payosChecksumKey: string | null
 }
 
 export async function verifyRole() {
@@ -42,7 +45,10 @@ export async function verifyRole() {
       organizations (
         payment_bank_bin,
         payment_account_number,
-        payment_account_name
+        payment_account_name,
+        payos_client_id,
+        payos_api_key,
+        payos_checksum_key
       )
     `)
     .eq('email', user.email)
@@ -62,6 +68,9 @@ export async function verifyRole() {
         paymentBankBin: org?.payment_bank_bin ?? null,
         paymentAccountNumber: org?.payment_account_number ?? null,
         paymentAccountName: org?.payment_account_name ?? null,
+        payosClientId: org?.payos_client_id ?? null,
+        payosApiKey: org?.payos_api_key ?? null,
+        payosChecksumKey: org?.payos_checksum_key ?? null,
       }
     : null
 

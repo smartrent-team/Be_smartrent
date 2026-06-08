@@ -1,7 +1,7 @@
 'use server'
 
 import { verifySuperAdmin } from '@/lib/rbac'
-import { attachVNPayToInvoice } from '@/lib/invoice-payment'
+import { attachPayOSToInvoice } from '@/lib/invoice-payment'
 import { revalidatePath } from 'next/cache'
 import { calculateElectricityCost, calculateWaterCost } from '@/lib/billing'
 import { sendPushNotification } from '@/lib/push'
@@ -111,7 +111,7 @@ export async function createInvoice(data: {
       }
     }
 
-    // 2. Tạo link thanh toán VNPay
+    // 2. Tạo link thanh toán PayOS
     let paymentWarning: string | null = null
     let payment: {
       checkoutUrl: string
@@ -119,12 +119,13 @@ export async function createInvoice(data: {
       invoiceCode: string
     } | null = null
 
-    if (totalAmount > 0 && totalAmount >= 5000) {
-      const { payment: pay, warning } = await attachVNPayToInvoice(supabase, {
+    if (totalAmount > 0 && totalAmount >= 2000) {
+      const { payment: pay, warning } = await attachPayOSToInvoice(supabase, {
         id: invoice.id,
         invoice_code: invoiceCode,
         total_amount: totalAmount,
-      })
+      }, data.orgPaymentConfig)
+      
       if (pay) {
         payment = {
           checkoutUrl: pay.checkoutUrl,
@@ -132,7 +133,7 @@ export async function createInvoice(data: {
           invoiceCode,
         }
       } else if (warning) {
-        console.warn('⚠️ VNPay:', warning)
+        console.warn('⚠️ PayOS:', warning)
         paymentWarning = warning
       }
     }
