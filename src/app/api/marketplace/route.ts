@@ -1,6 +1,10 @@
 import { NextResponse } from 'next/server'
 import { verifyRole } from '@/lib/rbac'
 import { optimizeCloudinaryUrl } from '@/lib/cloudinary'
+import { redis } from '@/lib/redis'
+
+export const runtime = 'edge'
+
 
 export async function GET(request: Request) {
   try {
@@ -85,6 +89,20 @@ export async function GET(request: Request) {
        if (statusParam) query = query.eq('status', statusParam)
     }
 
+    // 1. Tạo Cache Key duy nhất dựa trên các tham số
+    const branchIdsStr = auth.role === 'super_admin' ? 'all' : (branchIdParam || auth.branchId || 'none')
+    const cacheKey = `marketplace_list:${auth.role}:${branchIdsStr}:${statusParam || 'all'}`
+
+    // 2. Kiểm tra Redis Cache
+    const cachedData = await redis.get(cacheKey)
+    if (cachedData) {
+      console.log('CACHE HIT:', cacheKey)
+      return NextResponse.json({ success: true, docs: cachedData, fromCache: true })
+    }
+
+    console.log('CACHE MISS:', cacheKey)
+
+    // 3. Nếu không có cache, truy vấn Database
     const { data, error } = await query
 
     if (error) throw error
@@ -122,7 +140,11 @@ export async function GET(request: Request) {
       }
     });
 
-    return NextResponse.json({ success: true, docs })
+    // 4. Lưu kết quả vào Redis với TTL dài (ví dụ: 1 giờ = 3600 giây)
+    // Khi có người đăng bài mới, ta sẽ chủ động xóa cache key này.
+    await redis.setex(cacheKey, 3600, docs)
+
+    return NextResponse.json({ success: true, docs, fromCache: false })
 
   } catch (error: unknown) {
     console.error('Error in GET marketplace:', error)
@@ -230,6 +252,17 @@ export async function POST(request: Request) {
       ownerRoom,
       ownerInitial: initial,
     };
+
+    // Xóa Cache để cập nhật ngay lập tức
+    try {
+      const keys = await redis.keys('marketplace_list:*')
+      if (keys.length > 0) {
+        await redis.del(...keys)
+        console.log('CACHE CLEARED:', keys.length, 'keys')
+      }
+    } catch (err) {
+      console.error('Error clearing cache:', err)
+    }
 
     return NextResponse.json({ success: true, doc: formattedDoc })
 

@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { verifyRole } from '@/lib/rbac'
 import { optimizeCloudinaryUrl } from '@/lib/cloudinary'
+import { redis } from '@/lib/redis'
 
 export async function PUT(
   request: Request,
@@ -91,6 +92,16 @@ export async function PUT(
       ownerRoom,
       ownerInitial: initial,
     };
+
+    // Xóa Cache để danh sách mới nhất được update
+    try {
+      const keys = await redis.keys('marketplace_list:*')
+      if (keys.length > 0) {
+        await redis.del(...keys)
+      }
+    } catch (err) {
+      console.error('Error clearing cache on status update:', err)
+    }
 
     return NextResponse.json({ success: true, doc: formattedDoc })
 
