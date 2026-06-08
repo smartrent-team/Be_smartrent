@@ -3,12 +3,35 @@ import { verifyRole } from '@/lib/rbac'
 import { optimizeCloudinaryUrl } from '@/lib/cloudinary'
 import { redis } from '@/lib/redis'
 import { sendPushNotification } from '@/lib/push'
+import { Ratelimit } from '@upstash/ratelimit'
 
-
-
+// Cấu hình Rate Limiting: 10 requests / 10 giây
+const ratelimit = new Ratelimit({
+  redis: redis,
+  limiter: Ratelimit.slidingWindow(10, '10 s'),
+  analytics: true,
+})
 
 export async function GET(request: Request) {
   try {
+    // Kích hoạt Rate Limiting dựa trên IP Address
+    const ip = request.headers.get('x-forwarded-for') || '127.0.0.1'
+    const { success, limit, reset, remaining } = await ratelimit.limit(`ratelimit_marketplace_${ip}`)
+
+    if (!success) {
+      return NextResponse.json(
+        { error: 'Too Many Requests', message: 'Bạn đã truy cập quá nhanh. Vui lòng đợi vài giây rồi thử lại.' },
+        { 
+          status: 429,
+          headers: {
+            'X-RateLimit-Limit': limit.toString(),
+            'X-RateLimit-Remaining': remaining.toString(),
+            'X-RateLimit-Reset': reset.toString()
+          }
+        }
+      )
+    }
+
     const auth = await verifyRole()
     if (auth.error || !auth.user || !auth.role) {
       return NextResponse.json({ error: auth.error || 'Unauthorized' }, { status: auth.status || 401 })
@@ -156,6 +179,24 @@ export async function GET(request: Request) {
 
 export async function POST(request: Request) {
   try {
+    // Kích hoạt Rate Limiting dựa trên IP Address (Cho POST: 5 requests / 10s)
+    const ip = request.headers.get('x-forwarded-for') || '127.0.0.1'
+    const { success, limit, reset, remaining } = await ratelimit.limit(`ratelimit_marketplace_post_${ip}`)
+
+    if (!success) {
+      return NextResponse.json(
+        { error: 'Too Many Requests', message: 'Bạn đang đăng bài quá nhanh. Vui lòng đợi vài giây rồi thử lại.' },
+        { 
+          status: 429,
+          headers: {
+            'X-RateLimit-Limit': limit.toString(),
+            'X-RateLimit-Remaining': remaining.toString(),
+            'X-RateLimit-Reset': reset.toString()
+          }
+        }
+      )
+    }
+
     const auth = await verifyRole()
     if (auth.error || !auth.user || !auth.role) {
       return NextResponse.json({ error: auth.error || 'Unauthorized' }, { status: auth.status || 401 })
