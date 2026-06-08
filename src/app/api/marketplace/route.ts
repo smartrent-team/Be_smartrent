@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { verifyRole } from '@/lib/rbac'
 import { optimizeCloudinaryUrl } from '@/lib/cloudinary'
 import { redis } from '@/lib/redis'
+import { sendPushNotification } from '@/lib/push'
 
 export const runtime = 'edge'
 
@@ -262,6 +263,40 @@ export async function POST(request: Request) {
       }
     } catch (err) {
       console.error('Error clearing cache:', err)
+    }
+
+    // GỬI PUSH NOTIFICATION CHO MANAGER
+    try {
+      if (auth.role === 'tenant') {
+        // Tìm các quản lý của chi nhánh này
+        const { data: managers } = await supabase
+          .from('users')
+          .select('id')
+          .eq('role', 'manager')
+          .eq('branch_id', postData.branch_id)
+
+        if (managers && managers.length > 0) {
+          const managerIds = managers.map(m => m.id)
+          
+          // Lấy token của các quản lý
+          const { data: tokens } = await supabase
+            .from('device_tokens')
+            .select('token')
+            .in('user_id', managerIds)
+
+          if (tokens && tokens.length > 0) {
+            const notiTitle = '📦 Bài đăng mới trên chợ'
+            const notiBody = `Phòng ${ownerRoom} vừa đăng bán: "${title}". Vào duyệt ngay!`
+            
+            // Bắn thông báo (Không await để không block API)
+            tokens.forEach(t => {
+              sendPushNotification(t.token, notiTitle, notiBody)
+            })
+          }
+        }
+      }
+    } catch (pushErr) {
+      console.error('Error sending push notification to manager:', pushErr)
     }
 
     return NextResponse.json({ success: true, doc: formattedDoc })
