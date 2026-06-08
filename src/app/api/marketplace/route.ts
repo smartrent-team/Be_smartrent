@@ -61,9 +61,26 @@ export async function GET(request: Request) {
       }
       query = query.eq('branch_id', branchIdParam || auth.branchId)
       query = query.eq('status', 'active')
-    } else {
+    } else if (auth.role === 'super_admin') {
        // Super admin
-       if (branchIdParam) query = query.eq('branch_id', branchIdParam)
+       if (!auth.organizationId) {
+         return NextResponse.json({ error: 'Tài khoản Super Admin chưa được gán tổ chức' }, { status: 403 })
+       }
+       const { getOrgBranchIds } = await import('@/lib/rbac')
+       const branchIds = await getOrgBranchIds(supabase, auth.organizationId)
+       if (!branchIds || branchIds.length === 0) {
+         return NextResponse.json({ success: true, docs: [] })
+       }
+
+       if (branchIdParam) {
+         if (!branchIds.includes(Number(branchIdParam))) {
+           return NextResponse.json({ error: 'Chi nhánh không thuộc tổ chức của bạn' }, { status: 403 })
+         }
+         query = query.eq('branch_id', branchIdParam)
+       } else {
+         query = query.in('branch_id', branchIds)
+       }
+       
        if (statusParam) query = query.eq('status', statusParam)
     }
 

@@ -1,5 +1,5 @@
 import { NextResponse, type NextRequest } from 'next/server'
-import { verifyRole } from '@/lib/rbac'
+import { verifyRole, getOrgBranchIds } from '@/lib/rbac'
 
 export async function GET(request: NextRequest) {
   try {
@@ -44,7 +44,7 @@ export async function GET(request: NextRequest) {
         created_at,
         payment_link_id,
         checkoutUrl,
-        rooms (
+        rooms!inner (
           id,
           room_code,
           floor,
@@ -59,27 +59,20 @@ export async function GET(request: NextRequest) {
       if (!auth.branchId) {
         return NextResponse.json({ error: 'Người dùng chưa được gán vào cơ sở nào' }, { status: 403 })
       }
-      // Lấy danh sách room_id thuộc chi nhánh của manager
-      // (Supabase không hỗ trợ filter trực tiếp trên foreign table)
-      const { data: branchRooms, error: roomsError } = await supabase
-        .from('rooms')
-        .select('id')
-        .eq('branch_id', auth.branchId)
-
-      if (roomsError) {
-        return NextResponse.json({ error: 'Không thể lấy danh sách phòng theo chi nhánh' }, { status: 500 })
+      // Lọc hóa đơn thuộc phòng của chi nhánh manager (nhờ inner join với rooms)
+      query = query.eq('rooms.branch_id', auth.branchId)
+    } else if (auth.role === 'super_admin') {
+      if (!auth.organizationId) {
+        return NextResponse.json({ error: 'Tài khoản Super Admin chưa được gán tổ chức' }, { status: 403 })
       }
-
-      const branchRoomIds = (branchRooms || []).map((r: { id: number }) => r.id)
-
-      if (branchRoomIds.length === 0) {
-        // Chi nhánh chưa có phòng nào → trả về rỗng luôn
+      
+      const branchIds = await getOrgBranchIds(supabase, auth.organizationId)
+      if (!branchIds || branchIds.length === 0) {
         return NextResponse.json({ success: true, docs: [], totalDocs: 0, limit, page, totalPages: 0 })
       }
 
-      query = query.in('room_id', branchRoomIds)
+      query = query.in('rooms.branch_id', branchIds)
     }
-    // super_admin thấy tất cả
 
     // 4. Apply Filters
     if (statusParam) {

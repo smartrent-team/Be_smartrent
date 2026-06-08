@@ -83,6 +83,30 @@ export function canCreateUser(currentRole: string, targetRole: string) {
   return false
 }
 
+/**
+ * Lấy tất cả branch_id thuộc về 1 organization.
+ * Dùng để enforce data isolation: super_admin chỉ thấy data của org mình.
+ * 
+ * @returns mảng branch IDs, hoặc null nếu orgId không hợp lệ
+ */
+import type { SupabaseClient } from '@supabase/supabase-js'
+
+export async function getOrgBranchIds(
+  supabase: SupabaseClient,
+  organizationId: string | null
+): Promise<number[] | null> {
+  if (!organizationId) return null
+
+  const { data: branches, error } = await supabase
+    .from('branches')
+    .select('id')
+    .eq('organization_id', organizationId)
+
+  if (error || !branches) return []
+  return branches.map((b: { id: number }) => b.id)
+}
+
+
 export async function verifySuperAdmin() {
   const supabase = await createClient()
   const { data: { user }, error: authError } = await supabase.auth.getUser()

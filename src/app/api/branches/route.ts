@@ -12,10 +12,25 @@ export async function GET() {
     const supabase = auth.supabase!
 
     // 2. Lấy danh sách các chi nhánh từ bảng branches trong database
-    const { data: branches, error } = await supabase
+    let query = supabase
       .from('branches')
       .select('id, name')
       .order('name', { ascending: true })
+
+    // Phân quyền data isolation
+    if (auth.role === 'super_admin') {
+      if (!auth.organizationId) {
+         return NextResponse.json({ error: 'Tài khoản Super Admin chưa được gán tổ chức' }, { status: 403 })
+      }
+      query = query.eq('organization_id', auth.organizationId)
+    } else if (auth.role === 'manager') {
+      if (!auth.branchId) {
+         return NextResponse.json({ error: 'Tài khoản Manager chưa được gán chi nhánh' }, { status: 403 })
+      }
+      query = query.eq('id', auth.branchId)
+    }
+
+    const { data: branches, error } = await query
 
     if (error) {
       throw error

@@ -21,7 +21,7 @@ export async function GET(request: NextRequest) {
     `
     const baseSelectInner = `
       id, title, description, status, images, created_at, priority,
-      rooms (id, room_code, floor, branch_id),
+      rooms!inner (id, room_code, floor, branch_id),
       tenants (id, user:users(full_name, phone))
     `
 
@@ -39,19 +39,21 @@ export async function GET(request: NextRequest) {
       if (!auth.branchId) {
         return NextResponse.json({ error: 'Manager không có chi nhánh' }, { status: 403 })
       }
-      // Lấy danh sách room_id thuộc chi nhánh (Supabase không filter được qua foreign table)
-      const { data: branchRooms } = await supabase
-        .from('rooms')
-        .select('id')
-        .eq('branch_id', auth.branchId)
-      const branchRoomIds = (branchRooms || []).map((r: { id: number }) => r.id)
-      if (branchRoomIds.length === 0) {
+      query = supabase.from('maintenance_tickets').select(baseSelectInner).eq('rooms.branch_id', auth.branchId)
+    } else if (auth.role === 'super_admin') {
+      if (!auth.organizationId) {
+        return NextResponse.json({ error: 'Tài khoản Super Admin chưa được gán tổ chức' }, { status: 403 })
+      }
+      
+      const { getOrgBranchIds } = await import('@/lib/rbac')
+      const branchIds = await getOrgBranchIds(supabase, auth.organizationId)
+      if (!branchIds || branchIds.length === 0) {
         return NextResponse.json({ success: true, data: [] })
       }
-      query = supabase.from('maintenance_tickets').select(baseSelectInner).in('room_id', branchRoomIds)
+
+      query = supabase.from('maintenance_tickets').select(baseSelectInner).in('rooms.branch_id', branchIds)
     } else {
-      // super_admin: xem được tất cả, không cần filter thêm
-      query = supabase.from('maintenance_tickets').select(baseSelect)
+      return NextResponse.json({ error: 'Unauthorized role' }, { status: 403 })
     }
 
     if (roomId) {

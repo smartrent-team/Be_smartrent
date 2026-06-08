@@ -1,5 +1,5 @@
 import { NextResponse, type NextRequest } from 'next/server'
-import { verifyRole } from '@/lib/rbac'
+import { verifyRole, getOrgBranchIds } from '@/lib/rbac'
 
 export async function GET(request: NextRequest) {
   try {
@@ -48,12 +48,31 @@ export async function GET(request: NextRequest) {
         // Manager chỉ thấy phòng thuộc chi nhánh của mình
         query = query.eq('branch_id', auth.branchId)
       } 
-      else if (auth.role === 'super_admin' && branchParam) {
-        // Super Admin có thể lọc theo chi nhánh bất kỳ
-        query = query.eq('branch_id', branchParam)
+      else if (auth.role === 'super_admin') {
+        if (!auth.organizationId) {
+          return NextResponse.json({ error: 'Tài khoản Super Admin chưa được gán tổ chức' }, { status: 403 })
+        }
+        
+        // Lấy tất cả branch_id của tổ chức
+        const branchIds = await getOrgBranchIds(supabase, auth.organizationId)
+        if (!branchIds || branchIds.length === 0) {
+          return NextResponse.json({ success: true, docs: [], totalDocs: 0, limit, page, totalPages: 0 })
+        }
+
+        if (branchParam) {
+          // Đảm bảo branch_id truyền lên thuộc tổ chức của super_admin
+          if (!branchIds.includes(Number(branchParam))) {
+            return NextResponse.json({ error: 'Chi nhánh không thuộc tổ chức của bạn' }, { status: 403 })
+          }
+          query = query.eq('branch_id', branchParam)
+        } else {
+          // Chỉ lấy phòng thuộc các chi nhánh của org mình
+          query = query.in('branch_id', branchIds)
+        }
       }
     } else {
       // Unauthenticated users (Khách chưa đăng nhập) only see available rooms
+      // TODO: Should unauthenticated users be able to see rooms? Need logic.
       query = query.eq('status', 'available')
       if (branchParam) {
         query = query.eq('branch_id', branchParam)

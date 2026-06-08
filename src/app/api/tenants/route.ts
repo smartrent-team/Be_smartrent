@@ -43,6 +43,16 @@ export async function GET() {
         return NextResponse.json({ error: 'Tài khoản Manager chưa được gán chi nhánh' }, { status: 403 })
       }
       query = query.eq('rooms.branch_id', auth.branchId)
+    } else if (auth.role === 'super_admin') {
+      if (!auth.organizationId) {
+        return NextResponse.json({ error: 'Tài khoản Super Admin chưa được gán tổ chức' }, { status: 403 })
+      }
+      const { getOrgBranchIds } = await import('@/lib/rbac')
+      const branchIds = await getOrgBranchIds(supabase, auth.organizationId)
+      if (!branchIds || branchIds.length === 0) {
+        return NextResponse.json({ success: true, docs: [] })
+      }
+      query = query.in('rooms.branch_id', branchIds)
     }
 
     const { data: tenantsData, error } = await query
