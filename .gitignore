@@ -43,3 +43,6 @@ next-env.d.ts
 
 # AGENTS
 /.agents/
+
+# Supabase migrations (managed manually on Supabase Dashboard, kept local for reference only)
+/supabase/migrations/
