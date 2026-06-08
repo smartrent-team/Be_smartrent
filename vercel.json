@@ -1,0 +1,8 @@
+{
+  "crons": [
+    {
+      "path": "/api/cron/remind-debt",
+      "schedule": "0 2 * * *"
+    }
+  ]
+}
