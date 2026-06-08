@@ -42,7 +42,9 @@ export async function updateSession(request: NextRequest) {
     !request.nextUrl.pathname.startsWith('/login') &&
     !request.nextUrl.pathname.startsWith('/forgot-password') &&
     !request.nextUrl.pathname.startsWith('/update-password') &&
-    !request.nextUrl.pathname.startsWith('/api') && // Exclude API routes from redirecting
+    !request.nextUrl.pathname.startsWith('/api') && // ⚠️ API routes bị bypass middleware auth
+    // QUAN TRỌNG: Mỗi API route /api/* PHẢI tự gọi verifyRole() hoặc verifyAdmin()
+    // để xác thực quyền truy cập. Nếu quên, route đó sẽ hoàn toàn không được bảo vệ!
     !request.nextUrl.pathname.startsWith('/auth') &&
     !request.nextUrl.pathname.startsWith('/swagger.json') // Cho phép đọc file mô tả API
   ) {

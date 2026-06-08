@@ -2,6 +2,13 @@ import { createApiClient, createClient } from './supabase/server'
 import { createAdminClient } from './supabase/admin'
 import { headers } from 'next/headers'
 
+export type OrgPaymentConfig = {
+  organizationId: string
+  paymentBankBin: string | null
+  paymentAccountNumber: string | null
+  paymentAccountName: string | null
+}
+
 export async function verifyRole() {
   const headersList = await headers()
   const authHeader = headersList.get('authorization')
@@ -16,17 +23,28 @@ export async function verifyRole() {
     : await supabase.auth.getUser()
 
   if (authError || !user) {
-    console.error('verifyRole Auth Error:', authError?.message || 'No user found', 'Token length:', token?.length)
+    console.error('verifyRole Auth Error:', authError?.message || 'No user found')
     return { error: 'Unauthorized', status: 401 }
   }
 
   // Khởi tạo Admin Client để bypass RLS (Do RLS sẽ bị khóa lại bằng USING (false))
   const adminSupabase = createAdminClient()
 
-  // 2. Lấy role và branch_id bằng adminSupabase để không bị RLS chặn
+  // Tối ưu: 1 query JOIN duy nhất thay vì 3–4 round-trips riêng lẻ
+  // Lấy role, branch_id, organization_id VÀ payment config cùng lúc
   const { data: userProfile, error: profileError } = await adminSupabase
     .from('users')
-    .select('id, role, branch_id')
+    .select(`
+      id,
+      role,
+      branch_id,
+      organization_id,
+      organizations (
+        payment_bank_bin,
+        payment_account_number,
+        payment_account_name
+      )
+    `)
     .eq('email', user.email)
     .single()
 
@@ -34,11 +52,26 @@ export async function verifyRole() {
     return { error: 'Profile not found', status: 403 }
   }
 
+  const org = Array.isArray(userProfile.organizations)
+    ? userProfile.organizations[0]
+    : userProfile.organizations
+
+  const orgPaymentConfig: OrgPaymentConfig | null = userProfile.organization_id
+    ? {
+        organizationId: userProfile.organization_id,
+        paymentBankBin: org?.payment_bank_bin ?? null,
+        paymentAccountNumber: org?.payment_account_number ?? null,
+        paymentAccountName: org?.payment_account_name ?? null,
+      }
+    : null
+
   return {
     user,
     dbUserId: userProfile.id,
     role: userProfile.role as 'super_admin' | 'manager' | 'tenant',
     branchId: userProfile.branch_id,
+    organizationId: userProfile.organization_id as string | null,
+    orgPaymentConfig,
     supabase: adminSupabase // Cực kỳ quan trọng: Trả về admin client cho các API Route sử dụng
   }
 }

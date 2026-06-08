@@ -1,4 +1,5 @@
 import { buildVNPayUrl } from '@/lib/vnpay'
+import type { SupabaseClient } from '@supabase/supabase-js'
 
 export type InvoicePaymentPayload = {
   checkoutUrl: string
@@ -6,8 +7,7 @@ export type InvoicePaymentPayload = {
 }
 
 export async function attachVNPayToInvoice(
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  supabase: { from: (table: string) => any },
+  supabase: SupabaseClient,
   invoice: { id: number; invoice_code: string; total_amount: number },
   ipAddr: string = '127.0.0.1'
 ): Promise<{ payment: InvoicePaymentPayload | null; warning: string | null }> {

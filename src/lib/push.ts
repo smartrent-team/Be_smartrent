@@ -33,7 +33,6 @@ export const sendPushNotification = async (
     const app = getFirebaseAdminApp()
     const messaging = getMessaging(app)
 
-    console.log(`Gửi notification tới token: ${token}`)
 
     const response = await messaging.send({
       token,

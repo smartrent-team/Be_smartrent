@@ -2,6 +2,8 @@ import { NextResponse, type NextRequest } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { z } from 'zod'
 import { formatZodError } from '@/lib/validations'
+import { Ratelimit } from '@upstash/ratelimit'
+import { Redis } from '@upstash/redis'
 
 const registerSchema = z.object({
   fullName: z.string().min(2, 'Tên phải có ít nhất 2 ký tự'),
@@ -11,8 +13,60 @@ const registerSchema = z.object({
   phone: z.string().min(9, 'Số điện thoại không hợp lệ')
 })
 
+// Khởi tạo Rate Limiter nếu có cấu hình Upstash
+const redisUrl = process.env.UPSTASH_REDIS_REST_URL
+const redisToken = process.env.UPSTASH_REDIS_REST_TOKEN
+
+let ratelimit: Ratelimit | null = null
+if (redisUrl && redisToken) {
+  ratelimit = new Ratelimit({
+    redis: new Redis({
+      url: redisUrl,
+      token: redisToken,
+    }),
+    limiter: Ratelimit.slidingWindow(3, '1 h'), // Giới hạn 3 lượt đăng ký mỗi giờ cho mỗi IP
+  })
+}
+
+// Fallback in-memory rate limiter cho môi trường không cấu hình Redis
+const ipRequests = new Map<string, { count: number; expiresAt: number }>()
+const IN_MEMORY_LIMIT = 3
+const IN_MEMORY_WINDOW_MS = 60 * 60 * 1000 // 1 hour
+
+function checkInMemoryRateLimit(ip: string): boolean {
+  const now = Date.now()
+  const record = ipRequests.get(ip)
+  
+  if (!record || record.expiresAt < now) {
+    ipRequests.set(ip, { count: 1, expiresAt: now + IN_MEMORY_WINDOW_MS })
+    return true
+  }
+  
+  if (record.count >= IN_MEMORY_LIMIT) {
+    return false
+  }
+  
+  record.count += 1
+  return true
+}
+
 export async function POST(request: NextRequest) {
   try {
+    // 1. Kiểm tra Rate Limiting
+    const ip = request.headers.get('x-forwarded-for') ?? 'unknown-ip'
+    
+    if (ratelimit) {
+      const { success } = await ratelimit.limit(ip)
+      if (!success) {
+        return NextResponse.json({ error: 'Bạn đã thử đăng ký quá nhiều lần. Vui lòng thử lại sau.' }, { status: 429 })
+      }
+    } else {
+      // Dùng fallback in-memory nếu chưa cấu hình Redis
+      if (!checkInMemoryRateLimit(ip)) {
+        return NextResponse.json({ error: 'Bạn đã thử đăng ký quá nhiều lần. Vui lòng thử lại sau.' }, { status: 429 })
+      }
+    }
+
     const body = await request.json()
     const parsed = registerSchema.safeParse(body)
     if (!parsed.success) {
@@ -22,7 +76,7 @@ export async function POST(request: NextRequest) {
     const { fullName, email, password, orgName, phone } = parsed.data
     const adminSupabase = createAdminClient()
 
-    // 1. Kiểm tra xem email hoặc SĐT đã tồn tại chưa trong public.users
+    // 2. Kiểm tra xem email hoặc SĐT đã tồn tại chưa trong public.users
     const { data: existingUser } = await adminSupabase
       .from('users')
       .select('id, email')
@@ -33,60 +87,41 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Email hoặc Số điện thoại đã được đăng ký' }, { status: 400 })
     }
 
-    // 2. Tạo Organization mới
-    const { data: orgData, error: orgError } = await adminSupabase
-      .from('organizations')
-      .insert({
-        name: orgName,
-        contact_email: email,
-        contact_phone: phone,
-      })
-      .select('id')
-      .single()
-
-    if (orgError || !orgData) {
-      return NextResponse.json({ error: 'Không thể tạo tổ chức: ' + orgError?.message }, { status: 500 })
-    }
-
     // 3. Tạo Auth User trong Supabase (để login)
+    // Cập nhật: email_confirm: false để bắt buộc người dùng xác thực email
     const { data: authData, error: authError } = await adminSupabase.auth.admin.createUser({
       email,
       password,
-      email_confirm: true,
+      email_confirm: false,
       user_metadata: {
         full_name: fullName,
         phone,
       }
     })
 
-    if (authError) {
-      // Rollback org nếu tạo auth lỗi
-      await adminSupabase.from('organizations').delete().eq('id', orgData.id)
-      return NextResponse.json({ error: 'Lỗi tạo tài khoản Auth: ' + authError.message }, { status: 500 })
+    if (authError || !authData.user) {
+      return NextResponse.json({ error: 'Lỗi tạo tài khoản Auth: ' + authError?.message }, { status: 500 })
     }
 
-    // 4. Lưu User vào public.users với role Super Admin và map tới org vừa tạo
-    const { error: userError } = await adminSupabase
-      .from('users')
-      .insert({
-        email,
-        full_name: fullName,
-        phone,
-        role: 'super_admin',
-        organization_id: orgData.id,
-      })
+    // 4. Tạo Organization và Public User thông qua RPC (ACID Transaction)
+    const { data: orgId, error: rpcError } = await adminSupabase.rpc('register_saas_org', {
+      auth_user_id: authData.user.id,
+      org_name: orgName,
+      admin_email: email,
+      admin_phone: phone,
+      admin_full_name: fullName
+    })
 
-    if (userError) {
-      // Rollback nếu có lỗi
+    if (rpcError || !orgId) {
+      // Rollback Auth user nếu lỗi RPC
       await adminSupabase.auth.admin.deleteUser(authData.user.id)
-      await adminSupabase.from('organizations').delete().eq('id', orgData.id)
-      return NextResponse.json({ error: 'Lỗi lưu thông tin người dùng: ' + userError.message }, { status: 500 })
+      return NextResponse.json({ error: 'Lỗi lưu dữ liệu người dùng (Transaction aborted): ' + rpcError?.message }, { status: 500 })
     }
 
     return NextResponse.json({
       success: true,
-      message: 'Đăng ký thành công',
-      organization_id: orgData.id
+      message: 'Đăng ký thành công. Vui lòng kiểm tra email để kích hoạt.',
+      organization_id: orgId
     })
   } catch (error: unknown) {
     const errorMessage = error instanceof Error ? error.message : String(error)

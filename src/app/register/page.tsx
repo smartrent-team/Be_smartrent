@@ -78,7 +78,7 @@ export default function RegisterPage() {
                 <CheckCircle2 className="w-8 h-8" />
               </div>
               <h2 className="text-2xl font-semibold text-white">Đăng ký thành công!</h2>
-              <p className="text-slate-400">Tổ chức của bạn đã được khởi tạo. Đang chuyển hướng đến trang đăng nhập...</p>
+              <p className="text-slate-400">Tổ chức của bạn đã được khởi tạo. Vui lòng kiểm tra email (bao gồm cả thư mục Spam) để kích hoạt tài khoản trước khi đăng nhập.</p>
             </div>
           ) : (
             <form onSubmit={handleSubmit} className="space-y-5">

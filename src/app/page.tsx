@@ -97,7 +97,7 @@ export default function Home() {
             <div className="relative rounded-2xl overflow-hidden border border-white/[0.08] bg-[#0A0A0A] shadow-[0_20px_60px_-15px_rgba(0,0,0,1)] transform transition-all duration-700 hover:-translate-y-2">
               <div className="absolute inset-0 bg-gradient-to-t from-[#030712] via-transparent to-transparent z-10 opacity-60 pointer-events-none" />
               <Image 
-                src="/images/dashboard-mockup.png" 
+                src="/images/dashboard-mockup.webp" 
                 alt="SmartRent Premium Dashboard" 
                 width={1400} 
                 height={900} 

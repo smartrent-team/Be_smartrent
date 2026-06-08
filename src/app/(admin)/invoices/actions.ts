@@ -5,6 +5,8 @@ import { attachVNPayToInvoice } from '@/lib/invoice-payment'
 import { revalidatePath } from 'next/cache'
 import { calculateElectricityCost, calculateWaterCost } from '@/lib/billing'
 import { sendPushNotification } from '@/lib/push'
+import type { SupabaseClient } from '@supabase/supabase-js'
+import type { OrgPaymentConfig } from '@/lib/rbac'
 
 export async function createInvoice(data: {
   room_id: number
@@ -18,14 +20,15 @@ export async function createInvoice(data: {
   electricNew?: number
   waterOld?: number
   waterNew?: number
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-}, supabaseClient?: any) {
+  /** Truyền trực tiếp từ verifyRole() để tránh re-query DB */
+  orgPaymentConfig?: OrgPaymentConfig | null
+}, supabaseClient?: SupabaseClient) {
   try {
     const supabase = supabaseClient || await verifySuperAdmin()
 
     const totalAmount = data.roomPrice + (data.serviceCost || 0) + (data.electricCost || 0) + (data.waterCost || 0)
     
-    // 1. Sinh mã hóa đơn (INV-YYYYMM-XXXX) và kiểm tra trùng lặp
+    // 1. Sinh mã hóa đơn (INV-YYYYMM-XXXX) và kiểm tra trùng lặp trong tháng
     const date = new Date()
     const yearMonth = `${date.getFullYear()}${String(date.getMonth() + 1).padStart(2, '0')}`
 
@@ -40,20 +43,14 @@ export async function createInvoice(data: {
       throw new Error(`Phòng này đã được tạo hóa đơn trong tháng ${date.getMonth() + 1}/${date.getFullYear()}. Vui lòng kiểm tra lại danh sách Hóa đơn.`)
     }
 
-    const { data: lastInvoices } = await supabase
-      .from('invoices')
-      .select('invoice_code')
-      .like('invoice_code', `INV-${yearMonth}-%`)
-      .order('created_at', { ascending: false })
-      .limit(1)
-
-    let nextNumber = 1
-    if (lastInvoices && lastInvoices.length > 0) {
-      const lastNumStr = lastInvoices[0].invoice_code.split('-').pop() || '0'
-      nextNumber = parseInt(lastNumStr, 10) + 1
+    // FIX: Dùng PostgreSQL SEQUENCE để lấy số thứ tự ATOMIC, tránh race condition
+    // Trước đây: lấy số cuối cùng rồi +1 → 2 request đồng thời có thể lấy cùng số
+    // Bây giờ: nextval('invoice_number_seq') là atomic tại tầng DB, đảm bảo unique tuyệt đối
+    const { data: seqData, error: seqError } = await supabase.rpc('get_next_invoice_number')
+    if (seqError || seqData === null) {
+      throw new Error('Không thể tạo số thứ tự hóa đơn: ' + seqError?.message)
     }
-
-    const invoiceCode = `INV-${yearMonth}-${String(nextNumber).padStart(4, '0')}`
+    const invoiceCode = `INV-${yearMonth}-${String(seqData as number).padStart(4, '0')}`
     
     // Tính electric_usage / water_usage từ chỉ số cũ/mới
     const electricUsage = (data.electricNew != null && data.electricOld != null)
@@ -63,30 +60,11 @@ export async function createInvoice(data: {
       ? Math.max(0, data.waterNew - data.waterOld)
       : null
 
-    // 1.5 Get Payment Config from Super Admin's Organization
-    let paymentBankBin = null, paymentAccountNumber = null, paymentAccountName = null
-    const { data: authData } = await supabase.auth.getUser()
-    if (authData?.user?.email) {
-      const { data: userProfile } = await supabase
-        .from('users')
-        .select('organization_id')
-        .eq('email', authData.user.email)
-        .maybeSingle()
-      
-      if (userProfile?.organization_id) {
-        const { data: orgData } = await supabase
-          .from('organizations')
-          .select('payment_bank_bin, payment_account_number, payment_account_name')
-          .eq('id', userProfile.organization_id)
-          .maybeSingle()
-        
-        if (orgData) {
-          paymentBankBin = orgData.payment_bank_bin
-          paymentAccountNumber = orgData.payment_account_number
-          paymentAccountName = orgData.payment_account_name
-        }
-      }
-    }
+    // 1.5 Lấy Payment Config từ orgPaymentConfig được truyền vào (đã được fetch 1 lần ở verifyRole)
+    // Tránh re-query DB thêm 2 lần (users + organizations)
+    const paymentBankBin = data.orgPaymentConfig?.paymentBankBin ?? null
+    const paymentAccountNumber = data.orgPaymentConfig?.paymentAccountNumber ?? null
+    const paymentAccountName = data.orgPaymentConfig?.paymentAccountName ?? null
 
     // Tạo bản ghi ban đầu để lấy ID
     const { data: invoice, error: insertError } = await supabase

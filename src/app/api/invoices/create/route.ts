@@ -44,6 +44,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Call the server action createInvoice passing the auth.supabase client
+    // Truyền orgPaymentConfig để tránh re-query DB (đã được fetch ở verifyRole)
     const result = await createInvoice({
       room_id: Number(roomId),
       tenant_id: tenantId ? Number(tenantId) : undefined,
@@ -56,6 +57,7 @@ export async function POST(request: NextRequest) {
       electricNew: electricNew ? Number(electricNew) : undefined,
       waterOld: waterOld ? Number(waterOld) : undefined,
       waterNew: waterNew ? Number(waterNew) : undefined,
+      orgPaymentConfig: auth.orgPaymentConfig ?? undefined,
     }, auth.supabase)
 
     if (!result.success) {
