@@ -3,7 +3,7 @@ import { createAdminClient } from './supabase/admin'
 import { headers } from 'next/headers'
 
 export type OrgPaymentConfig = {
-  organizationId: string
+  organizationId: number
   paymentBankBin: string | null
   paymentAccountNumber: string | null
   paymentAccountName: string | null
@@ -70,7 +70,7 @@ export async function verifyRole() {
     dbUserId: userProfile.id,
     role: userProfile.role as 'super_admin' | 'manager' | 'tenant',
     branchId: userProfile.branch_id,
-    organizationId: userProfile.organization_id as string | null,
+    organizationId: userProfile.organization_id as number | null,
     orgPaymentConfig,
     supabase: adminSupabase // Cực kỳ quan trọng: Trả về admin client cho các API Route sử dụng
   }
@@ -93,7 +93,7 @@ import type { SupabaseClient } from '@supabase/supabase-js'
 
 export async function getOrgBranchIds(
   supabase: SupabaseClient,
-  organizationId: string | null
+  organizationId: number | null
 ): Promise<number[] | null> {
   if (!organizationId) return null
 
