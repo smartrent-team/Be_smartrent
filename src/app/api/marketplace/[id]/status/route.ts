@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { verifyRole } from '@/lib/rbac'
+import { optimizeCloudinaryUrl } from '@/lib/cloudinary'
 
 export async function PUT(
   request: Request,
@@ -82,7 +83,7 @@ export async function PUT(
       title: data.title,
       description: data.description,
       price: data.price,
-      images: data.images,
+      images: (data.images || []).map((img: string) => optimizeCloudinaryUrl(img)),
       status: data.status,
       createdAt: data.created_at,
       ownerName,

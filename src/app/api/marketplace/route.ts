@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { verifyRole } from '@/lib/rbac'
+import { optimizeCloudinaryUrl } from '@/lib/cloudinary'
 
 export async function GET(request: Request) {
   try {
@@ -111,7 +112,7 @@ export async function GET(request: Request) {
         title: post.title,
         description: post.description,
         price: post.price,
-        images: post.images,
+        images: (post.images || []).map((img: string) => optimizeCloudinaryUrl(img)),
         status: post.status,
         createdAt: post.created_at,
         ownerName,
@@ -221,7 +222,7 @@ export async function POST(request: Request) {
       title: data.title,
       description: data.description,
       price: data.price,
-      images: data.images,
+      images: (data.images || []).map((img: string) => optimizeCloudinaryUrl(img)),
       status: data.status,
       createdAt: data.created_at,
       ownerName,
