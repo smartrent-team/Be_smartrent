@@ -1,5 +1,5 @@
 import { createClient } from '@/lib/supabase/server'
-import { createAdminClient } from '@/lib/supabase/admin'
+import { verifyRole } from '@/lib/rbac'
 import {
   Table,
   TableBody,
@@ -16,15 +16,14 @@ import { DeleteManagerButton } from './_components/DeleteManagerButton'
 import { ShieldAlert, Users, Building, Phone, Clock, AlertCircle, Mail } from 'lucide-react'
 
 export default async function ManagersPage() {
-  // Verify auth
-  const supabase = await createClient()
-  await supabase.auth.getUser()
-
-  // Dùng admin client để bypass RLS
-  const adminSupabase = createAdminClient()
+  const auth = await verifyRole()
+  if (auth.error || !auth.user) {
+    return <div>Không có quyền truy cập</div>
+  }
+  const supabase = auth.supabase!
 
   // 1. Fetch branches for selector and mapping
-  const { data: rawBranches } = await adminSupabase
+  const { data: rawBranches } = await supabase
     .from('branches')
     .select('id, name')
     .order('name')
@@ -35,7 +34,7 @@ export default async function ManagersPage() {
   branches.forEach((b) => branchMap.set(b.id, b.name))
 
   // 2. Fetch managers
-  const { data: rawManagers } = await adminSupabase
+  const { data: rawManagers } = await supabase
     .from('users')
     .select('id, full_name, phone, email, role, branch_id')
     .eq('role', 'manager')

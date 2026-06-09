@@ -1,13 +1,13 @@
 import { NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/admin'
-import PayOS from '@payos/node'
+import { PayOS } from '@payos/node'
 import { sendPushNotification } from '@/lib/push'
 import { redis } from '@/lib/redis'
 
 export async function POST(req: Request) {
   try {
     const body = await req.json()
-    console.log('[PayOS Webhook] Received:', body)
+
 
     // PayOS webhook payload: { code, desc, data: { orderCode, amount, ... }, signature }
     const { data, signature } = body
@@ -70,11 +70,15 @@ export async function POST(req: Request) {
     }
 
     // 3. Xác thực chữ ký webhook
-    const payos = new PayOS(org.payos_client_id, org.payos_api_key, org.payos_checksum_key)
+    const payos = new PayOS({
+      clientId: org.payos_client_id,
+      apiKey: org.payos_api_key,
+      checksumKey: org.payos_checksum_key
+    })
     
     try {
-      const webhookData = payos.verifyPaymentWebhookData(body)
-      console.log('[PayOS Webhook] Verified Data:', webhookData)
+      const webhookData = await payos.webhooks.verify(body)
+
     } catch (e) {
       console.error('[PayOS Webhook] Signature verification failed:', e)
       return NextResponse.json({ error: 'Invalid signature' }, { status: 401 })
@@ -96,7 +100,7 @@ export async function POST(req: Request) {
         return NextResponse.json({ error: 'Failed to update invoice' }, { status: 500 })
       }
 
-      console.log(`[PayOS Webhook] Invoice ${invoice.id} marked as paid`)
+
 
       // 6. Gửi Push Notification cho cư dân
       if (invoice.tenant_id) {
@@ -120,7 +124,7 @@ export async function POST(req: Request) {
         const currentMonth = `${now.getFullYear()}_${now.getMonth() + 1}`
         const cacheKey = `dashboard_stats:${organizationId}:${currentMonth}`
         await redis.del(cacheKey)
-        console.log(`[PayOS Webhook] Invalidated Dashboard Cache for Org: ${organizationId}`)
+
       } catch (redisErr) {
         console.error('[PayOS Webhook] Failed to invalidate cache:', redisErr)
       }

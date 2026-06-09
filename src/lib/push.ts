@@ -54,7 +54,7 @@ export const sendPushNotification = async (
       },
     })
 
-    console.log('FCM message ID:', response)
+
   } catch (error) {
     console.error('Lỗi khi gửi thông báo FCM:', error)
   }

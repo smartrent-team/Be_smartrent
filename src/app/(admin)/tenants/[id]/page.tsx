@@ -1,6 +1,4 @@
-import { createClient } from '@/lib/supabase/server'
-import { createAdminClient } from '@/lib/supabase/admin'
-import { notFound } from 'next/navigation'
+import { verifyRole } from '@/lib/rbac'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import Link from 'next/link'
@@ -8,17 +6,18 @@ import { ArrowLeft, User, MapPin, FileText } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { ContractImages } from '@/components/shared/ContractImages'
 import { getContractImagesById } from '@/lib/contracts'
+import { notFound } from 'next/navigation'
 
 export default async function TenantDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
   // Verify auth
-  const supabase = await createClient()
-  await supabase.auth.getUser()
+  const auth = await verifyRole()
+  if (auth.error || !auth.user) {
+    return <div>Không có quyền truy cập</div>
+  }
+  const supabase = auth.supabase!
 
-  // Dùng admin client để bypass RLS
-  const adminSupabase = createAdminClient()
-
-  const { data: tenant, error } = await adminSupabase
+  const { data: tenant, error } = await supabase
     .from('tenants')
     .select(`
       *,

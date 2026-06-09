@@ -2,6 +2,7 @@ import { NextResponse, type NextRequest } from 'next/server'
 import { createApiClient } from '@/lib/supabase/server'
 import { z } from 'zod'
 import { formatZodError } from '@/lib/validations'
+import { checkAuthRateLimit } from '@/lib/rate-limit'
 
 const loginSchema = z.object({
   phone: z.string().min(1, 'Vui lòng nhập số điện thoại hoặc email'),
@@ -10,6 +11,12 @@ const loginSchema = z.object({
 
 export async function POST(request: NextRequest) {
   try {
+    // 1. Kiểm tra Rate Limiting (chống Spam Login)
+    const { success } = await checkAuthRateLimit(request, 'login')
+    if (!success) {
+      return NextResponse.json({ error: 'Bạn đăng nhập quá nhiều lần. Vui lòng đợi 1 phút.' }, { status: 429 })
+    }
+
     const body = await request.json()
     const parsed = loginSchema.safeParse(body)
     if (!parsed.success) {

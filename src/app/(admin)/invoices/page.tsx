@@ -22,8 +22,7 @@ import { Label } from "@/components/ui/label"
 import { Pagination } from '@/components/shared/Pagination'
 import Link from 'next/link'
 
-import { createClient } from '@/lib/supabase/server'
-import { createAdminClient } from '@/lib/supabase/admin'
+import { verifyRole } from '@/lib/rbac'
 import { addInvoiceAction } from './actions'
 import { ResendNotificationButton } from './_components/ResendNotificationButton'
 import { ViewQRButton } from './_components/ViewQRButton'
@@ -36,14 +35,13 @@ export default async function InvoicesPage({ searchParams }: { searchParams: Pro
   const from = (page - 1) * limit
   const to = from + limit - 1
 
-  // Verify auth
-  const supabase = await createClient()
-  await supabase.auth.getUser()
+  const auth = await verifyRole()
+  if (auth.error || !auth.user) {
+    return <div>Không có quyền truy cập</div>
+  }
+  const supabase = auth.supabase!
 
-  // Dùng admin client để bypass RLS
-  const adminSupabase = createAdminClient()
-
-  let query = adminSupabase
+  let query = supabase
     .from('invoices')
     .select('id, invoice_code, total_amount, payment_status, issued_at, payment_bank_bin, payment_account_number, payment_account_name, room:rooms(room_code), tenant:tenants(user:users(full_name))', { count: 'exact' })
     .order('created_at', { ascending: false })
@@ -52,7 +50,13 @@ export default async function InvoicesPage({ searchParams }: { searchParams: Pro
     query = query.eq('payment_status', status)
   }
 
-  const { data: rawInvoices, count } = await query.range(from, to)
+  const [
+    { data: rawInvoices, count },
+    { data: rooms }
+  ] = await Promise.all([
+    query.range(from, to),
+    supabase.from('rooms').select('id, room_code').order('room_code')
+  ])
   
   const totalPages = count ? Math.ceil(count / limit) : 0
 
@@ -81,7 +85,7 @@ export default async function InvoicesPage({ searchParams }: { searchParams: Pro
     accountName: inv.payment_account_name,
   }))
 
-  const { data: rooms } = await adminSupabase.from('rooms').select('id, room_code').order('room_code')
+
 
   return (
     <div className="flex flex-col gap-6 p-6">

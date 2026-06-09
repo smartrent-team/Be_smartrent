@@ -3,6 +3,7 @@
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { LayoutDashboard, Building2, Server } from 'lucide-react'
+import Image from 'next/image'
 import { cn } from '@/lib/utils'
 
 export function SystemSidebar() {
@@ -17,7 +18,7 @@ export function SystemSidebar() {
     <div className="flex h-full w-full flex-col border-r bg-slate-900 text-slate-100">
       <div className="flex h-14 items-center border-b border-slate-800 px-4 lg:h-[60px] lg:px-6">
         <Link href="/system-admin/dashboard" className="flex items-center gap-2 font-semibold">
-          <Server className="h-6 w-6 text-emerald-500" />
+          <Image src="/logo_smart/logo.jpg" alt="SmartRent Logo" width={28} height={28} className="rounded-md" />
           <span className="text-lg">Master Admin</span>
         </Link>
       </div>

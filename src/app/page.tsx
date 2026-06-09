@@ -23,8 +23,8 @@ export default function Home() {
         <Link className="flex items-center justify-center gap-3 group" href="/">
           <div className="relative flex items-center justify-center w-10 h-10 rounded-xl bg-gradient-to-br from-indigo-500 via-purple-500 to-pink-500 p-[1px] group-hover:scale-105 transition-transform duration-500">
             <div className="absolute inset-0 bg-gradient-to-br from-indigo-500 via-purple-500 to-pink-500 blur-md opacity-50 group-hover:opacity-100 transition-opacity duration-500" />
-            <div className="relative flex items-center justify-center w-full h-full bg-[#030712] rounded-xl">
-              <Building2 className="h-5 w-5 text-indigo-400 group-hover:text-white transition-colors duration-500" />
+            <div className="relative flex items-center justify-center w-full h-full bg-[#030712] rounded-xl overflow-hidden">
+              <Image src="/logo_smart/logo.jpg" alt="SmartRent Logo" fill className="object-cover" />
             </div>
           </div>
           <span className="font-bold text-xl tracking-tight text-white">
@@ -263,7 +263,9 @@ export default function Home() {
                     <li key={i} className="flex items-center gap-3"><CheckCircle2 className="w-5 h-5 text-indigo-400 shrink-0" /> {f}</li>
                   ))}
                 </ul>
-                <Button variant="outline" className="w-full h-12 rounded-full border-white/[0.2] bg-transparent hover:bg-white/[0.05] text-white">Đăng ký ngay</Button>
+                <Link href="/register?plan=free" className="w-full">
+                  <Button variant="outline" className="w-full h-12 rounded-full border-white/[0.2] bg-transparent hover:bg-white/[0.05] text-white">Đăng ký ngay</Button>
+                </Link>
               </div>
 
               {/* Pro (Recommended) */}
@@ -280,7 +282,9 @@ export default function Home() {
                     <li key={i} className="flex items-center gap-3"><CheckCircle2 className="w-5 h-5 text-indigo-400 shrink-0" /> {f}</li>
                   ))}
                 </ul>
-                <Button className="w-full h-12 rounded-full bg-indigo-500 hover:bg-indigo-600 text-white font-semibold">Dùng thử 14 ngày</Button>
+                <Link href="/register?plan=pro" className="w-full">
+                  <Button className="w-full h-12 rounded-full bg-indigo-500 hover:bg-indigo-600 text-white font-semibold">Dùng thử 14 ngày</Button>
+                </Link>
               </div>
 
               {/* Enterprise */}
@@ -295,7 +299,9 @@ export default function Home() {
                     <li key={i} className="flex items-center gap-3"><CheckCircle2 className="w-5 h-5 text-indigo-400 shrink-0" /> {f}</li>
                   ))}
                 </ul>
-                <Button variant="outline" className="w-full h-12 rounded-full border-white/[0.2] bg-transparent hover:bg-white/[0.05] text-white">Liên hệ Sale</Button>
+                <Link href="/register?plan=enterprise" className="w-full">
+                  <Button variant="outline" className="w-full h-12 rounded-full border-white/[0.2] bg-transparent hover:bg-white/[0.05] text-white">Liên hệ Sale</Button>
+                </Link>
               </div>
             </div>
           </div>
@@ -380,9 +386,9 @@ export default function Home() {
       {/* --- FOOTER --- */}
       <footer className="py-12 border-t border-white/[0.05] bg-[#030712] relative z-10">
         <div className="container mx-auto px-4 flex flex-col items-center">
-          <div className="flex items-center gap-2 mb-6">
-            <Building2 className="h-6 w-6 text-indigo-400" />
-            <span className="font-bold text-xl text-white">SmartRent</span>
+          <div className="flex items-center gap-3 mb-6">
+            <Image src="/logo_smart/logo.jpg" alt="SmartRent Logo" width={32} height={32} className="rounded-lg" />
+            <span className="font-bold text-2xl text-white">SmartRent</span>
           </div>
           <p className="flex items-center gap-2 text-slate-500 text-sm font-medium">
             Thiết kế với <span className="text-red-500 animate-pulse">❤</span> bởi SmartRent Team

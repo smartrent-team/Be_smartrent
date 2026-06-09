@@ -1,7 +1,5 @@
-
-
 import { createClient } from '@/lib/supabase/server'
-import { createAdminClient } from '@/lib/supabase/admin'
+import { verifyRole } from '@/lib/rbac'
 import {
   Table,
   TableBody,
@@ -20,14 +18,13 @@ export default async function RoomsPage({ searchParams }: { searchParams: Promis
   const params = await searchParams
   const status = params.status as string || 'all'
 
-  // Verify auth
-  const supabase = await createClient()
-  await supabase.auth.getUser()
+  const auth = await verifyRole()
+  if (auth.error || !auth.user) {
+    return <div>Không có quyền truy cập</div>
+  }
+  const supabase = auth.supabase!
 
-  // Dùng admin client để bypass RLS
-  const adminSupabase = createAdminClient()
-
-  let query = adminSupabase
+  let query = supabase
     .from('rooms')
     .select('*, branch:branches(name), tenants(id, move_out_date, user:users(full_name))')
     .order('room_code', { ascending: true })
@@ -36,12 +33,10 @@ export default async function RoomsPage({ searchParams }: { searchParams: Promis
     query = query.eq('status', status)
   }
 
-  const { data: rooms, error } = await query
-
-  const { data: rawBranches } = await adminSupabase
-    .from('branches')
-    .select('id, name')
-    .order('name')
+  const [{ data: rooms, error }, { data: rawBranches }] = await Promise.all([
+    query,
+    supabase.from('branches').select('id, name').order('name')
+  ])
   const branches = rawBranches || []
 
   if (error) {

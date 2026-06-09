@@ -1,15 +1,24 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, Suspense } from 'react'
 import Link from 'next/link'
-import { useRouter } from 'next/navigation'
+import { useRouter, useSearchParams } from 'next/navigation'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { Building2, ArrowRight, Loader2, CheckCircle2 } from 'lucide-react'
+import { Building2, ArrowRight, Loader2, CheckCircle2, Star } from 'lucide-react'
+import Image from 'next/image'
 
-export default function RegisterPage() {
+function RegisterForm() {
   const router = useRouter()
+  const searchParams = useSearchParams()
+  const plan = searchParams.get('plan') || 'free'
+  
+  const planLabels: Record<string, string> = {
+    free: 'Gói Cơ Bản (Miễn phí)',
+    pro: 'Gói Chuyên Nghiệp (499.000đ/tháng)',
+    enterprise: 'Gói Doanh Nghiệp (Liên hệ)'
+  }
   const [isLoading, setIsLoading] = useState(false)
   const [isSuccess, setIsSuccess] = useState(false)
   const [errorMsg, setErrorMsg] = useState('')
@@ -30,7 +39,7 @@ export default function RegisterPage() {
       const res = await fetch('/api/auth/register-saas', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ fullName, email, password, orgName, phone }),
+        body: JSON.stringify({ fullName, email, password, orgName, phone, plan }),
       })
 
       const data = await res.json()
@@ -59,11 +68,11 @@ export default function RegisterPage() {
 
       <div className="w-full max-w-md">
         <div className="text-center mb-8">
-          <Link href="/" className="inline-flex items-center justify-center gap-2 mb-6 group">
-            <div className="p-2 rounded-xl bg-gradient-to-br from-indigo-500 to-purple-600 group-hover:scale-105 transition-transform shadow-lg shadow-indigo-500/20">
-              <Building2 className="h-6 w-6 text-white" />
+          <Link href="/" className="inline-flex items-center justify-center gap-3 mb-6 group">
+            <div className="relative w-12 h-12 rounded-xl group-hover:scale-105 transition-transform shadow-lg shadow-indigo-500/20 overflow-hidden">
+              <Image src="/logo_smart/logo.jpg" alt="SmartRent Logo" fill className="object-cover" />
             </div>
-            <span className="font-bold text-2xl tracking-tight bg-clip-text text-transparent bg-gradient-to-r from-white to-slate-400">
+            <span className="font-bold text-3xl tracking-tight bg-clip-text text-transparent bg-gradient-to-r from-white to-slate-400">
               SmartRent
             </span>
           </Link>
@@ -87,6 +96,14 @@ export default function RegisterPage() {
                   {errorMsg}
                 </div>
               )}
+
+              <div className="bg-indigo-500/10 border border-indigo-500/20 rounded-xl p-4 flex items-start gap-3">
+                <Star className="w-5 h-5 text-indigo-400 mt-0.5 shrink-0" />
+                <div>
+                  <p className="text-sm font-medium text-white">Bạn đang đăng ký:</p>
+                  <p className="text-indigo-300 font-semibold">{planLabels[plan] || planLabels['free']}</p>
+                </div>
+              </div>
 
               <div className="space-y-4">
                 <div className="space-y-1.5">
@@ -175,5 +192,13 @@ export default function RegisterPage() {
         </p>
       </div>
     </div>
+  )
+}
+
+export default function RegisterPage() {
+  return (
+    <Suspense fallback={<div className="min-h-screen bg-slate-950 flex items-center justify-center"><Loader2 className="w-8 h-8 animate-spin text-indigo-500" /></div>}>
+      <RegisterForm />
+    </Suspense>
   )
 }

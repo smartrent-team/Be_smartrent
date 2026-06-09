@@ -147,7 +147,7 @@ async function ChainAnalytics() {
   try {
     const cachedData = await redis.get(cacheKey)
     if (cachedData) {
-      console.log('Dashboard Cache Hit:', cacheKey)
+
       const parsed = typeof cachedData === 'string' ? JSON.parse(cachedData) : cachedData
       return renderAnalytics(parsed)
     }
@@ -316,7 +316,7 @@ async function ChainAnalytics() {
   // 3. Lưu vào Cache (Hết hạn sau 12 tiếng)
   try {
     await redis.set(cacheKey, JSON.stringify(resultData), { ex: 43200 })
-    console.log('Dashboard Cache Set:', cacheKey)
+
   } catch (err) {
     console.error('Redis set error:', err)
   }

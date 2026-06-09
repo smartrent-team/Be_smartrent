@@ -2,69 +2,23 @@ import { NextResponse, type NextRequest } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { z } from 'zod'
 import { formatZodError } from '@/lib/validations'
-import { Ratelimit } from '@upstash/ratelimit'
-import { Redis } from '@upstash/redis'
+import { checkRegisterRateLimit } from '@/lib/rate-limit'
 
 const registerSchema = z.object({
   fullName: z.string().min(2, 'Tên phải có ít nhất 2 ký tự'),
   email: z.string().email('Email không hợp lệ'),
   password: z.string().min(6, 'Mật khẩu phải có ít nhất 6 ký tự'),
   orgName: z.string().min(2, 'Tên tổ chức phải có ít nhất 2 ký tự'),
-  phone: z.string().min(9, 'Số điện thoại không hợp lệ')
+  phone: z.string().min(9, 'Số điện thoại không hợp lệ'),
+  plan: z.enum(['free', 'pro', 'enterprise']).default('free')
 })
-
-// Khởi tạo Rate Limiter nếu có cấu hình Upstash
-const redisUrl = process.env.UPSTASH_REDIS_REST_URL
-const redisToken = process.env.UPSTASH_REDIS_REST_TOKEN
-
-let ratelimit: Ratelimit | null = null
-if (redisUrl && redisToken) {
-  ratelimit = new Ratelimit({
-    redis: new Redis({
-      url: redisUrl,
-      token: redisToken,
-    }),
-    limiter: Ratelimit.slidingWindow(3, '1 h'), // Giới hạn 3 lượt đăng ký mỗi giờ cho mỗi IP
-  })
-}
-
-// Fallback in-memory rate limiter cho môi trường không cấu hình Redis
-const ipRequests = new Map<string, { count: number; expiresAt: number }>()
-const IN_MEMORY_LIMIT = 3
-const IN_MEMORY_WINDOW_MS = 60 * 60 * 1000 // 1 hour
-
-function checkInMemoryRateLimit(ip: string): boolean {
-  const now = Date.now()
-  const record = ipRequests.get(ip)
-  
-  if (!record || record.expiresAt < now) {
-    ipRequests.set(ip, { count: 1, expiresAt: now + IN_MEMORY_WINDOW_MS })
-    return true
-  }
-  
-  if (record.count >= IN_MEMORY_LIMIT) {
-    return false
-  }
-  
-  record.count += 1
-  return true
-}
 
 export async function POST(request: NextRequest) {
   try {
-    // 1. Kiểm tra Rate Limiting
-    const ip = request.headers.get('x-forwarded-for') ?? 'unknown-ip'
-    
-    if (ratelimit) {
-      const { success } = await ratelimit.limit(ip)
-      if (!success) {
-        return NextResponse.json({ error: 'Bạn đã thử đăng ký quá nhiều lần. Vui lòng thử lại sau.' }, { status: 429 })
-      }
-    } else {
-      // Dùng fallback in-memory nếu chưa cấu hình Redis
-      if (!checkInMemoryRateLimit(ip)) {
-        return NextResponse.json({ error: 'Bạn đã thử đăng ký quá nhiều lần. Vui lòng thử lại sau.' }, { status: 429 })
-      }
+    // 1. Kiểm tra Rate Limiting toàn cục
+    const { success } = await checkRegisterRateLimit(request)
+    if (!success) {
+      return NextResponse.json({ error: 'Bạn đã thử đăng ký quá nhiều lần. Vui lòng thử lại sau.' }, { status: 429 })
     }
 
     const body = await request.json()
@@ -73,7 +27,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: formatZodError(parsed.error) }, { status: 400 })
     }
 
-    const { fullName, email, password, orgName, phone } = parsed.data
+    const { fullName, email, password, orgName, phone, plan } = parsed.data
     const adminSupabase = createAdminClient()
 
     // 2. Kiểm tra xem email hoặc SĐT đã tồn tại chưa trong public.users
@@ -109,7 +63,8 @@ export async function POST(request: NextRequest) {
       org_name: orgName,
       admin_email: email,
       admin_phone: phone,
-      admin_full_name: fullName
+      admin_full_name: fullName,
+      plan_type: plan
     })
 
     if (rpcError || !orgId) {

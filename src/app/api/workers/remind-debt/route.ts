@@ -46,4 +46,7 @@ async function handler(req: Request) {
 }
 
 // verifySignatureAppRouter ensures the request actually comes from Upstash QStash
-export const POST = verifySignatureAppRouter(handler)
+export const POST = verifySignatureAppRouter(handler, {
+  currentSigningKey: process.env.QSTASH_CURRENT_SIGNING_KEY || 'dummy_key',
+  nextSigningKey: process.env.QSTASH_NEXT_SIGNING_KEY || 'dummy_key',
+})

@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server'
 import { verifyRole } from '@/lib/rbac'
-import { attachVNPayToInvoice, toTenantPaymentError } from '@/lib/invoice-payment'
+import { attachPayOSToInvoice, toTenantPaymentError } from '@/lib/invoice-payment'
 
 type RouteContext = { params: Promise<{ id: string }> }
 
@@ -78,15 +78,46 @@ export async function POST(_request: Request, context: RouteContext) {
       })
     }
 
-    // IP của người dùng thực tế sẽ được proxy pass nếu qua nginx, tạm dùng 127.0.0.1
-    const { payment, warning } = await attachVNPayToInvoice(
+    // Lấy orgPaymentConfig
+    let orgPaymentConfig = null
+    const { data: roomData } = await supabase
+      .from('rooms')
+      .select('branches(organization_id)')
+      .eq('id', invoice.room_id)
+      .single()
+      
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const branch = roomData?.branches ? (Array.isArray(roomData.branches) ? roomData.branches[0] : roomData.branches) as any : null
+    const orgId = branch?.organization_id
+
+    if (orgId) {
+      const { data: org } = await supabase
+        .from('organizations')
+        .select('payos_client_id, payos_api_key, payos_checksum_key, payment_bank_bin, payment_account_number, payment_account_name')
+        .eq('id', orgId)
+        .single()
+      
+      if (org) {
+        orgPaymentConfig = {
+          organizationId: orgId,
+          payosClientId: org.payos_client_id,
+          payosApiKey: org.payos_api_key,
+          payosChecksumKey: org.payos_checksum_key,
+          paymentBankBin: org.payment_bank_bin,
+          paymentAccountNumber: org.payment_account_number,
+          paymentAccountName: org.payment_account_name
+        } as any
+      }
+    }
+
+    const { payment, warning } = await attachPayOSToInvoice(
       supabase, 
       {
         id: invoice.id,
         invoice_code: invoice.invoice_code,
         total_amount: invoice.total_amount,
       },
-      '127.0.0.1' 
+      orgPaymentConfig
     )
 
     if (!payment) {

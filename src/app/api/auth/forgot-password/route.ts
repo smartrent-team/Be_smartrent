@@ -1,9 +1,16 @@
 import { NextResponse, type NextRequest } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { headers } from 'next/headers'
+import { checkAuthRateLimit } from '@/lib/rate-limit'
 
 export async function POST(request: NextRequest) {
   try {
+    // 1. Kiểm tra Rate Limiting (chống Spam Gửi Email)
+    const { success } = await checkAuthRateLimit(request, 'forgot-password')
+    if (!success) {
+      return NextResponse.json({ error: 'Bạn đã yêu cầu gửi email quá nhiều lần. Vui lòng đợi 1 phút.' }, { status: 429 })
+    }
+
     const body = await request.json()
     const { email } = body
 

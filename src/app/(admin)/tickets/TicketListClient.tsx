@@ -66,7 +66,7 @@ export default function TicketListClient({ initialTickets }: { initialTickets: T
             })
             
             // Phát âm thanh nếu có file
-            audioRef.current?.play().catch(e => console.log('Auto-play prevented by browser', e))
+            audioRef.current?.play().catch(() => {})
             
           } else if (payload.eventType === 'UPDATE') {
             const updatedDoc = payload.new

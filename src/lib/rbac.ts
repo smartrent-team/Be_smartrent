@@ -35,7 +35,7 @@ export async function verifyRole() {
 
   // Tối ưu: 1 query JOIN duy nhất thay vì 3–4 round-trips riêng lẻ
   // Lấy role, branch_id, organization_id VÀ payment config cùng lúc
-  const { data: userProfile, error: profileError } = await adminSupabase
+  let query = adminSupabase
     .from('users')
     .select(`
       id,
@@ -51,10 +51,21 @@ export async function verifyRole() {
         payos_checksum_key
       )
     `)
-    .eq('email', user.email)
-    .single()
+
+  if (user.email && user.phone) {
+    const safeEmail = encodeURIComponent(user.email);
+    const safePhone = encodeURIComponent(user.phone);
+    query = query.or(`email.eq.${safeEmail},phone.eq.${safePhone}`)
+  } else if (user.email) {
+    query = query.eq('email', user.email)
+  } else if (user.phone) {
+    query = query.eq('phone', user.phone)
+  }
+
+  const { data: userProfile, error: profileError } = await query.single()
 
   if (profileError || !userProfile) {
+    console.error('[verifyRole] ERROR:', profileError, 'UserProfile:', userProfile, 'AuthUser:', user)
     return { error: 'Profile not found', status: 403 }
   }
 
@@ -81,7 +92,7 @@ export async function verifyRole() {
     branchId: userProfile.branch_id,
     organizationId: userProfile.organization_id as number | null,
     orgPaymentConfig,
-    supabase: adminSupabase // Cực kỳ quan trọng: Trả về admin client cho các API Route sử dụng
+    supabase // Trả về client của user hiện tại để RLS phát huy tác dụng
   }
 }
 
@@ -125,7 +136,9 @@ export async function verifySuperAdmin() {
   let query = adminSupabase.from('users').select('role')
   
   if (user.email && user.phone) {
-    query = query.or(`email.eq.${user.email},phone.eq.${user.phone}`)
+    const safeEmail = encodeURIComponent(user.email);
+    const safePhone = encodeURIComponent(user.phone);
+    query = query.or(`email.eq.${safeEmail},phone.eq.${safePhone}`)
   } else if (user.email) {
     query = query.eq('email', user.email)
   } else if (user.phone) {

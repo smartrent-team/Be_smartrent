@@ -120,11 +120,11 @@ export async function GET(request: Request) {
     // 2. Kiểm tra Redis Cache
     const cachedData = await redis.get(cacheKey)
     if (cachedData) {
-      console.log('CACHE HIT:', cacheKey)
+
       return NextResponse.json({ success: true, docs: cachedData, fromCache: true })
     }
 
-    console.log('CACHE MISS:', cacheKey)
+
 
     // 3. Nếu không có cache, truy vấn Database
     const { data, error } = await query
@@ -300,7 +300,7 @@ export async function POST(request: Request) {
       const keys = await redis.keys('marketplace_list:*')
       if (keys.length > 0) {
         await redis.del(...keys)
-        console.log('CACHE CLEARED:', keys.length, 'keys')
+
       }
     } catch (err) {
       console.error('Error clearing cache:', err)

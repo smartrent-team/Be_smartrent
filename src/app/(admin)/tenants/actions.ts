@@ -1,6 +1,6 @@
 'use server'
 
-import { verifySuperAdmin } from '@/lib/rbac'
+import { verifyRole } from '@/lib/rbac'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { revalidatePath } from 'next/cache'
 
@@ -16,21 +16,27 @@ export async function createTenantAction(data: {
   depositAmount: number
   moveInDate: string
 }) {
-  await verifySuperAdmin()
+  const auth = await verifyRole()
+  if (auth.error || auth.role !== 'super_admin' || !auth.organizationId) {
+    throw new Error('Không có quyền truy cập')
+  }
 
   if (!data.fullName || !data.phone || !data.email || !data.roomId || !data.moveInDate) {
     throw new Error('Vui lòng nhập đầy đủ thông tin bắt buộc')
   }
 
   const newRoomId = parseInt(data.roomId, 10)
-  const adminSupabase = createAdminClient()
   
-  // Lấy chi nhánh của phòng để gán cho User (dùng admin để bypass RLS)
-  const { data: room, error: roomError } = await adminSupabase
+  // Lấy chi nhánh của phòng (dùng RLS client để đảm bảo phòng này thuộc quyền quản lý của user)
+  const { data: room, error: roomError } = await auth.supabase!
     .from('rooms')
     .select('branch_id')
     .eq('id', newRoomId)
     .single()
+
+  if (roomError || !room) throw new Error('Không tìm thấy phòng được chọn hoặc phòng không thuộc quyền quản lý của bạn')
+  
+  const adminSupabase = createAdminClient()
 
   if (roomError || !room) throw new Error('Không tìm thấy phòng được chọn')
   const branchId = room.branch_id
@@ -157,7 +163,10 @@ export async function editTenantAction(
     moveOutDate?: string
   }
 ) {
-  await verifySuperAdmin()
+  const auth = await verifyRole()
+  if (auth.error || auth.role !== 'super_admin' || !auth.organizationId) {
+    throw new Error('Không có quyền truy cập')
+  }
 
   if (!data.fullName || !data.phone || !data.email || !data.roomId || !data.moveInDate) {
     throw new Error('Họ tên, SĐT, Email, Phòng và ngày dời vào là bắt buộc')
@@ -165,14 +174,19 @@ export async function editTenantAction(
 
   const newRoomId = parseInt(data.roomId, 10)
   const formattedPhone = data.phone.startsWith('0') ? `+84${data.phone.slice(1)}` : data.phone
-  const adminSupabase = createAdminClient()
-
-  // 1. Lấy profile hiện tại để tìm phone và cập nhật Auth (nếu cần)
-  const { data: currentProfile } = await adminSupabase
+  
+  // 1. Lấy profile hiện tại (dùng RLS client để đảm bảo quyền)
+  const { data: currentProfile, error: profileCheckError } = await auth.supabase!
     .from('users')
     .select('phone, email')
     .eq('id', userIntId)
     .single()
+    
+  if (profileCheckError || !currentProfile) {
+    throw new Error('Người dùng không tồn tại hoặc không thuộc tổ chức của bạn')
+  }
+
+  const adminSupabase = createAdminClient()
 
   // Cập nhật Auth User (tìm theo phone cũ)
   if (currentProfile?.phone) {
@@ -291,13 +305,18 @@ export async function editTenantAction(
 }
 
 export async function deleteTenantAction(id: number, userIntId: number) {
-  await verifySuperAdmin()
+  const auth = await verifyRole()
+  if (auth.error || auth.role !== 'super_admin' || !auth.organizationId) {
+    throw new Error('Không có quyền truy cập')
+  }
+
+  // 1. Giải phóng phòng trống nếu đang thuê (dùng RLS để verify)
+  const { data: tenant } = await auth.supabase!.from('tenants').select('room_id').eq('id', id).single()
+  if (!tenant) throw new Error('Không tìm thấy khách thuê hoặc không có quyền truy cập')
 
   const adminSupabase = createAdminClient()
 
-  // 1. Giải phóng phòng trống nếu đang thuê
-  const { data: tenant } = await adminSupabase.from('tenants').select('room_id').eq('id', id).single()
-  if (tenant?.room_id) {
+  if (tenant.room_id) {
     await adminSupabase.from('rooms').update({ status: 'available' }).eq('id', tenant.room_id)
   }
 

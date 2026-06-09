@@ -1,5 +1,5 @@
 import { createClient } from '@/lib/supabase/server'
-import { createAdminClient } from '@/lib/supabase/admin'
+import { verifyRole } from '@/lib/rbac'
 import {
   Table,
   TableBody,
@@ -24,28 +24,30 @@ export default async function TenantsPage({ searchParams }: { searchParams: Prom
   const from = (page - 1) * limit
   const to = from + limit - 1
 
-  // Verify auth - chỉ cần đảm bảo đã đăng nhập
-  const supabase = await createClient()
-  await supabase.auth.getUser()
+  const auth = await verifyRole()
+  if (auth.error || !auth.user) {
+    return <div>Không có quyền truy cập</div>
+  }
+  const supabase = auth.supabase!
 
-  // Dùng admin client để bypass RLS - đảm bảo super_admin thấy tất cả dữ liệu
-  const adminSupabase = createAdminClient()
-
-  // 1. Fetch tenants
-  const { data: rawTenants, count } = await adminSupabase
-    .from('tenants')
-    .select('id, move_in_date, move_out_date, room_id, user_id, room:rooms(room_code, branch:branches(name)), user:users!inner(full_name, email, phone), contracts(deposit_amount, status)', { count: 'exact' })
-    .eq('user.status', 'active')
-    .order('created_at', { ascending: false })
-    .range(from, to)
+  // 1 & 2. Fetch tenants and rooms in parallel
+  const [
+    { data: rawTenants, count },
+    { data: rawRooms }
+  ] = await Promise.all([
+    supabase
+      .from('tenants')
+      .select('id, move_in_date, move_out_date, room_id, user_id, room:rooms(room_code, branch:branches(name)), user:users!inner(full_name, email, phone), contracts(deposit_amount, status)', { count: 'exact' })
+      .eq('user.status', 'active')
+      .order('created_at', { ascending: false })
+      .range(from, to),
+    supabase
+      .from('rooms')
+      .select('id, room_code, base_price, status')
+      .order('room_code')
+  ])
 
   const totalPages = count ? Math.ceil(count / limit) : 0
-
-  // 2. Fetch rooms
-  const { data: rawRooms } = await adminSupabase
-    .from('rooms')
-    .select('id, room_code, base_price, status')
-    .order('room_code')
   const allRooms = rawRooms || []
   const availableRooms = allRooms.filter(r => r.status === 'available')
 

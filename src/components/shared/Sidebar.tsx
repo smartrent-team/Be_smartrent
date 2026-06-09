@@ -3,6 +3,7 @@
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { Home, LayoutDashboard, FileText, Wrench, Users, Shield, Building2, CreditCard } from 'lucide-react'
+import Image from 'next/image'
 import { cn } from '@/lib/utils'
 
 export function Sidebar() {
@@ -23,7 +24,7 @@ export function Sidebar() {
     <div className="flex h-full w-full flex-col border-r bg-gray-50/40">
       <div className="flex h-14 items-center border-b px-4 lg:h-[60px] lg:px-6">
         <Link href="/" className="flex items-center gap-2 font-semibold">
-          <Home className="h-6 w-6 text-primary" />
+          <Image src="/logo_smart/logo.jpg" alt="SmartRent Logo" width={28} height={28} className="rounded-md" />
           <span className="text-lg">RMS Admin</span>
         </Link>
       </div>

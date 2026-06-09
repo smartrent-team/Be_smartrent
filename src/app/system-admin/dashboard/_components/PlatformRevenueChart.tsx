@@ -1,16 +1,15 @@
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { verifyRole } from '@/lib/rbac'
+import { createAdminClient } from '@/lib/supabase/admin'
 import { redis } from '@/lib/redis'
-import { RevenueChartClient } from './RevenueChartClient'
 import { TrendingUp } from 'lucide-react'
+import { PlatformRevenueChartClient } from './PlatformRevenueChartClient'
 
-export default async function RevenueChart() {
-  const { supabase, organizationId } = await verifyRole()
-  if (!organizationId) return null
+export default async function PlatformRevenueChart() {
+  const supabase = createAdminClient()
 
   const now = new Date()
-  const currentMonth = `${now.getFullYear()}_${now.getMonth() + 1}`
-  const cacheKey = `dashboard_revenue_chart:${organizationId}:${currentMonth}`
+  const currentMonthStr = `${now.getFullYear()}_${now.getMonth() + 1}`
+  const cacheKey = `master_admin:platform_revenue_chart:${currentMonthStr}`
 
   let months: { month: string; revenue: number }[] = []
 
@@ -42,27 +41,27 @@ export default async function RevenueChart() {
     }
 
     try {
-      await redis.set(cacheKey, JSON.stringify(months), { ex: 43200 })
+      await redis.set(cacheKey, JSON.stringify(months), { ex: 14400 }) // 4 hours
     } catch (err) {}
   }
 
   const totalSixMonths = months.reduce((s, m) => s + m.revenue, 0)
 
   return (
-    <Card className="col-span-full hover:shadow-md transition-shadow duration-300">
+    <Card className="hover:shadow-md transition-shadow duration-300">
       <CardHeader className="flex flex-row items-center justify-between pb-2">
         <div>
           <CardTitle className="flex items-center gap-2">
             <TrendingUp className="h-5 w-5 text-emerald-500" />
-            Doanh thu 6 tháng gần nhất
+            Dòng tiền toàn nền tảng (6 tháng)
           </CardTitle>
           <CardDescription className="mt-1">
-            Tổng thu: <span className="font-semibold text-emerald-600">{(totalSixMonths / 1_000_000).toFixed(1)}M đ</span>
+            Tổng giao dịch: <span className="font-semibold text-emerald-600">{(totalSixMonths / 1_000_000).toFixed(1)}M VNĐ</span>
           </CardDescription>
         </div>
       </CardHeader>
       <CardContent>
-        <RevenueChartClient data={months} />
+        <PlatformRevenueChartClient data={months} />
       </CardContent>
     </Card>
   )

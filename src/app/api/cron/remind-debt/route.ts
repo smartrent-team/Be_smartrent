@@ -3,7 +3,7 @@ import { createAdminClient } from '@/lib/supabase/admin'
 import { Client } from '@upstash/qstash'
 
 const qstashClient = new Client({
-  token: process.env.QSTASH_TOKEN || '',
+  token: process.env.QSTASH_TOKEN || 'dummy_token',
 })
 
 export async function GET(request: Request) {

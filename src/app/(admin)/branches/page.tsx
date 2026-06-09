@@ -14,33 +14,41 @@ import { DeleteBranchButton } from './_components/DeleteBranchButton'
 import { EditBranchDialog } from './_components/EditBranchDialog'
 import { Building2, ShieldAlert, Home, UserCheck, Percent, Phone, MapPin } from 'lucide-react'
 
-export default async function BranchesPage() {
-  // Verify auth
-  const supabase = await createClient()
-  await supabase.auth.getUser()
+import { verifyRole } from '@/lib/rbac'
 
-  // Dùng admin client để bypass RLS
+export default async function BranchesPage() {
+  // 1. Verify auth & get context in 1 single call
+  const auth = await verifyRole()
+  if (auth.error || !auth.organizationId) {
+    return <div>Không có quyền truy cập</div>
+  }
+
+  // Dùng admin client + index filtering để đạt tốc độ O(1)
   const adminSupabase = createAdminClient()
 
-  // 1. Fetch branches
+  // 1. Fetch branches thuộc tổ chức này
   const { data: rawBranches } = await adminSupabase
     .from('branches')
     .select('*')
+    .eq('organization_id', auth.organizationId)
     .order('created_at', { ascending: false })
   const branches = rawBranches || []
+  const branchIds = branches.map(b => b.id)
 
-  // 2. Fetch rooms to calculate total rooms and occupancy rate per branch
+  // 2. Fetch rooms thuộc các nhánh trên
   const { data: rawRooms } = await adminSupabase
     .from('rooms')
     .select('id, branch_id, status')
+    .in('branch_id', branchIds.length > 0 ? branchIds : [0])
   const rooms = rawRooms || []
 
-  // 3. Fetch managers to map responsible manager per branch
+  // 3. Fetch managers thuộc tổ chức này
   const { data: rawManagers } = await adminSupabase
     .from('users')
     .select('id, full_name, phone, branch_id')
     .eq('role', 'manager')
     .eq('status', 'active')
+    .eq('organization_id', auth.organizationId)
   const managers = rawManagers || []
 
   // Pre-calculate stats per branch

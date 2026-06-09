@@ -1,30 +1,21 @@
 'use server'
 
-import { verifySuperAdmin } from '@/lib/rbac'
+import { verifyRole } from '@/lib/rbac'
+import { createAdminClient } from '@/lib/supabase/admin'
 import { revalidatePath } from 'next/cache'
 
 export async function getPaymentConfig() {
   try {
-    const supabase = await verifySuperAdmin()
-    
-    const { data: userData, error: userError } = await supabase
-      .from('users')
-      .select('organization_id')
-      .maybeSingle()
-      
-    if (userError || !userData?.organization_id) {
+    const auth = await verifyRole()
+    if (auth.error || auth.role !== 'super_admin' || !auth.organizationId) {
       throw new Error('Không tìm thấy thông tin tổ chức của bạn.')
     }
     
-    const { data: orgData, error: orgError } = await supabase
-      .from('organizations')
-      .select('payment_bank_bin, payment_account_number, payment_account_name')
-      .eq('id', userData.organization_id)
-      .single()
-      
-    if (orgError) throw orgError
-    
-    return { success: true, data: orgData }
+    return { success: true, data: {
+      payment_bank_bin: auth.orgPaymentConfig?.paymentBankBin,
+      payment_account_number: auth.orgPaymentConfig?.paymentAccountNumber,
+      payment_account_name: auth.orgPaymentConfig?.paymentAccountName
+    }}
   } catch (error: unknown) {
     const errorMessage = error instanceof Error ? error.message : String(error)
     return { success: false, error: errorMessage }
@@ -37,25 +28,20 @@ export async function updatePaymentConfig(formData: FormData) {
     const accountNumber = formData.get('accountNumber')?.toString() || null
     const accountName = formData.get('accountName')?.toString().toUpperCase() || null
 
-    const supabase = await verifySuperAdmin()
-    
-    const { data: userData } = await supabase
-      .from('users')
-      .select('organization_id')
-      .maybeSingle()
-      
-    if (!userData?.organization_id) {
+    const auth = await verifyRole()
+    if (auth.error || auth.role !== 'super_admin' || !auth.organizationId) {
       throw new Error('Không tìm thấy thông tin tổ chức.')
     }
     
-    const { error } = await supabase
+    const adminSupabase = createAdminClient()
+    const { error } = await adminSupabase
       .from('organizations')
       .update({
         payment_bank_bin: bankBin,
         payment_account_number: accountNumber,
         payment_account_name: accountName,
       })
-      .eq('id', userData.organization_id)
+      .eq('id', auth.organizationId)
       
     if (error) throw error
     

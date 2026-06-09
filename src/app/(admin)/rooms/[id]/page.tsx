@@ -1,22 +1,21 @@
-import { createClient } from '@/lib/supabase/server'
-import { createAdminClient } from '@/lib/supabase/admin'
-import { notFound } from 'next/navigation'
+import { verifyRole } from '@/lib/rbac'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import Link from 'next/link'
 import { ArrowLeft, Users, FileText, Wrench } from 'lucide-react'
 import { Button, buttonVariants } from '@/components/ui/button'
+import { notFound } from 'next/navigation'
 
 export default async function RoomDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
   // Verify auth
-  const supabase = await createClient()
-  await supabase.auth.getUser()
+  const auth = await verifyRole()
+  if (auth.error || !auth.user) {
+    return <div>Không có quyền truy cập</div>
+  }
+  const supabase = auth.supabase!
 
-  // Dùng admin client để bypass RLS
-  const adminSupabase = createAdminClient()
-
-  const { data: room, error } = await adminSupabase
+  const { data: room, error } = await supabase
     .from('rooms')
     .select(`
       *,

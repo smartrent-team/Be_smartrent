@@ -1,4 +1,4 @@
-import PayOS from '@payos/node'
+import { PayOS } from '@payos/node'
 import type { SupabaseClient } from '@supabase/supabase-js'
 import type { OrgPaymentConfig } from '@/lib/rbac'
 
@@ -33,7 +33,11 @@ export async function attachPayOSToInvoice(
   }
 
   try {
-    const payos = new PayOS(clientId, apiKey, checksumKey)
+    const payos = new PayOS({
+      clientId,
+      apiKey,
+      checksumKey
+    })
     
     // orderCode bắt buộc là số <= 9007199254740991
     // Dùng Date.now() kết hợp invoice.id để đảm bảo unique
@@ -49,7 +53,7 @@ export async function attachPayOSToInvoice(
       cancelUrl: `${domain}/invoices`
     }
 
-    const paymentLinkRes = await payos.createPaymentLink(body)
+    const paymentLinkRes = await payos.paymentRequests.create(body as any)
 
     const coreUpdate = {
       payment_link_id: String(orderCode), // Lưu lại orderCode để webhook đối chiếu

@@ -1,13 +1,14 @@
-import { createClient } from '@/lib/supabase/server'
-import { createAdminClient } from '@/lib/supabase/admin'
+import { verifyRole } from '@/lib/rbac'
 import TicketListClient from './TicketListClient'
 
 export default async function TicketsPage() {
-  const supabase = await createClient()
-  await supabase.auth.getUser()
+  const auth = await verifyRole()
+  if (auth.error || !auth.user) {
+    return <div>Không có quyền truy cập</div>
+  }
+  const supabase = auth.supabase!
 
-  const adminSupabase = createAdminClient()
-  const { data: rawTickets } = await adminSupabase
+  const { data: rawTickets } = await supabase
     .from('maintenance_tickets')
     .select('id, title, priority, status, created_at, room_id, room:rooms(room_code)')
     .order('created_at', { ascending: false })

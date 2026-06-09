@@ -1,5 +1,5 @@
 import { notFound } from 'next/navigation'
-import { createAdminClient } from '@/lib/supabase/admin'
+import { verifyRole } from '@/lib/rbac'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { ArrowLeft, User, Phone, MapPin, AlertTriangle } from 'lucide-react'
@@ -10,10 +10,14 @@ import EditTicketDialog from './EditTicketDialog'
 
 export default async function TicketDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
-  const adminSupabase = createAdminClient()
+  const auth = await verifyRole()
+  if (auth.error || !auth.user) {
+    return <div>Không có quyền truy cập</div>
+  }
+  const supabase = auth.supabase!
 
   // Lấy chi tiết ticket kèm thông tin phòng và khách thuê
-  const { data: ticket, error } = await adminSupabase
+  const { data: ticket, error } = await supabase
     .from('maintenance_tickets')
     .select(`
       *,
