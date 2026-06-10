@@ -45,6 +45,14 @@ export async function GET(request: NextRequest) {
           priority,
           status,
           created_at
+        ),
+        room_fixtures (
+          id,
+          name,
+          quantity,
+          status,
+          description,
+          created_at
         )
       `)
       .eq('id', Number(roomId))
@@ -124,6 +132,25 @@ export async function GET(request: NextRequest) {
       createdAt: tick.created_at
     }))
 
+    // 6.5. Định dạng danh sách đồ cố định
+    interface RoomFixture {
+      id: number;
+      name: string;
+      quantity: number;
+      status: string;
+      description: string | null;
+      created_at: string;
+    }
+
+    const fixturesList = ((room.room_fixtures || []) as unknown as RoomFixture[]).map(fix => ({
+      id: fix.id,
+      name: fix.name,
+      quantity: fix.quantity,
+      status: fix.status,
+      description: fix.description,
+      createdAt: fix.created_at
+    }))
+
     // 7. Trả về cấu trúc JSON data tương thích 100% với Frontend di động
     return NextResponse.json({
       success: true,
@@ -138,7 +165,8 @@ export async function GET(request: NextRequest) {
         status: room.status,
         tenant: tenantInfo,
         invoices: invoicesList,
-        tickets: ticketsList
+        tickets: ticketsList,
+        fixtures: fixturesList
       }
     })
 

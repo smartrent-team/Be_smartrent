@@ -26,6 +26,19 @@ export interface Database {
         Insert: Omit<Database['public']['Tables']['rooms']['Row'], 'id' | 'created_at'>
         Update: Partial<Database['public']['Tables']['rooms']['Insert']>
       }
+      room_fixtures: {
+        Row: {
+          id: number
+          created_at: string
+          room_id: number
+          name: string
+          quantity: number
+          status: string
+          description: string | null
+        }
+        Insert: Omit<Database['public']['Tables']['room_fixtures']['Row'], 'id' | 'created_at'>
+        Update: Partial<Database['public']['Tables']['room_fixtures']['Insert']>
+      }
       tenants: {
         Row: {
           id: number
