@@ -41,23 +41,32 @@ export async function dispatchNotification(
   recipient: NotificationRecipient,
   payload: NotificationPayload
 ) {
-  const { error: insertError } = await supabase.from('notifications').insert({
+  const { data: inserted, error: insertError } = await supabase.from('notifications').insert({
     user_id: recipient.userId,
     title: payload.title,
     body: payload.body,
     type: payload.type,
     is_read: false,
-  })
+  }).select('id').single()
 
+  let notificationId = ''
   if (insertError) {
     console.error('Failed to insert notification record:', insertError)
+  } else if (inserted) {
+    notificationId = String(inserted.id)
   }
 
   const tokens = await fetchRecipientTokens(supabase, recipient)
 
+  const pushData = {
+    ...payload.data,
+    type: payload.type,
+    ...(notificationId ? { notificationId } : {})
+  }
+
   for (const token of tokens) {
     try {
-      await sendPushNotification(token, payload.title, payload.body, payload.data)
+      await sendPushNotification(token, payload.title, payload.body, pushData)
     } catch (error) {
       console.error('Push notification failed:', error)
     }

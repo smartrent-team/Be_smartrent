@@ -43,3 +43,5 @@ next-env.d.ts
 
 # AGENTS
 /.agents/
+/supabase/migrations
+/.gemini
