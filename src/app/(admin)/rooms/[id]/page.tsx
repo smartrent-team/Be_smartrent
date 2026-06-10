@@ -6,6 +6,7 @@ import { Badge } from '@/components/ui/badge'
 import Link from 'next/link'
 import { ArrowLeft, Users, FileText, Wrench } from 'lucide-react'
 import { Button, buttonVariants } from '@/components/ui/button'
+import { RoomFixturesSection } from '../_components/RoomFixturesSection'
 
 export default async function RoomDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
@@ -22,7 +23,8 @@ export default async function RoomDetailPage({ params }: { params: Promise<{ id:
       *,
       tenants(id, user:users(full_name, phone), move_in_date, move_out_date),
       invoices(id, invoice_code, total_amount, payment_status, issued_at),
-      maintenance_tickets(id, title, status, created_at)
+      maintenance_tickets(id, title, status, created_at),
+      room_fixtures(id, name, quantity, status, description, created_at)
     `)
     .eq('id', id)
     .single()
@@ -53,6 +55,24 @@ export default async function RoomDetailPage({ params }: { params: Promise<{ id:
   }
 
   const currentTenants = (room.tenants as unknown as TenantData[])?.filter((t) => !t.move_out_date) || []
+
+  interface FixtureData {
+    id: number;
+    name: string;
+    quantity: number;
+    status: string;
+    description: string | null;
+    created_at: string;
+  }
+
+  const roomFixtures = ((room.room_fixtures || []) as unknown as FixtureData[]).map(fix => ({
+    id: fix.id,
+    name: fix.name,
+    quantity: fix.quantity,
+    status: fix.status,
+    description: fix.description,
+    createdAt: fix.created_at
+  }))
 
   return (
     <div className="flex flex-col gap-6 p-6">
@@ -185,6 +205,8 @@ export default async function RoomDetailPage({ params }: { params: Promise<{ id:
             )}
           </CardContent>
         </Card>
+
+        <RoomFixturesSection roomId={room.id} fixtures={roomFixtures} />
       </div>
     </div>
   )
