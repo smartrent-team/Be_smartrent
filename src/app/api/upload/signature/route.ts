@@ -1,6 +1,6 @@
 import { NextResponse, type NextRequest } from 'next/server'
 import { verifyRole } from '@/lib/rbac'
-import cloudinary from '@/lib/cloudinary'
+import cloudinary from '@/infrastructure/cloudinary'
 
 export async function GET(request: NextRequest) {
   try {

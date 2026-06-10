@@ -1,6 +1,6 @@
 import { NextResponse, type NextRequest } from 'next/server'
-import { verifyVNPaySignature } from '@/lib/vnpay'
-import { createAdminClient } from '@/lib/supabase/admin'
+import { verifyVNPaySignature } from '@/infrastructure/vnpay'
+import { createAdminClient } from '@/infrastructure/supabase/admin'
 
 export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url)
@@ -11,13 +11,15 @@ export async function GET(request: NextRequest) {
   })
 
   const isVerified = verifyVNPaySignature({ ...vnp_Params })
+  const orderId = vnp_Params['vnp_TxnRef'] || ''
+  const isSaaS = orderId.startsWith('SAAS_') || orderId.startsWith('SUB_')
+  const redirectUrl = isSaaS ? '/dashboard' : 'smartrent://payment-result'
 
   if (isVerified) {
     if (vnp_Params['vnp_ResponseCode'] === '00') {
-      const orderId = vnp_Params['vnp_TxnRef']
       const supabase = createAdminClient()
 
-      if (orderId.startsWith('SAAS_')) {
+      if (isSaaS) {
         // Handle SaaS Subscription Payment
         const { data: tx } = await supabase
           .from('saas_transactions')
@@ -52,7 +54,7 @@ export async function GET(request: NextRequest) {
             .eq('id', tx.organization_id)
         }
 
-        return new NextResponse(buildHtmlPage('Thanh toán thành công', 'Cảm ơn bạn! Gói cước của bạn đã được gia hạn thêm 30 ngày. Vui lòng đóng trang này và quay lại ứng dụng.', 'success'), {
+        return new NextResponse(buildHtmlPage('Thanh toán thành công', 'Cảm ơn bạn! Gói cước của bạn đã được gia hạn thêm 30 ngày. Vui lòng quay lại bảng điều khiển.', 'success', redirectUrl), {
           headers: { 'Content-Type': 'text/html; charset=utf-8' }
         })
       } else {
@@ -75,27 +77,29 @@ export async function GET(request: NextRequest) {
               .eq('id', invoice.id)
           }
         }
-        return new NextResponse(buildHtmlPage('Thanh toán hóa đơn thành công', 'Hóa đơn đã được gạch nợ. Bạn có thể quay lại ứng dụng.', 'success'), {
+        return new NextResponse(buildHtmlPage('Thanh toán hóa đơn thành công', 'Hóa đơn đã được gạch nợ. Bạn có thể quay lại ứng dụng.', 'success', redirectUrl), {
           headers: { 'Content-Type': 'text/html; charset=utf-8' }
         })
       }
     } else {
-      return new NextResponse(buildHtmlPage('Thanh toán thất bại', 'Giao dịch đã bị hủy hoặc có lỗi xảy ra. Vui lòng thử lại.', 'error'), {
+      return new NextResponse(buildHtmlPage('Thanh toán thất bại', 'Giao dịch đã bị hủy hoặc có lỗi xảy ra. Vui lòng thử lại.', 'error', redirectUrl), {
         headers: { 'Content-Type': 'text/html; charset=utf-8' }
       })
     }
   } else {
-    return new NextResponse(buildHtmlPage('Lỗi xác thực', 'Chữ ký VNPay không hợp lệ. Giao dịch bị từ chối.', 'error'), {
+    return new NextResponse(buildHtmlPage('Lỗi xác thực', 'Chữ ký VNPay không hợp lệ. Giao dịch bị từ chối.', 'error', redirectUrl), {
       headers: { 'Content-Type': 'text/html; charset=utf-8' }
     })
   }
 }
 
-function buildHtmlPage(title: string, message: string, type: 'success' | 'error') {
+function buildHtmlPage(title: string, message: string, type: 'success' | 'error', redirectUrl: string = 'smartrent://payment-result') {
   const color = type === 'success' ? '#10b981' : '#ef4444'
   const icon = type === 'success' 
     ? `<svg class="w-16 h-16 mx-auto text-green-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg>`
     : `<svg class="w-16 h-16 mx-auto text-red-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>`
+
+  const buttonText = redirectUrl === '/dashboard' ? 'Quay lại Bảng điều khiển' : 'Quay lại Ứng dụng'
 
   return `
     <!DOCTYPE html>
@@ -111,8 +115,8 @@ function buildHtmlPage(title: string, message: string, type: 'success' | 'error'
         <div class="mb-6">${icon}</div>
         <h1 class="text-2xl font-bold text-white mb-4">${title}</h1>
         <p class="text-slate-400 mb-8 leading-relaxed">${message}</p>
-        <a href="smartrent://payment-result" class="inline-block w-full py-3 px-6 rounded-xl font-medium text-white transition-colors" style="background-color: ${color}; opacity: 0.9" onmouseover="this.style.opacity='1'" onmouseout="this.style.opacity='0.9'">
-          Quay lại Ứng dụng
+        <a href="${redirectUrl}" class="inline-block w-full py-3 px-6 rounded-xl font-medium text-white transition-colors" style="background-color: ${color}; opacity: 0.9" onmouseover="this.style.opacity='1'" onmouseout="this.style.opacity='0.9'">
+          ${buttonText}
         </a>
       </div>
     </body>

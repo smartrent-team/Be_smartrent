@@ -1,9 +1,9 @@
 import { NextResponse, type NextRequest } from 'next/server'
-import { verifyVNPaySignature } from '@/lib/vnpay'
-import { createAdminClient } from '@/lib/supabase/admin'
-import { sendPushNotification } from '@/lib/push'
+import { verifyVNPaySignature } from '@/infrastructure/vnpay'
+import { createAdminClient } from '@/infrastructure/supabase/admin'
+import { sendPushNotification } from '@/infrastructure/push'
 
-export async function GET(request: NextRequest) {
+export async function POST(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url)
     const vnp_Params: Record<string, string> = {}
@@ -92,17 +92,28 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ RspCode: '04', Message: 'invalid amount' }, { status: 200 })
     }
 
-    // 2. Cập nhật trạng thái hóa đơn sang 'paid'
-    const { error: updateError } = await supabase
-      .from('invoices')
-      .update({
-        payment_status: 'paid',
-        paid_at: new Date().toISOString(),
-      })
-      .eq('id', invoice.id)
+    // 2. Cập nhật trạng thái hóa đơn sang 'paid' thông qua RPC
+    const { data: rpcData, error: rpcError } = await supabase.rpc('process_payment_webhook', {
+      p_order_id: String(orderId),
+      p_provider: 'vnpay',
+      p_invoice_id: invoice.id,
+      p_amount: vnpAmount
+    })
 
-    if (updateError) {
-      throw updateError
+    if (rpcError) {
+      console.error('[VNPay IPN] RPC failed:', rpcError)
+      return NextResponse.json({ RspCode: '99', Message: 'Database transaction failed' }, { status: 200 })
+    }
+
+    const result = rpcData as { success: boolean; message: string; already_paid: boolean }
+
+    if (!result.success) {
+      console.error('[VNPay IPN] Payment processing failed:', result.message)
+      return NextResponse.json({ RspCode: '99', Message: result.message }, { status: 200 })
+    }
+
+    if (result.already_paid) {
+      return NextResponse.json({ RspCode: '02', Message: 'Order already confirmed' }, { status: 200 })
     }
 
     // 3. Send Push Notification to Tenant

@@ -1,5 +1,5 @@
 import { NextResponse, type NextRequest } from 'next/server'
-import { getContractImagesById, updateContractImagesDirectly } from '@/lib/contracts'
+import { getContractImagesById, updateContractImagesDirectly } from '@/core/contracts'
 import { verifyRole } from '@/lib/rbac'
 
 export async function GET(

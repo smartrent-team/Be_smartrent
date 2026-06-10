@@ -1,7 +1,7 @@
 import { NextResponse, type NextRequest } from 'next/server'
-import { createClient } from '@/lib/supabase/server'
+import { createClient } from '@/infrastructure/supabase/server'
 import { headers } from 'next/headers'
-import { checkAuthRateLimit } from '@/lib/rate-limit'
+import { checkAuthRateLimit } from '@/infrastructure/rate-limit'
 
 export async function POST(request: NextRequest) {
   try {

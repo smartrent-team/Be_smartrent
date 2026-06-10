@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server'
 import { verifyRole } from '@/lib/rbac'
-import { optimizeCloudinaryUrl } from '@/lib/cloudinary'
-import { redis } from '@/lib/redis'
+import { optimizeCloudinaryUrl } from '@/infrastructure/cloudinary'
+import { redis } from '@/infrastructure/redis'
 
 export async function PUT(
   request: Request,

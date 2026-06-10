@@ -1,5 +1,5 @@
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { createAdminClient } from '@/lib/supabase/admin'
+import { createAdminClient } from '@/infrastructure/supabase/admin'
 import Link from 'next/link'
 
 export default async function PendingTickets() {

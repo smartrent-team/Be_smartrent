@@ -1,7 +1,7 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Home, DollarSign, FileWarning } from 'lucide-react'
 import { verifyRole } from '@/lib/rbac'
-import { redis } from '@/lib/redis'
+import { redis } from '@/infrastructure/redis'
 import Link from 'next/link'
 
 export default async function DashboardStats() {

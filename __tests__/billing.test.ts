@@ -1,4 +1,4 @@
-import { calculateElectricityCost, calculateWaterCost, ELECTRICITY_PRICE_PER_KWH, WATER_PRICE_PER_M3 } from '../src/lib/billing';
+import { calculateElectricityCost, calculateWaterCost, DEFAULT_ELECTRICITY_PRICE_PER_KWH, DEFAULT_WATER_PRICE_PER_M3 } from '../src/core/billing';
 
 describe('Billing Logic', () => {
   describe('calculateElectricityCost', () => {
@@ -6,7 +6,7 @@ describe('Billing Logic', () => {
       const oldIndex = 100;
       const newIndex = 150;
       // Số điện = 50, Tiền = 50 * 3500 = 175000
-      const expectedCost = (150 - 100) * ELECTRICITY_PRICE_PER_KWH;
+      const expectedCost = (150 - 100) * DEFAULT_ELECTRICITY_PRICE_PER_KWH;
       expect(calculateElectricityCost(oldIndex, newIndex)).toBe(expectedCost);
     });
 
@@ -28,7 +28,7 @@ describe('Billing Logic', () => {
       const oldIndex = 20;
       const newIndex = 25;
       // Số khối = 5, Tiền = 5 * 30000 = 150000
-      const expectedCost = (25 - 20) * WATER_PRICE_PER_M3;
+      const expectedCost = (25 - 20) * DEFAULT_WATER_PRICE_PER_M3;
       expect(calculateWaterCost(oldIndex, newIndex)).toBe(expectedCost);
     });
 

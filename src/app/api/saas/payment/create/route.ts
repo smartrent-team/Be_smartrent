@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
-import { buildVNPayUrl } from '@/lib/vnpay'
+import { buildVNPayUrl } from '@/infrastructure/vnpay'
 import { z } from 'zod'
 
 function createAdminClient() {

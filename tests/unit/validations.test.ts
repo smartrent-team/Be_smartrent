@@ -1,4 +1,4 @@
-import { phoneSchema, invoiceSchema } from '@/lib/validations';
+import { phoneSchema, invoiceSchema } from '@/core/validations';
 
 describe('Validations', () => {
   describe('phoneSchema', () => {

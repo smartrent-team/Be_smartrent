@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server'
 import { verifySignatureAppRouter } from '@upstash/qstash/nextjs'
-import { createAdminClient } from '@/lib/supabase/admin'
-import { sendPushNotification } from '@/lib/push'
+import { createAdminClient } from '@/infrastructure/supabase/admin'
+import { sendPushNotification } from '@/infrastructure/push'
 
 async function handler(req: Request) {
   try {

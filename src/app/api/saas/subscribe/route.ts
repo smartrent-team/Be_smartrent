@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server'
 import { verifyRole } from '@/lib/rbac'
-import { buildVNPayUrl } from '@/lib/vnpay'
-import { createAdminClient } from '@/lib/supabase/admin'
+import { buildVNPayUrl } from '@/infrastructure/vnpay'
+import { createAdminClient } from '@/infrastructure/supabase/admin'
 
 export async function POST(request: Request) {
   try {

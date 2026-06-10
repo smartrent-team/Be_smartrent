@@ -1,10 +1,6 @@
 import { NextResponse } from 'next/server'
-import { createAdminClient } from '@/lib/supabase/admin'
-import { Client } from '@upstash/qstash'
-
-const qstashClient = new Client({
-  token: process.env.QSTASH_TOKEN || 'dummy_token',
-})
+import { createAdminClient } from '@/infrastructure/supabase/admin'
+import { qstashClient } from '@/infrastructure/qstash'
 
 export async function GET(request: Request) {
   try {

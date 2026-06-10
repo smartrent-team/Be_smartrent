@@ -1,6 +1,6 @@
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { verifyRole } from '@/lib/rbac'
-import { redis } from '@/lib/redis'
+import { redis } from '@/infrastructure/redis'
 import { RevenueChartClient } from './RevenueChartClient'
 import { TrendingUp } from 'lucide-react'
 

@@ -1,8 +1,8 @@
 import { NextResponse } from 'next/server'
 import { verifyRole } from '@/lib/rbac'
-import { optimizeCloudinaryUrl } from '@/lib/cloudinary'
-import { redis } from '@/lib/redis'
-import { sendPushNotification } from '@/lib/push'
+import { optimizeCloudinaryUrl } from '@/infrastructure/cloudinary'
+import { redis } from '@/infrastructure/redis'
+import { sendPushNotification } from '@/infrastructure/push'
 import { Ratelimit } from '@upstash/ratelimit'
 
 // Cấu hình Rate Limiting: 10 requests / 10 giây

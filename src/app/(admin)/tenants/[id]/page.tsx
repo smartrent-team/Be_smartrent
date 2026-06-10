@@ -5,7 +5,7 @@ import Link from 'next/link'
 import { ArrowLeft, User, MapPin, FileText } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { ContractImages } from '@/components/shared/ContractImages'
-import { getContractImagesById } from '@/lib/contracts'
+import { getContractImagesById } from '@/core/contracts'
 import { notFound } from 'next/navigation'
 
 export default async function TenantDetailPage({ params }: { params: Promise<{ id: string }> }) {

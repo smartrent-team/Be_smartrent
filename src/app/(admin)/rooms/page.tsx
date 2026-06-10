@@ -1,5 +1,5 @@
-import { createClient } from '@/lib/supabase/server'
 import { verifyRole } from '@/lib/rbac'
+import { RoomService } from '@/services/room.service'
 import {
   Table,
   TableBody,
@@ -10,37 +10,62 @@ import {
 } from '@/components/ui/table'
 import { Badge } from '@/components/ui/badge'
 import { buttonVariants } from '@/components/ui/button'
-import { Eye } from 'lucide-react'
+import { Eye, ChevronLeft, ChevronRight } from 'lucide-react'
 import Link from 'next/link'
 import { CreateRoomDialog } from './_components/CreateRoomDialog'
 
 export default async function RoomsPage({ searchParams }: { searchParams: Promise<{ [key: string]: string | string[] | undefined }> }) {
   const params = await searchParams
   const status = params.status as string || 'all'
+  const pageStr = params.page as string || '1'
+  const currentPage = parseInt(pageStr, 10) || 1
+  const limit = 10
 
   const auth = await verifyRole()
-  if (auth.error || !auth.user) {
+  if (auth.error || !auth.user || !auth.role) {
     return <div>Không có quyền truy cập</div>
   }
   const supabase = auth.supabase!
 
-  let query = supabase
-    .from('rooms')
-    .select('*, branch:branches(name), tenants(id, move_out_date, user:users(full_name))')
-    .order('room_code', { ascending: true })
-
-  if (status !== 'all') {
-    query = query.eq('status', status)
+  interface RenderRoomData {
+    id: number;
+    roomCode: string;
+    floor: number | null;
+    area: number | null;
+    basePrice: number;
+    status: string;
+    branchName?: string;
+    tenant: {
+      id: number;
+      name: string;
+    } | null;
   }
 
-  const [{ data: rooms, error }, { data: rawBranches }] = await Promise.all([
-    query,
-    supabase.from('branches').select('id, name').order('name')
-  ])
-  const branches = rawBranches || []
+  let roomsList: RenderRoomData[] = []
+  let branches: { id: number; name: string }[] = []
+  let totalPages = 0
 
-  if (error) {
-    console.error(error)
+  try {
+    const [result, { data: rawBranches }] = await Promise.all([
+      RoomService.getRoomsList({
+        supabase,
+        role: auth.role,
+        authBranchId: auth.branchId,
+        organizationId: auth.organizationId,
+        options: {
+          status: status === 'all' ? null : status,
+          limit, 
+          page: currentPage
+        }
+      }),
+      supabase.from('branches').select('id, name').order('name')
+    ])
+    
+    roomsList = result.docs
+    totalPages = result.totalPages
+    branches = rawBranches || []
+  } catch (error) {
+    console.error('Lỗi tải danh sách phòng:', error)
   }
 
   const getStatusBadge = (status: string) => {
@@ -56,24 +81,6 @@ export default async function RoomsPage({ searchParams }: { searchParams: Promis
     }
   }
 
-  interface RoomTenant {
-    id: number
-    move_out_date: string | null
-    user?: { full_name: string } | null
-  }
-
-  interface RoomData {
-    id: number
-    room_code: string
-    branch?: { name: string } | null
-    floor: number | null
-    base_price: number
-    status: string
-    tenants?: RoomTenant[]
-  }
-
-  const roomsList = (rooms as unknown as RoomData[]) || []
-
   return (
     <div className="flex flex-col gap-6 p-6">
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
@@ -87,25 +94,25 @@ export default async function RoomsPage({ searchParams }: { searchParams: Promis
 
       <div className="flex items-center gap-2 mb-2">
         <Link 
-          href="?status=all" 
+          href={`?status=all&page=1`} 
           className={buttonVariants({ variant: status === 'all' ? 'default' : 'outline', size: 'sm' })}
         >
           Tất cả
         </Link>
         <Link 
-          href="?status=available" 
+          href={`?status=available&page=1`} 
           className={buttonVariants({ variant: status === 'available' ? 'default' : 'outline', size: 'sm' })}
         >
           Trống
         </Link>
         <Link 
-          href="?status=occupied" 
+          href={`?status=occupied&page=1`} 
           className={buttonVariants({ variant: status === 'occupied' ? 'default' : 'outline', size: 'sm' })}
         >
           Đã thuê
         </Link>
         <Link 
-          href="?status=maintenance" 
+          href={`?status=maintenance&page=1`} 
           className={buttonVariants({ variant: status === 'maintenance' ? 'default' : 'outline', size: 'sm' })}
         >
           Bảo trì
@@ -129,31 +136,26 @@ export default async function RoomsPage({ searchParams }: { searchParams: Promis
             {roomsList.map((room) => (
               <TableRow key={room.id}>
                 <TableCell className="font-medium">
-                  {room.room_code}
+                  {room.roomCode}
                   <span className="text-xs text-muted-foreground ml-2">(ID: {room.id})</span>
                 </TableCell>
                 <TableCell className="font-semibold text-emerald-800">
-                  {room.branch?.name || 'Chưa phân chi nhánh'}
+                  {room.branchName || 'Chưa phân chi nhánh'}
                 </TableCell>
                 <TableCell>{room.floor}</TableCell>
                 <TableCell>
-                  {new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(room.base_price)}
+                  {new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(room.basePrice)}
                 </TableCell>
                 <TableCell>{getStatusBadge(room.status)}</TableCell>
                 <TableCell>
-                  {(() => {
-                    const activeTenant = room.tenants && room.tenants.length > 0 
-                      ? room.tenants.find((t) => !t.move_out_date) 
-                      : null
-                    return activeTenant ? (
-                      <span className="font-semibold text-slate-700">
-                        {activeTenant.user?.full_name || 'Khách chưa đặt tên'}
-                        <span className="text-xs text-gray-400 font-normal ml-2">(ID: {activeTenant.id})</span>
-                      </span>
-                    ) : (
-                      <span className="text-gray-400 italic text-xs">Trống</span>
-                    )
-                  })()}
+                  {room.tenant ? (
+                    <span className="font-semibold text-slate-700">
+                      {room.tenant.name}
+                      <span className="text-xs text-gray-400 font-normal ml-2">(ID: {room.tenant.id})</span>
+                    </span>
+                  ) : (
+                    <span className="text-gray-400 italic text-xs">Trống</span>
+                  )}
                 </TableCell>
                 <TableCell className="text-right">
                   <div className="flex items-center justify-end gap-1">
@@ -178,6 +180,28 @@ export default async function RoomsPage({ searchParams }: { searchParams: Promis
           </TableBody>
         </Table>
       </div>
+
+      {totalPages > 1 && (
+        <div className="flex items-center justify-end space-x-2 py-4">
+          <Link
+            href={`?status=${status}&page=${Math.max(1, currentPage - 1)}`}
+            className={`${buttonVariants({ variant: 'outline', size: 'sm' })} ${currentPage <= 1 ? 'pointer-events-none opacity-50' : ''}`}
+          >
+            <ChevronLeft className="h-4 w-4 mr-1" />
+            Trước
+          </Link>
+          <div className="text-sm font-medium mx-2">
+            Trang {currentPage} / {totalPages}
+          </div>
+          <Link
+            href={`?status=${status}&page=${Math.min(totalPages, currentPage + 1)}`}
+            className={`${buttonVariants({ variant: 'outline', size: 'sm' })} ${currentPage >= totalPages ? 'pointer-events-none opacity-50' : ''}`}
+          >
+            Sau
+            <ChevronRight className="h-4 w-4 ml-1" />
+          </Link>
+        </div>
+      )}
     </div>
   )
 }

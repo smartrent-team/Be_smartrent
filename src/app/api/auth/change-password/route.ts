@@ -1,13 +1,10 @@
 import { NextResponse, type NextRequest } from 'next/server'
-import { verifyRole } from '@/lib/rbac'
-import { createAdminClient } from '@/lib/supabase/admin'
+import { requireAuth } from '@/lib/rbac'
+import { createAdminClient } from '@/infrastructure/supabase/admin'
 
 export async function POST(request: NextRequest) {
   try {
-    const auth = await verifyRole()
-    if (auth.error) {
-      return NextResponse.json({ error: auth.error }, { status: auth.status })
-    }
+    const { user } = await requireAuth()
 
     const body = await request.json()
     const { new_password } = body
@@ -20,7 +17,7 @@ export async function POST(request: NextRequest) {
     // Hàm updateUser() mặc định sẽ báo lỗi "Auth session missing!".
     // Khi đã đi qua verifyRole() tức là JWT đã hợp lệ, ta có thể an toàn dùng Admin Client để đổi pass
     const supabaseAdmin = createAdminClient()
-    const { error } = await supabaseAdmin.auth.admin.updateUserById(auth.user!.id, {
+    const { error } = await supabaseAdmin.auth.admin.updateUserById(user.id, {
       password: new_password
     })
 

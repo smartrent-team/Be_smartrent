@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server'
 import { verifyRole } from '@/lib/rbac'
-import { attachPayOSToInvoice, toTenantPaymentError } from '@/lib/invoice-payment'
+import { attachPayOSToInvoice, toTenantPaymentError } from '@/core/invoice-payment'
 
 type RouteContext = { params: Promise<{ id: string }> }
 

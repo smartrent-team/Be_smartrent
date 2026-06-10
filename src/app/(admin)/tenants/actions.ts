@@ -1,7 +1,7 @@
 'use server'
 
 import { verifyRole } from '@/lib/rbac'
-import { createAdminClient } from '@/lib/supabase/admin'
+import { createAdminClient } from '@/infrastructure/supabase/admin'
 import { revalidatePath } from 'next/cache'
 
 

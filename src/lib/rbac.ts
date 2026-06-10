@@ -1,5 +1,5 @@
-import { createApiClient, createClient } from './supabase/server'
-import { createAdminClient } from './supabase/admin'
+import { createApiClient, createClient } from '@/infrastructure/supabase/server'
+import { createAdminClient } from '@/infrastructure/supabase/admin'
 import { headers } from 'next/headers'
 
 export type OrgPaymentConfig = {
@@ -152,3 +152,19 @@ export async function verifySuperAdmin() {
 
   return adminSupabase
 }
+
+/**
+ * Helper yêu cầu đăng nhập. Ném lỗi nếu chưa xác thực.
+ * Trả về Supabase Client và thông tin User.
+ */
+export async function requireAuth() {
+  const supabase = await createClient()
+  const { data: { user }, error: authError } = await supabase.auth.getUser()
+  
+  if (authError || !user) {
+    throw new Error('Unauthorized: Vui lòng đăng nhập để tiếp tục')
+  }
+  
+  return { supabase, user }
+}
+

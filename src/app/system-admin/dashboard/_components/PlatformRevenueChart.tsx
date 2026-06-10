@@ -1,6 +1,6 @@
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { createAdminClient } from '@/lib/supabase/admin'
-import { redis } from '@/lib/redis'
+import { createAdminClient } from '@/infrastructure/supabase/admin'
+import { redis } from '@/infrastructure/redis'
 import { TrendingUp } from 'lucide-react'
 import { PlatformRevenueChartClient } from './PlatformRevenueChartClient'
 

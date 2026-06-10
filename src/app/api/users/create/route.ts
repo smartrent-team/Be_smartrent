@@ -1,7 +1,7 @@
 import { NextResponse, type NextRequest } from 'next/server'
 import { verifyRole, canCreateUser } from '@/lib/rbac'
-import { createAdminClient } from '@/lib/supabase/admin'
-import { createContractDirectly } from '@/lib/contracts'
+import { createAdminClient } from '@/infrastructure/supabase/admin'
+import { createContractDirectly } from '@/core/contracts'
 
 function normalizeDateTimeValue(value: unknown): string | null {
   if (typeof value !== 'string') return null

@@ -1,6 +1,6 @@
 import { NextResponse, type NextRequest } from 'next/server'
 
-import { createContractDirectly, updateContractImagesDirectly } from '@/lib/contracts'
+import { createContractDirectly, updateContractImagesDirectly } from '@/core/contracts'
 import { verifyRole } from '@/lib/rbac'
 
 function parseContractImages(body: unknown): string[] {

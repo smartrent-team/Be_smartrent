@@ -1,4 +1,4 @@
-import { createClient } from '@/lib/supabase/server'
+import { createClient } from '@/infrastructure/supabase/server'
 import { OrganizationList } from './_components/OrganizationList'
 
 export default async function OrganizationsPage() {

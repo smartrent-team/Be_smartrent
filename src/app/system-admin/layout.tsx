@@ -1,6 +1,6 @@
 import { SystemSidebar } from '@/components/shared/SystemSidebar'
 import { Header } from '@/components/shared/Header'
-import { createClient } from '@/lib/supabase/server'
+import { createClient } from '@/infrastructure/supabase/server'
 import { createClient as createSupabaseClient } from '@supabase/supabase-js'
 import { redirect } from 'next/navigation'
 

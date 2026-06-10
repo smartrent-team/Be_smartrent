@@ -1,7 +1,7 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Building2, Users, Home, DollarSign } from 'lucide-react'
-import { createAdminClient } from '@/lib/supabase/admin'
-import { redis } from '@/lib/redis'
+import { createAdminClient } from '@/infrastructure/supabase/admin'
+import { redis } from '@/infrastructure/redis'
 import Link from 'next/link'
 
 export default async function PlatformStats() {

@@ -1,8 +1,8 @@
 import { NextResponse, type NextRequest } from 'next/server'
-import { createApiClient } from '@/lib/supabase/server'
+import { createApiClient } from '@/infrastructure/supabase/server'
 import { z } from 'zod'
-import { formatZodError } from '@/lib/validations'
-import { checkAuthRateLimit } from '@/lib/rate-limit'
+import { formatZodError } from '@/core/validations'
+import { checkAuthRateLimit } from '@/infrastructure/rate-limit'
 
 const loginSchema = z.object({
   phone: z.string().min(1, 'Vui lòng nhập số điện thoại hoặc email'),
@@ -26,7 +26,7 @@ export async function POST(request: NextRequest) {
     const { phone, password } = parsed.data
 
     const supabase = await createApiClient()
-    const adminSupabase = await import('@/lib/supabase/admin').then(m => m.createAdminClient())
+    const adminSupabase = await import('@/infrastructure/supabase/admin').then(m => m.createAdminClient())
     
     let targetEmail: string
     if (phone.includes('@')) {

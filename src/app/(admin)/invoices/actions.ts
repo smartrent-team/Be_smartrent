@@ -1,10 +1,10 @@
 'use server'
 
 import { verifySuperAdmin } from '@/lib/rbac'
-import { attachPayOSToInvoice } from '@/lib/invoice-payment'
+import { attachPayOSToInvoice } from '@/core/invoice-payment'
 import { revalidatePath } from 'next/cache'
-import { calculateElectricityCost, calculateWaterCost } from '@/lib/billing'
-import { sendPushNotification } from '@/lib/push'
+import { calculateElectricityCost, calculateWaterCost } from '@/core/billing'
+import { sendPushNotification } from '@/infrastructure/push'
 import type { SupabaseClient } from '@supabase/supabase-js'
 import type { OrgPaymentConfig } from '@/lib/rbac'
 
@@ -219,7 +219,7 @@ export async function resendInvoiceNotification(invoiceId: string | number) {
   }
 }
 
-import { invoiceSchema, formatZodError } from '@/lib/validations'
+import { invoiceSchema, formatZodError } from '@/core/validations'
 
 export async function addInvoiceAction(formData: FormData) {
   const data = {
@@ -250,11 +250,18 @@ export async function addInvoiceAction(formData: FormData) {
   let electricCost = 0
   let waterCost = 0
 
+  const supabase = await verifySuperAdmin()
+  const { data: roomInfo } = await supabase
+    .from('rooms')
+    .select('electric_price, water_price')
+    .eq('id', roomId)
+    .single()
+
   if (electricNew > 0) {
-    electricCost = calculateElectricityCost(electricOld, electricNew)
+    electricCost = calculateElectricityCost(electricOld, electricNew, roomInfo?.electric_price ? Number(roomInfo.electric_price) : null)
   }
   if (waterNew > 0) {
-    waterCost = calculateWaterCost(waterOld, waterNew)
+    waterCost = calculateWaterCost(waterOld, waterNew, roomInfo?.water_price ? Number(roomInfo.water_price) : null)
   }
 
   const result = await createInvoice({

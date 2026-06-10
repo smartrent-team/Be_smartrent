@@ -1,4 +1,4 @@
-import { createAdminClient } from '@/lib/supabase/admin'
+import { createAdminClient } from '@/infrastructure/supabase/admin'
 import { Client } from 'pg'
 
 // ---------------------------------------------------------------------------

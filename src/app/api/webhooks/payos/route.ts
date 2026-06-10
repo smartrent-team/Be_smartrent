@@ -1,8 +1,8 @@
 import { NextResponse } from 'next/server'
-import { createAdminClient } from '@/lib/supabase/admin'
+import { createAdminClient } from '@/infrastructure/supabase/admin'
 import { PayOS } from '@payos/node'
-import { sendPushNotification } from '@/lib/push'
-import { redis } from '@/lib/redis'
+import { sendPushNotification } from '@/infrastructure/push'
+import { redis } from '@/infrastructure/redis'
 
 export async function POST(req: Request) {
   try {
@@ -76,8 +76,9 @@ export async function POST(req: Request) {
       checksumKey: org.payos_checksum_key
     })
     
+    let webhookData;
     try {
-      const webhookData = await payos.webhooks.verify(body)
+      webhookData = await payos.webhooks.verify(body)
 
     } catch (e) {
       console.error('[PayOS Webhook] Signature verification failed:', e)
@@ -85,22 +86,31 @@ export async function POST(req: Request) {
     }
 
     // 4. Kiểm tra trạng thái của giao dịch (Chỉ khi success thì mới gạch nợ)
-    if (body.code === '00' && data.amount > 0) {
-      // 5. Cập nhật hoá đơn
-      const { error: updateErr } = await supabase
-        .from('invoices')
-        .update({
-          payment_status: 'paid',
-          paid_at: new Date().toISOString()
-        })
-        .eq('id', invoice.id)
+    if (body.code === '00' && webhookData.amount > 0) {
+      // 5. Cập nhật hoá đơn thông qua Database Transaction (RPC)
+      const { data: rpcData, error: rpcError } = await supabase.rpc('process_payment_webhook', {
+        p_order_id: String(data.orderCode),
+        p_provider: 'payos',
+        p_invoice_id: invoice.id,
+        p_amount: webhookData.amount
+      })
 
-      if (updateErr) {
-        console.error('[PayOS Webhook] Failed to update invoice:', updateErr)
-        return NextResponse.json({ error: 'Failed to update invoice' }, { status: 500 })
+      if (rpcError) {
+        console.error('[PayOS Webhook] RPC failed:', rpcError)
+        return NextResponse.json({ error: 'Database transaction failed' }, { status: 500 })
       }
 
+      const result = rpcData as { success: boolean; message: string; already_paid: boolean }
 
+      if (!result.success) {
+        console.error('[PayOS Webhook] Payment processing failed:', result.message)
+        return NextResponse.json({ error: result.message }, { status: 400 })
+      }
+
+      // Nếu đã thanh toán từ request trước đó (idempotent)
+      if (result.already_paid) {
+        return NextResponse.json({ success: true, message: 'Idempotent - Already paid' })
+      }
 
       // 6. Gửi Push Notification cho cư dân
       if (invoice.tenant_id) {

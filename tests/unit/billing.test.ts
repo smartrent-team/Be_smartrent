@@ -1,11 +1,11 @@
-import { calculateElectricityCost, calculateWaterCost, ELECTRICITY_PRICE_PER_KWH, WATER_PRICE_PER_M3 } from '@/lib/billing';
+import { calculateElectricityCost, calculateWaterCost, DEFAULT_ELECTRICITY_PRICE_PER_KWH, DEFAULT_WATER_PRICE_PER_M3 } from '@/core/billing';
 
 describe('Billing Logic', () => {
   describe('calculateElectricityCost', () => {
     it('should calculate cost correctly when newIndex > oldIndex', () => {
       const oldIndex = 100;
       const newIndex = 150;
-      const expectedCost = (150 - 100) * ELECTRICITY_PRICE_PER_KWH;
+      const expectedCost = (150 - 100) * DEFAULT_ELECTRICITY_PRICE_PER_KWH;
       expect(calculateElectricityCost(oldIndex, newIndex)).toBe(expectedCost);
     });
 
@@ -22,7 +22,7 @@ describe('Billing Logic', () => {
     it('should calculate cost correctly when newIndex > oldIndex', () => {
       const oldIndex = 50;
       const newIndex = 60;
-      const expectedCost = (60 - 50) * WATER_PRICE_PER_M3;
+      const expectedCost = (60 - 50) * DEFAULT_WATER_PRICE_PER_M3;
       expect(calculateWaterCost(oldIndex, newIndex)).toBe(expectedCost);
     });
 

@@ -1,4 +1,4 @@
-import { toTenantPaymentError } from '../src/lib/invoice-payment';
+import { toTenantPaymentError } from '../src/core/invoice-payment';
 
 describe('PayOS Error Mapping Logic', () => {
   it('trả về lỗi chung nếu technicalWarning bị null', () => {

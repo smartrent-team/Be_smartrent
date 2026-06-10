@@ -1,6 +1,6 @@
 import { Sidebar } from '@/components/shared/Sidebar'
 import { Header } from '@/components/shared/Header'
-import { createClient } from '@/lib/supabase/server'
+import { createClient } from '@/infrastructure/supabase/server'
 import { redirect } from 'next/navigation'
 
 export default async function AdminLayout({

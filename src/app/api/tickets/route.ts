@@ -1,6 +1,6 @@
 import { NextResponse, type NextRequest } from 'next/server'
 import { verifyRole } from '@/lib/rbac'
-import { ticketSchema, formatZodError } from '@/lib/validations'
+import { ticketSchema, formatZodError } from '@/core/validations'
 
 export async function GET(request: NextRequest) {
   try {

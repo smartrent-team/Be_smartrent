@@ -1,8 +1,8 @@
 import { NextResponse, type NextRequest } from 'next/server'
-import { createAdminClient } from '@/lib/supabase/admin'
+import { createAdminClient } from '@/infrastructure/supabase/admin'
 import { z } from 'zod'
-import { formatZodError } from '@/lib/validations'
-import { checkRegisterRateLimit } from '@/lib/rate-limit'
+import { formatZodError } from '@/core/validations'
+import { checkRegisterRateLimit } from '@/infrastructure/rate-limit'
 
 const registerSchema = z.object({
   fullName: z.string().min(2, 'Tên phải có ít nhất 2 ký tự'),
