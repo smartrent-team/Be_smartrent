@@ -95,7 +95,8 @@ export async function GET(request: NextRequest) {
       id: activeTenant.id,
       name: activeTenant.user?.full_name || 'Khách chưa có tên',
       phone: activeTenant.user?.phone || 'Chưa cập nhật',
-      checkInDate: activeTenant.move_in_date
+      checkInDate: activeTenant.move_in_date,
+      checkOutDate: activeTenant.move_out_date
     } : null
 
     // 5. Định dạng lịch sử hóa đơn

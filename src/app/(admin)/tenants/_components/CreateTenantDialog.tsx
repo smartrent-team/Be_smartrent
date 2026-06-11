@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import { Button } from '@/components/ui/button'
 import {
@@ -14,9 +14,10 @@ import {
 } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { UserPlus, Loader2 } from 'lucide-react'
+import { UserPlus, Loader2, FileSearch, CheckCircle2, AlertCircle, Upload, X } from 'lucide-react'
 import { toast } from 'sonner'
 import { createTenantAction } from '../actions'
+import Image from 'next/image'
 
 interface Room {
   id: number
@@ -27,6 +28,10 @@ interface Room {
 export function CreateTenantDialog({ rooms }: { rooms: Room[] }) {
   const [open, setOpen] = useState(false)
   const [loading, setLoading] = useState(false)
+  const [scanning, setScanning] = useState(false)
+  const [scanResult, setScanResult] = useState<{ success: boolean; message: string } | null>(null)
+  const [contractPreview, setContractPreview] = useState<string | null>(null)
+  const fileInputRef = useRef<HTMLInputElement>(null)
   const router = useRouter()
 
   const [formData, setFormData] = useState({
@@ -38,6 +43,59 @@ export function CreateTenantDialog({ rooms }: { rooms: Room[] }) {
     depositAmount: '',
     moveInDate: new Date().toISOString().split('T')[0],
   })
+
+  const handleContractUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+
+    // Show preview
+    const previewUrl = URL.createObjectURL(file)
+    setContractPreview(previewUrl)
+
+    setScanning(true)
+    setScanResult(null)
+    const toastId = toast.loading('🔍 Đang quét hợp đồng lấy tiền cọc...')
+
+    try {
+      const aiFormData = new FormData()
+      aiFormData.append('file', file)
+
+      const response = await fetch('/api/contracts/scan-deposit', {
+        method: 'POST',
+        body: aiFormData,
+      })
+
+      const data = await response.json()
+
+      if (response.ok && data.success && data.data?.deposit_amount) {
+        const depositAmount = data.data.deposit_amount
+        setFormData((prev) => ({ ...prev, depositAmount: depositAmount.toString() }))
+        setScanResult({
+          success: true,
+          message: `Đã nhận diện tiền cọc: ${depositAmount.toLocaleString('vi-VN')} đ`,
+        })
+        toast.success(`✅ Đã nhận diện tiền cọc: ${depositAmount.toLocaleString('vi-VN')} đ`, { id: toastId })
+      } else {
+        const errorMsg = data.error || 'Không đọc được tiền cọc từ ảnh hợp đồng'
+        setScanResult({ success: false, message: errorMsg })
+        toast.error(errorMsg, { id: toastId })
+      }
+    } catch {
+      setScanResult({ success: false, message: 'Không thể kết nối dịch vụ AI' })
+      toast.error('Không thể kết nối dịch vụ AI', { id: toastId })
+    } finally {
+      setScanning(false)
+      e.target.value = ''
+    }
+  }
+
+  const clearContractPreview = () => {
+    if (contractPreview) {
+      URL.revokeObjectURL(contractPreview)
+    }
+    setContractPreview(null)
+    setScanResult(null)
+  }
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -68,6 +126,7 @@ export function CreateTenantDialog({ rooms }: { rooms: Room[] }) {
         depositAmount: '',
         moveInDate: new Date().toISOString().split('T')[0],
       })
+      clearContractPreview()
       setOpen(false)
       router.refresh()
     } catch (error: unknown) {
@@ -79,7 +138,12 @@ export function CreateTenantDialog({ rooms }: { rooms: Room[] }) {
   }
 
   return (
-    <Dialog open={open} onOpenChange={setOpen}>
+    <Dialog open={open} onOpenChange={(isOpen) => {
+      setOpen(isOpen)
+      if (!isOpen) {
+        clearContractPreview()
+      }
+    }}>
       <DialogTrigger
         render={
           <Button className="bg-gradient-to-r from-teal-600 to-emerald-600 hover:from-teal-700 hover:to-emerald-700 text-white font-medium shadow-md transition-all duration-200 gap-2">
@@ -88,7 +152,7 @@ export function CreateTenantDialog({ rooms }: { rooms: Room[] }) {
           </Button>
         }
       />
-      <DialogContent className="sm:max-w-[480px] border border-gray-100/50 backdrop-blur-md bg-white/95 shadow-2xl rounded-2xl max-h-[90vh] overflow-y-auto">
+      <DialogContent className="sm:max-w-[520px] border border-gray-100/50 backdrop-blur-md bg-white/95 shadow-2xl rounded-2xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle className="text-xl font-bold bg-gradient-to-r from-teal-600 to-emerald-600 bg-clip-text text-transparent flex items-center gap-2">
             Thêm Khách Thuê Mới
@@ -181,6 +245,90 @@ export function CreateTenantDialog({ rooms }: { rooms: Room[] }) {
                 </option>
               ))}
             </select>
+          </div>
+
+          {/* Upload ảnh hợp đồng + Quét tiền cọc */}
+          <div className="space-y-3 rounded-xl border border-dashed border-teal-300 bg-teal-50/30 p-3">
+            <div className="flex items-center justify-between">
+              <Label className="text-sm font-medium text-gray-700 flex items-center gap-1.5">
+                <FileSearch className="h-4 w-4 text-teal-600" />
+                Quét hợp đồng lấy tiền cọc
+              </Label>
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept="image/*"
+                className="hidden"
+                onChange={handleContractUpload}
+                disabled={scanning}
+              />
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                disabled={scanning}
+                onClick={() => fileInputRef.current?.click()}
+                className="text-xs gap-1.5 border-teal-300 text-teal-700 hover:bg-teal-100 hover:text-teal-800 rounded-lg"
+              >
+                {scanning ? (
+                  <>
+                    <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                    Đang quét...
+                  </>
+                ) : (
+                  <>
+                    <Upload className="h-3.5 w-3.5" />
+                    Tải ảnh hợp đồng
+                  </>
+                )}
+              </Button>
+            </div>
+
+            {/* Preview ảnh hợp đồng */}
+            {contractPreview && (
+              <div className="relative rounded-lg overflow-hidden border border-gray-200 bg-white">
+                <div className="relative aspect-[4/3] w-full max-h-[160px]">
+                  <Image
+                    src={contractPreview}
+                    alt="Ảnh hợp đồng"
+                    fill
+                    className="object-contain"
+                    unoptimized
+                  />
+                </div>
+                <button
+                  type="button"
+                  onClick={clearContractPreview}
+                  className="absolute top-1.5 right-1.5 rounded-full bg-black/50 hover:bg-black/70 text-white p-1 transition-colors"
+                >
+                  <X className="h-3.5 w-3.5" />
+                </button>
+              </div>
+            )}
+
+            {/* Kết quả quét */}
+            {scanResult && (
+              <div
+                className={`flex items-start gap-2 text-xs p-2 rounded-lg ${
+                  scanResult.success
+                    ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
+                    : 'bg-amber-50 text-amber-700 border border-amber-200'
+                }`}
+              >
+                {scanResult.success ? (
+                  <CheckCircle2 className="h-4 w-4 mt-0.5 shrink-0" />
+                ) : (
+                  <AlertCircle className="h-4 w-4 mt-0.5 shrink-0" />
+                )}
+                <span>{scanResult.message}</span>
+              </div>
+            )}
+
+            {!contractPreview && !scanResult && (
+              <p className="text-xs text-gray-400 text-center">
+                Tải ảnh hợp đồng lên để AI tự động nhận diện tiền cọc
+              </p>
+            )}
           </div>
 
           <div className="grid grid-cols-2 gap-4">
