@@ -20,7 +20,8 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json()
-    const { phone, password, full_name, role: targetRole, branch_id: targetBranchId, room_id, email, identity_number, contractImages: rawContractImages, contractEndDate: rawContractEndDate, contract_end_date: rawContractEndDateSnake } = body
+    const { phone, password, full_name, role: targetRole, branch_id: targetBranchId, room_id, email, identity_number, contractImages: rawContractImages, contractEndDate: rawContractEndDate, contract_end_date: rawContractEndDateSnake, depositAmount: rawDepositAmount, deposit_amount: rawDepositAmountSnake } = body
+    const depositAmount = Number(rawDepositAmount ?? rawDepositAmountSnake ?? 0)
 
     const contractImages = Array.isArray(rawContractImages)
       ? rawContractImages.filter(
@@ -158,7 +159,7 @@ export async function POST(request: NextRequest) {
             roomId: roomIdNum,
             startDate: new Date().toISOString(),
             endDate: contractEndDate,
-            depositAmount: 0,
+            depositAmount: depositAmount,
             monthlyPrice: roomData?.base_price ?? 0,
             status: 'active',
             contractImages,
@@ -173,7 +174,7 @@ export async function POST(request: NextRequest) {
           room_id: roomIdNum,
           start_date: new Date().toISOString(),
           end_date: contractEndDate,
-          deposit_amount: 0,
+          deposit_amount: depositAmount,
           monthly_price: roomData?.base_price ?? 0,
           status: 'active',
         })

@@ -74,6 +74,7 @@ export async function syncExpiredContractNotifications(
       tenant:tenants(user_id),
       room:rooms(room_code, branch_id)
     `)
+    .eq('status', 'active')
     .not('end_date', 'is', null)
 
   if (error) {
