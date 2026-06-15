@@ -10,6 +10,7 @@ export type NotificationPayload = {
   title: string
   body: string
   type: string
+  relatedId?: string | null
   data?: Record<string, string>
 }
 
@@ -46,7 +47,9 @@ export async function dispatchNotification(
     title: payload.title,
     body: payload.body,
     type: payload.type,
+    related_id: payload.relatedId ?? null,
     is_read: false,
+    updated_at: new Date().toISOString(),
   }).select('id').single()
 
   let notificationId = ''

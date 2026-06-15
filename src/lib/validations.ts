@@ -59,6 +59,25 @@ export const contractSchema = z.object({
   contract_images: z.array(z.string()).optional(),
 });
 
+// 7. Validate Chat
+export const createConversationSchema = z.object({
+  type: z.enum(['PRODUCT', 'MANAGER']),
+  productId: z.coerce.number().int().positive().optional(),
+  receiverId: z.string().trim().min(1, 'Thiếu receiverId'),
+})
+
+export const createMessageSchema = z.object({
+  content: z.string().trim().min(1, 'Nội dung tin nhắn không được để trống'),
+})
+
+export const createNotificationSchema = z.object({
+  userId: z.string().trim().min(1).optional(),
+  title: z.string().trim().min(1, 'Thiếu tiêu đề'),
+  content: z.string().trim().min(1, 'Thiếu nội dung'),
+  type: z.string().trim().min(1, 'Thiếu loại thông báo'),
+  relatedId: z.string().optional(),
+})
+
 // Helper phân tích lỗi
 export const formatZodError = (error: z.ZodError) => {
   return error.issues.map(err => err.message).join(', ');

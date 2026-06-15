@@ -1,11 +1,37 @@
 import { NextResponse, type NextRequest } from 'next/server'
 import { verifyRole } from '@/lib/rbac'
 import { syncExpiredContractNotifications } from '@/lib/contract-notification-sync'
+import { createNotificationSchema, formatZodError } from '@/lib/validations'
+import { dispatchNotification } from '@/lib/notification_dispatch'
 
 export const dynamic = 'force-dynamic'
 export const revalidate = 0
 
-export async function GET() {
+function mapNotification(row: {
+  id: string | number
+  user_id: string
+  title: string
+  body: string
+  type: string
+  related_id?: string | null
+  is_read: boolean
+  created_at: string
+  updated_at?: string | null
+}) {
+  return {
+    id: row.id,
+    userId: row.user_id,
+    title: row.title,
+    content: row.body,
+    type: row.type,
+    relatedId: row.related_id ?? null,
+    isRead: row.is_read,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at ?? row.created_at,
+  }
+}
+
+export async function GET(request: NextRequest) {
   try {
     const auth = await verifyRole()
     if (auth.error || !auth.user || !auth.role) {
@@ -13,6 +39,11 @@ export async function GET() {
     }
 
     const supabase = auth.supabase!
+    const { searchParams } = new URL(request.url)
+    const limitParam = Number(searchParams.get('limit') ?? 100)
+    const limit = Number.isFinite(limitParam) ? Math.min(Math.max(limitParam, 1), 200) : 100
+    const unreadOnly = searchParams.get('unreadOnly') === 'true'
+
     void syncExpiredContractNotifications(supabase, {
       userId: auth.dbUserId,
       role: auth.role,
@@ -21,13 +52,18 @@ export async function GET() {
       console.error('Failed to sync expired contract notifications:', syncError)
     })
 
-    const { data: notifications, error } = await supabase
+    let query = supabase
       .from('notifications')
-      .select('id, user_id, title, body, type, is_read, created_at')
+      .select('id, user_id, title, body, type, related_id, is_read, created_at, updated_at')
       .eq('user_id', auth.dbUserId)
       .order('created_at', { ascending: false })
-      .limit(100)
+      .limit(limit)
 
+    if (unreadOnly) {
+      query = query.eq('is_read', false)
+    }
+
+    const { data: notifications, error } = await query
     if (error) throw error
 
     const { count: unreadCount } = await supabase
@@ -38,7 +74,7 @@ export async function GET() {
 
     return NextResponse.json({
       success: true,
-      data: notifications ?? [],
+      data: (notifications ?? []).map(mapNotification),
       unreadCount: unreadCount ?? 0,
     })
   } catch (error: unknown) {
@@ -54,49 +90,33 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: auth.error || 'Chưa xác thực' }, { status: auth.status || 401 })
     }
 
+    const body = await request.json().catch(() => null)
+    const parsed = createNotificationSchema.safeParse(body)
+    if (!parsed.success) {
+      return NextResponse.json({ error: formatZodError(parsed.error) }, { status: 400 })
+    }
+
     const supabase = auth.supabase!
-    const payload = await request.json().catch(() => ({}))
-    const title = String(payload?.title ?? '').trim()
-    const body = String(payload?.body ?? '').trim()
-    const type = String(payload?.type ?? 'system').trim() || 'system'
+    const { title, content, type, relatedId } = parsed.data
+    const targetUserId = parsed.data.userId ?? auth.dbUserId
 
-    if (!title || !body) {
-      return NextResponse.json({ error: 'Thiếu tiêu đề hoặc nội dung thông báo' }, { status: 400 })
+    if (targetUserId !== auth.dbUserId && auth.role === 'tenant') {
+      return NextResponse.json({ error: 'Cư dân chỉ có thể tạo thông báo cho chính mình' }, { status: 403 })
     }
 
-    const { data: existing, error: existingError } = await supabase
-      .from('notifications')
-      .select('id')
-      .eq('user_id', auth.dbUserId)
-      .eq('title', title)
-      .eq('body', body)
-      .eq('type', type)
-      .maybeSingle()
-
-    if (existingError) throw existingError
-    if (existing) {
-      return NextResponse.json({ success: true, created: false, notificationId: existing.id })
-    }
-
-    const { data: inserted, error } = await supabase
-      .from('notifications')
-      .insert({
-        user_id: auth.dbUserId,
+    await dispatchNotification(
+      supabase,
+      { userId: targetUserId },
+      {
         title,
-        body,
+        body: content,
         type,
-        is_read: false,
-      })
-      .select('id')
-      .single()
+        relatedId: relatedId ?? null,
+        data: relatedId ? { relatedId } : undefined,
+      }
+    )
 
-    if (error) throw error
-
-    return NextResponse.json({
-      success: true,
-      created: true,
-      notificationId: inserted?.id ?? null,
-    })
+    return NextResponse.json({ success: true, created: true })
   } catch (error: unknown) {
     const errorMessage = error instanceof Error ? error.message : String(error)
     return NextResponse.json({ error: errorMessage }, { status: 500 })
@@ -117,7 +137,7 @@ export async function PATCH(request: NextRequest) {
     if (markAll) {
       const { error } = await supabase
         .from('notifications')
-        .update({ is_read: true })
+        .update({ is_read: true, updated_at: new Date().toISOString() })
         .eq('user_id', auth.dbUserId)
         .eq('is_read', false)
 
@@ -133,7 +153,7 @@ export async function PATCH(request: NextRequest) {
 
     const { error } = await supabase
       .from('notifications')
-      .update({ is_read: true })
+      .update({ is_read: true, updated_at: new Date().toISOString() })
       .eq('id', notificationId)
       .eq('user_id', auth.dbUserId)
 
