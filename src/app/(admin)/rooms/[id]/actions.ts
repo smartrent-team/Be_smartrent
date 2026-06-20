@@ -48,7 +48,7 @@ export async function updateRoomFixture(
 ) {
   const supabase = await verifySuperAdmin()
 
-  const updatePayload: Record<string, any> = {}
+  const updatePayload: Record<string, string | number | null> = {}
   if (data.name !== undefined) updatePayload.name = data.name.trim()
   if (data.quantity !== undefined) updatePayload.quantity = data.quantity
   if (data.status !== undefined) updatePayload.status = data.status

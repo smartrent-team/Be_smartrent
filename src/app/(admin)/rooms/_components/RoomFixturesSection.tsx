@@ -106,8 +106,9 @@ export function RoomFixturesSection({ roomId, fixtures }: RoomFixturesSectionPro
       }
       setDialogOpen(false)
       router.refresh()
-    } catch (error: any) {
-      toast.error(error.message || 'Đã xảy ra lỗi khi lưu thông tin')
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Đã xảy ra lỗi khi lưu thông tin'
+      toast.error(message)
     } finally {
       setLoading(false)
     }
@@ -121,8 +122,9 @@ export function RoomFixturesSection({ roomId, fixtures }: RoomFixturesSectionPro
       toast.success('Đã xóa đồ cố định thành công!')
       setDeleteDialogOpen(false)
       router.refresh()
-    } catch (error: any) {
-      toast.error(error.message || 'Đã xảy ra lỗi khi xóa đồ cố định')
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Đã xảy ra lỗi khi xóa đồ cố định'
+      toast.error(message)
     } finally {
       setLoading(false)
     }
@@ -321,7 +323,7 @@ export function RoomFixturesSection({ roomId, fixtures }: RoomFixturesSectionPro
           <DialogHeader>
             <DialogTitle className="text-lg font-bold text-gray-800">Xác Nhận Xóa Đồ Cố Định</DialogTitle>
             <DialogDescription className="text-gray-500 mt-2">
-              Bạn có chắc chắn muốn xóa đồ cố định <strong className="text-gray-700">"{selectedFixture?.name}"</strong> khỏi phòng này? Hành động này không thể hoàn tác.
+              Bạn có chắc chắn muốn xóa đồ cố định <strong className="text-gray-700">&quot;{selectedFixture?.name}&quot;</strong> khỏi phòng này? Hành động này không thể hoàn tác.
             </DialogDescription>
           </DialogHeader>
           <DialogFooter className="pt-4 gap-2">
