@@ -57,6 +57,7 @@ export function EditTenantDialog({ tenant, rooms }: { tenant: Tenant; rooms: Roo
     depositAmount: tenant.depositAmount?.toString() || '0',
     moveInDate: tenant.rawMoveInDate ? tenant.rawMoveInDate.split('T')[0] : '',
     moveOutDate: tenant.rawMoveOutDate ? tenant.rawMoveOutDate.split('T')[0] : '',
+    deactivateAccount: false,
   })
 
   // Hiển thị phòng hiện tại + các phòng trống khả dụng để đổi phòng
@@ -82,6 +83,7 @@ export function EditTenantDialog({ tenant, rooms }: { tenant: Tenant; rooms: Roo
         depositAmount: parseInt(formData.depositAmount, 10) || 0,
         moveInDate: formData.moveInDate,
         moveOutDate: formData.moveOutDate || undefined,
+        deactivateAccount: formData.deactivateAccount,
       })
 
       toast.success('Đã cập nhật thông tin khách thuê thành công!')
@@ -246,6 +248,19 @@ export function EditTenantDialog({ tenant, rooms }: { tenant: Tenant; rooms: Roo
                 className="border-gray-200 focus:border-teal-500 focus:ring-teal-500 rounded-xl"
               />
             </div>
+          </div>
+
+          <div className="flex items-center space-x-2 pt-2">
+            <input
+              type="checkbox"
+              id="deactivateAccount"
+              checked={formData.deactivateAccount}
+              onChange={(e) => setFormData({ ...formData, deactivateAccount: e.target.checked })}
+              className="h-4 w-4 rounded border-gray-300 text-teal-600 focus:ring-teal-500 cursor-pointer"
+            />
+            <Label htmlFor="deactivateAccount" className="text-sm font-medium text-rose-600 cursor-pointer">
+              Vô hiệu hoá tài khoản đăng nhập (Xoá quyền truy cập)
+            </Label>
           </div>
 
           <DialogFooter className="pt-4 gap-2">
