@@ -148,6 +148,21 @@ export async function changeTenantRoom(
     return { error: 'Không thể cập nhật phòng cho cư dân', status: 400 }
   }
 
+  // 1. Cập nhật branch_id của người dùng sang chi nhánh mới
+  if (tenant.user_id) {
+    await supabase
+      .from('users')
+      .update({ branch_id: newRoom.branch_id })
+      .eq('id', tenant.user_id)
+  }
+
+  // 2. Chuyển các hóa đơn còn nợ (chưa thanh toán hoặc thanh toán một phần) sang phòng mới
+  await supabase
+    .from('invoices')
+    .update({ room_id: newRoomId })
+    .eq('tenant_id', tenantId)
+    .in('payment_status', ['unpaid', 'partial'])
+
   const { data: activeContract } = await supabase
     .from('contracts')
     .select('id')

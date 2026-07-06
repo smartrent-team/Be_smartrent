@@ -44,7 +44,7 @@ export default async function TenantsPage({ searchParams }: { searchParams: Prom
       .range(from, to),
     adminSupabase
       .from('rooms')
-      .select('id, room_code, base_price, status')
+      .select('id, room_code, base_price, status, branch_id, branch:branches(name)')
       .order('room_code')
   ])
 
