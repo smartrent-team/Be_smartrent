@@ -4,8 +4,22 @@ import { verifySuperAdmin } from '@/lib/rbac'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { revalidatePath } from 'next/cache'
 
+export async function checkTenantPhoneAction(phone: string) {
+  await verifySuperAdmin()
+  const adminSupabase = createAdminClient()
+  const cleanPhone = phone.replace(/\s+/g, '')
+  const formattedPhone = cleanPhone.startsWith('0') ? `+84${cleanPhone.slice(1)}` : cleanPhone
 
+  const { data } = await adminSupabase
+    .from('users')
+    .select('full_name, email, status')
+    .or(`phone.eq.${formattedPhone},phone.like.${formattedPhone}_del_%`)
+    .order('updated_at', { ascending: false })
+    .limit(1)
+    .maybeSingle()
 
+  return data
+}
 
 export async function createTenantAction(data: {
   fullName: string
@@ -15,6 +29,7 @@ export async function createTenantAction(data: {
   roomId: string
   depositAmount: number
   moveInDate: string
+  updateProfile?: boolean
 }) {
   await verifySuperAdmin()
 
@@ -28,85 +43,96 @@ export async function createTenantAction(data: {
   // Lấy chi nhánh của phòng để gán cho User (dùng admin để bypass RLS)
   const { data: room, error: roomError } = await adminSupabase
     .from('rooms')
-    .select('branch_id')
+    .select('branch_id, status, base_price')
     .eq('id', newRoomId)
     .single()
 
   if (roomError || !room) throw new Error('Không tìm thấy phòng được chọn')
+  if (room.status !== 'available') throw new Error('Phòng này hiện đã có người ở hoặc không khả dụng')
+  
   const branchId = room.branch_id
+  const cleanPhone = data.phone.replace(/\s+/g, '')
+  const formattedPhone = cleanPhone.startsWith('0') ? `+84${cleanPhone.slice(1)}` : cleanPhone
 
-  const formattedPhone = data.phone.startsWith('0') ? `+84${data.phone.slice(1)}` : data.phone
+  // 1. Kiểm tra xem có profile cũ nào bị vô hiệu hóa (xóa mềm) trùng SĐT không
+  const { data: existingProfile } = await adminSupabase
+    .from('users')
+    .select('id, status, phone, email')
+    .or(`phone.eq.${formattedPhone},phone.like.${formattedPhone}_del_%`)
+    .order('updated_at', { ascending: false })
+    .limit(1)
+    .maybeSingle()
 
-  // 1. Tạo tài khoản trong Supabase Auth với cả Email và SĐT
-  const { data: authData, error: authError } = await adminSupabase.auth.admin.createUser({
-    email: data.email.trim(),
-    email_confirm: true,
-    phone: formattedPhone,
-    password: data.password || '123456',
-    phone_confirm: true,
-    user_metadata: {
-      full_name: data.fullName
-    }
-  })
-
-  if (authError || !authData.user) {
-    console.error('Lỗi khi tạo Auth User cho Khách thuê:', authError)
-    throw new Error('Lỗi khởi tạo tài khoản Auth: ' + (authError?.message || 'Không xác định được lỗi Auth'))
-  }
-
-  const authUserId = authData.user.id
+  let authUserId: string | null = null
   let newUserProfile: { id: number } | null = null
   let newTenant: { id: number } | null = null
 
   try {
-    // 2. Kiểm tra xem có profile cũ nào bị vô hiệu hóa (xóa mềm) trùng SĐT không
-    const { data: deletedProfile } = await adminSupabase
-      .from('users')
-      .select('id')
-      .like('phone', `${formattedPhone}_del_%`)
-      .eq('status', 'deleted')
-      .order('updated_at', { ascending: false })
-      .limit(1)
-      .maybeSingle()
+    let profileData: any = null
 
-    let profileData
-    let profileError
-
-    if (deletedProfile) {
-      // Phục hồi profile cũ
-      const res = await adminSupabase
-        .from('users')
-        .update({
+    if (existingProfile && existingProfile.status === 'active') {
+      profileData = existingProfile
+      if (data.updateProfile !== false) {
+        const res = await adminSupabase.from('users').update({
           full_name: data.fullName.trim(),
-          phone: formattedPhone,
           email: data.email.trim(),
-          status: 'active',
-          branch_id: branchId,
           updated_at: new Date().toISOString()
-        })
-        .eq('id', deletedProfile.id)
-        .select()
-        .single()
-      profileData = res.data
-      profileError = res.error
+        }).eq('id', existingProfile.id).select().single()
+        profileData = res.data || profileData
+      }
     } else {
-      // Tạo profile mới
-      const res = await adminSupabase
-        .from('users')
-        .insert({
-          full_name: data.fullName.trim(),
-          phone: formattedPhone,
-          role: 'tenant',
-          branch_id: branchId,
-          email: data.email.trim()
-        })
-        .select()
-        .single()
-      profileData = res.data
-      profileError = res.error
+      // 1. Tạo tài khoản trong Supabase Auth với cả Email và SĐT
+      const { data: authData, error: authError } = await adminSupabase.auth.admin.createUser({
+        email: data.email.trim(),
+        email_confirm: true,
+        phone: formattedPhone,
+        password: data.password || '123456',
+        phone_confirm: true,
+        user_metadata: {
+          full_name: data.fullName
+        }
+      })
+
+      if (authError || !authData.user) {
+        console.error('Lỗi khi tạo Auth User cho Khách thuê:', authError)
+        throw new Error('Lỗi khởi tạo tài khoản Auth: ' + (authError?.message || 'Không xác định được lỗi Auth'))
+      }
+      authUserId = authData.user.id
+
+      if (existingProfile && existingProfile.status === 'deleted') {
+        // Phục hồi profile cũ
+        const res = await adminSupabase
+          .from('users')
+          .update({
+            full_name: data.updateProfile !== false ? data.fullName.trim() : undefined,
+            phone: formattedPhone,
+            email: data.updateProfile !== false ? data.email.trim() : undefined,
+            status: 'active',
+            branch_id: branchId,
+            updated_at: new Date().toISOString()
+          })
+          .eq('id', existingProfile.id)
+          .select()
+          .single()
+        profileData = res.data
+      } else {
+        // Tạo profile mới
+        const res = await adminSupabase
+          .from('users')
+          .insert({
+            full_name: data.fullName.trim(),
+            phone: formattedPhone,
+            role: 'tenant',
+            branch_id: branchId,
+            email: data.email.trim()
+          })
+          .select()
+          .single()
+        profileData = res.data
+      }
     }
 
-    if (profileError || !profileData) throw profileError || new Error('Không thể tạo hoặc phục hồi thông tin người dùng')
+    if (!profileData) throw new Error('Không thể tạo hoặc phục hồi thông tin người dùng')
     newUserProfile = profileData
 
     // 3. Tạo hồ sơ khách thuê trong public.tenants
@@ -127,20 +153,13 @@ export async function createTenantAction(data: {
     // 4. Tạo hợp đồng trong public.contracts
     const contractCode = `HD-${newRoomId}-${tenantData.id}-${Date.now().toString().slice(-4)}`
     
-    // Lấy giá phòng
-    const { data: roomData } = await adminSupabase
-      .from('rooms')
-      .select('base_price')
-      .eq('id', newRoomId)
-      .single()
-
     const { error: contractError } = await adminSupabase.from('contracts').insert({
       contract_code: contractCode,
       tenant_id: tenantData.id,
       room_id: newRoomId,
       start_date: new Date(data.moveInDate).toISOString(),
       deposit_amount: data.depositAmount,
-      monthly_price: roomData?.base_price || 0,
+      monthly_price: room.base_price || 0,
       status: 'active'
     })
 
@@ -163,9 +182,12 @@ export async function createTenantAction(data: {
     if (newTenant?.id) {
       await adminSupabase.from('contracts').delete().eq('tenant_id', newTenant.id)
     }
-    if (newUserProfile?.id) {
+    if (newUserProfile?.id && authUserId) {
+      // Chỉ rollback users table nếu ta vừa tạo auth user mới
       await adminSupabase.from('tenants').delete().eq('user_id', newUserProfile.id)
-      await adminSupabase.from('users').delete().eq('id', newUserProfile.id)
+      if (!existingProfile) {
+        await adminSupabase.from('users').delete().eq('id', newUserProfile.id)
+      }
     }
     if (authUserId) {
       await adminSupabase.auth.admin.deleteUser(authUserId)
@@ -199,7 +221,8 @@ export async function editTenantAction(
   }
 
   const newRoomId = parseInt(data.roomId, 10)
-  const formattedPhone = data.phone.startsWith('0') ? `+84${data.phone.slice(1)}` : data.phone
+  const cleanPhone = data.phone.replace(/\s+/g, '')
+  const formattedPhone = cleanPhone.startsWith('0') ? `+84${cleanPhone.slice(1)}` : cleanPhone
   const adminSupabase = createAdminClient()
 
   // 1. Lấy profile hiện tại để tìm phone và cập nhật Auth (nếu cần)
@@ -208,6 +231,23 @@ export async function editTenantAction(
     .select('phone, email')
     .eq('id', userIntId)
     .single()
+
+  // Lấy phòng cũ để cập nhật trạng thái nếu đổi phòng
+  const { data: oldTenant } = await adminSupabase.from('tenants').select('room_id').eq('id', id).single()
+  const oldRoomId = oldTenant?.room_id
+
+  // Kiểm tra phòng mới nếu đổi phòng
+  const { data: room, error: roomError } = await adminSupabase
+    .from('rooms')
+    .select('branch_id, status, base_price')
+    .eq('id', newRoomId)
+    .single()
+
+  if (roomError || !room) throw new Error('Không tìm thấy phòng được chọn')
+  if (oldRoomId !== newRoomId && room.status !== 'available') {
+    throw new Error('Phòng mới được chọn không khả dụng hoặc đã có người ở')
+  }
+  const newBranchId = room.branch_id
 
   // Cập nhật Auth User (tìm theo phone cũ)
   if (currentProfile?.phone) {
@@ -223,37 +263,46 @@ export async function editTenantAction(
     if (data.password && data.password.trim() !== '') {
       updateAuthData.password = data.password
     }
+    
     if (Object.keys(updateAuthData).length > 0 || data.deactivateAccount) {
-      // Tìm auth user bằng phone để lấy UUID
-      const { data: authUsers } = await adminSupabase.auth.admin.listUsers()
-      const authUser = authUsers?.users?.find(u => u.phone === currentProfile.phone || u.email === currentProfile.email)
-      if (authUser) {
+      let page = 1;
+      let foundAuthUser = null;
+      while (true) {
+        const { data: authUsers } = await adminSupabase.auth.admin.listUsers({ page, perPage: 1000 })
+        if (!authUsers || !authUsers.users || authUsers.users.length === 0) break;
+        const u = authUsers.users.find(x => x.phone === currentProfile.phone || x.email === currentProfile.email)
+        if (u) {
+          foundAuthUser = u;
+          break;
+        }
+        if (authUsers.users.length < 1000) break;
+        page++;
+      }
+
+      if (foundAuthUser) {
         if (data.deactivateAccount) {
-          const { error: authError } = await adminSupabase.auth.admin.deleteUser(authUser.id)
+          const { error: authError } = await adminSupabase.auth.admin.deleteUser(foundAuthUser.id)
           if (authError) console.error('Lỗi khi xóa tài khoản Auth khách thuê:', authError)
         } else if (Object.keys(updateAuthData).length > 0) {
-          const { error: authError } = await adminSupabase.auth.admin.updateUserById(authUser.id, updateAuthData)
+          const { error: authError } = await adminSupabase.auth.admin.updateUserById(foundAuthUser.id, updateAuthData)
           if (authError) {
-            console.error('Lỗi cập nhật Auth User Khách thuê:', authError)
-            // Không throw lỗi ở đây, tiếp tục cập nhật profile
+            throw new Error('Lỗi cập nhật hệ thống đăng nhập: ' + authError.message)
           }
         }
       }
     }
   }
 
-  // 2. Lấy thông tin chi nhánh của phòng mới để cập nhật cho user
-  const { data: room, error: roomError } = await adminSupabase
-    .from('rooms')
-    .select('branch_id')
-    .eq('id', newRoomId)
-    .single()
-
-  if (roomError || !room) throw new Error('Không tìm thấy phòng được chọn')
-  const newBranchId = room.branch_id
-
   // 3. Cập nhật thông tin trong bảng users
-  const updateProfileData: any = {
+  interface UpdateProfileData {
+    full_name: string;
+    branch_id: number;
+    updated_at: string;
+    status?: string;
+    phone?: string | null;
+    email?: string | null;
+  }
+  const updateProfileData: UpdateProfileData = {
     full_name: data.fullName,
     branch_id: newBranchId,
     updated_at: new Date().toISOString()
@@ -278,9 +327,7 @@ export async function editTenantAction(
       throw new Error('Email này đã được sử dụng bởi một tài khoản khác.')
     }
     throw new Error('Lỗi cập nhật Profile: ' + profileError.message)
-  } // 4. Lấy phòng cũ để cập nhật trạng thái nếu đổi phòng
-  const { data: oldTenant } = await adminSupabase.from('tenants').select('room_id').eq('id', id).single()
-  const oldRoomId = oldTenant?.room_id
+  }
 
   // 5. Cập nhật thông tin trong public.tenants
   const { error: tenantError } = await adminSupabase.from('tenants').update({
@@ -306,19 +353,13 @@ export async function editTenantAction(
         room_id: newRoomId,
         deposit_amount: data.depositAmount,
         start_date: new Date(data.moveInDate).toISOString(),
-        end_date: data.moveOutDate ? new Date(data.moveOutDate).toISOString() : null
+        end_date: data.moveOutDate ? new Date(data.moveOutDate).toISOString() : null,
+        ...(oldRoomId !== newRoomId ? { monthly_price: room.base_price || 0 } : {})
       })
       .eq('id', activeContract.id)
   } else {
     const contractCode = `HD-${newRoomId}-${id}-${Date.now().toString().slice(-4)}`
     
-    // Lấy giá phòng
-    const { data: roomData } = await adminSupabase
-      .from('rooms')
-      .select('base_price')
-      .eq('id', newRoomId)
-      .single()
-
     await adminSupabase.from('contracts').insert({
       contract_code: contractCode,
       tenant_id: id,
@@ -326,7 +367,7 @@ export async function editTenantAction(
       start_date: new Date(data.moveInDate).toISOString(),
       end_date: data.moveOutDate ? new Date(data.moveOutDate).toISOString() : null,
       deposit_amount: data.depositAmount,
-      monthly_price: roomData?.base_price || 0,
+      monthly_price: room.base_price || 0,
       status: 'active'
     })
   }
@@ -358,8 +399,6 @@ export async function deleteTenantAction(id: number, userIntId: number) {
   if (tenant?.room_id) {
     await adminSupabase.from('rooms').update({ status: 'available' }).eq('id', tenant.room_id)
   }
-
-  // Không xóa maintenance_tickets, invoices, contracts để giữ lịch sử
 
   // 2. Cập nhật ngày chuyển đi (move_out_date) cho hồ sơ thuê
   const { error: tenantError } = await adminSupabase

@@ -14,9 +14,9 @@ import {
 } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { UserPlus, Loader2, FileSearch, CheckCircle2, AlertCircle, Upload, X } from 'lucide-react'
+import { UserPlus, Loader2, FileSearch, CheckCircle2, AlertCircle, Upload, X, Info } from 'lucide-react'
 import { toast } from 'sonner'
-import { createTenantAction } from '../actions'
+import { createTenantAction, checkTenantPhoneAction } from '../actions'
 import Image from 'next/image'
 
 interface Room {
@@ -43,6 +43,9 @@ export function CreateTenantDialog({ rooms }: { rooms: Room[] }) {
     depositAmount: '',
     moveInDate: new Date().toISOString().split('T')[0],
   })
+
+  const [showConfirm, setShowConfirm] = useState(false)
+  const [existingUser, setExistingUser] = useState<{ full_name: string; email: string; status: string } | null>(null)
 
   const handleContractUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
@@ -106,6 +109,29 @@ export function CreateTenantDialog({ rooms }: { rooms: Room[] }) {
 
     setLoading(true)
     try {
+      // 1. Kiểm tra SĐT có tồn tại không (nếu chưa hiển thị confirm)
+      if (!showConfirm) {
+        const existing = await checkTenantPhoneAction(formData.phone)
+        if (existing) {
+          setExistingUser(existing)
+          setShowConfirm(true)
+          setLoading(false)
+          return
+        }
+      }
+
+      // 2. Nếu SĐT mới hoàn toàn, chạy tạo khách bình thường
+      await executeCreateTenant(true)
+    } catch (error: unknown) {
+      const errMsg = error instanceof Error ? error.message : 'Không thể kết nối đến máy chủ'
+      toast.error(errMsg)
+      setLoading(false)
+    }
+  }
+
+  const executeCreateTenant = async (updateProfile: boolean) => {
+    setLoading(true)
+    try {
       await createTenantAction({
         fullName: formData.fullName,
         phone: formData.phone,
@@ -114,6 +140,7 @@ export function CreateTenantDialog({ rooms }: { rooms: Room[] }) {
         roomId: formData.roomId,
         depositAmount: formData.depositAmount ? parseInt(formData.depositAmount, 10) : 0,
         moveInDate: formData.moveInDate,
+        updateProfile,
       })
 
       toast.success('Đã thêm khách thuê mới thành công!')
@@ -128,6 +155,8 @@ export function CreateTenantDialog({ rooms }: { rooms: Room[] }) {
       })
       clearContractPreview()
       setOpen(false)
+      setShowConfirm(false)
+      setExistingUser(null)
       router.refresh()
     } catch (error: unknown) {
       const errMsg = error instanceof Error ? error.message : 'Không thể kết nối đến máy chủ'
@@ -142,6 +171,8 @@ export function CreateTenantDialog({ rooms }: { rooms: Room[] }) {
       setOpen(isOpen)
       if (!isOpen) {
         clearContractPreview()
+        setShowConfirm(false)
+        setExistingUser(null)
       }
     }}>
       <DialogTrigger
@@ -155,237 +186,276 @@ export function CreateTenantDialog({ rooms }: { rooms: Room[] }) {
       <DialogContent className="sm:max-w-[520px] border border-gray-100/50 backdrop-blur-md bg-white/95 shadow-2xl rounded-2xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle className="text-xl font-bold bg-gradient-to-r from-teal-600 to-emerald-600 bg-clip-text text-transparent flex items-center gap-2">
-            Thêm Khách Thuê Mới
+            {showConfirm ? 'Xác nhận thông tin Khách cũ' : 'Thêm Khách Thuê Mới'}
           </DialogTitle>
           <DialogDescription className="text-gray-500 mt-1">
-            Tạo tài khoản và gán phòng thuê mới cho khách hàng.
+            {showConfirm 
+              ? 'Số điện thoại này đã từng có trong hệ thống.' 
+              : 'Tạo tài khoản và gán phòng thuê mới cho khách hàng.'}
           </DialogDescription>
         </DialogHeader>
 
-        <form onSubmit={handleSubmit} className="space-y-4 py-4">
-          <div className="space-y-2">
-            <Label htmlFor="tenant-fullName" className="text-sm font-medium text-gray-700">
-              Họ và tên khách thuê <span className="text-rose-500">*</span>
-            </Label>
-            <Input
-              id="tenant-fullName"
-              placeholder="VD: Nguyễn Văn A"
-              value={formData.fullName}
-              onChange={(e) => setFormData({ ...formData, fullName: e.target.value })}
-              className="border-gray-200 focus:border-teal-500 focus:ring-teal-500 rounded-xl"
-              required
-            />
-          </div>
-
-          <div className="space-y-2">
-            <Label htmlFor="tenant-email" className="text-sm font-medium text-gray-700">
-              Email <span className="text-rose-500">*</span>
-            </Label>
-            <Input
-              id="tenant-email"
-              type="email"
-              placeholder="VD: nguyenvana@gmail.com"
-              value={formData.email}
-              onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-              className="border-gray-200 focus:border-teal-500 focus:ring-teal-500 rounded-xl"
-              required
-            />
-            <p className="text-xs text-amber-600">
-              ⚠️ Bắt buộc nhập email thật để khách thuê có thể lấy lại mật khẩu.
+        {showConfirm && existingUser ? (
+          <div className="py-4 space-y-4">
+            <div className="bg-teal-50 border border-teal-100 p-4 rounded-xl space-y-2">
+              <div className="flex items-center gap-2 text-teal-800 font-medium mb-1">
+                <Info className="w-5 h-5" />
+                Hệ thống tìm thấy dữ liệu cũ
+              </div>
+              <p className="text-sm text-teal-700">Khách hàng: <strong>{existingUser.full_name}</strong></p>
+              <p className="text-sm text-teal-700">Email: <strong>{existingUser.email}</strong></p>
+            </div>
+            <p className="text-sm text-gray-600 leading-relaxed">
+              Bạn có muốn sử dụng thông tin mới vừa nhập <strong>({formData.fullName} - {formData.email})</strong> 
+              để cập nhật lại hồ sơ cư dân này, hay tiếp tục sử dụng thông tin cũ?
             </p>
-          </div>
-
-          <div className="grid grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <Label htmlFor="tenant-phone" className="text-sm font-medium text-gray-700">
-                Số điện thoại <span className="text-rose-500">*</span>
-              </Label>
-              <Input
-                id="tenant-phone"
-                type="tel"
-                placeholder="VD: 0912345678"
-                value={formData.phone}
-                onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
-                className="border-gray-200 focus:border-teal-500 focus:ring-teal-500 rounded-xl"
-                required
-              />
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="tenant-password" className="text-sm font-medium text-gray-700 flex flex-col gap-0.5">
-                <span>Mật khẩu</span>
-              </Label>
-              <Input
-                id="tenant-password"
-                type="password"
-                placeholder="Mặc định: 123456"
-                value={formData.password}
-                onChange={(e) => setFormData({ ...formData, password: e.target.value })}
-                className="border-gray-200 focus:border-teal-500 focus:ring-teal-500 rounded-xl"
-                minLength={6}
-              />
-            </div>
-          </div>
-
-          <div className="space-y-2">
-            <Label htmlFor="tenant-room" className="text-sm font-medium text-gray-700">
-              Chọn phòng thuê <span className="text-rose-500">*</span>
-            </Label>
-            <select
-              id="tenant-room"
-              value={formData.roomId}
-              onChange={(e) => setFormData({ ...formData, roomId: e.target.value })}
-              className="flex h-10 w-full items-center justify-between rounded-md border border-gray-200 focus:border-teal-500 focus:ring-teal-500 bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
-              required
-            >
-              <option value="">-- Chọn phòng trống --</option>
-              {rooms.map((r) => (
-                <option key={r.id} value={r.id.toString()}>
-                  Phòng {r.room_code} ({r.base_price.toLocaleString('vi-VN')} đ/tháng)
-                </option>
-              ))}
-            </select>
-          </div>
-
-          {/* Upload ảnh hợp đồng + Quét tiền cọc */}
-          <div className="space-y-3 rounded-xl border border-dashed border-teal-300 bg-teal-50/30 p-3">
-            <div className="flex items-center justify-between">
-              <Label className="text-sm font-medium text-gray-700 flex items-center gap-1.5">
-                <FileSearch className="h-4 w-4 text-teal-600" />
-                Quét hợp đồng lấy tiền cọc
-              </Label>
-              <input
-                ref={fileInputRef}
-                type="file"
-                accept="image/*"
-                className="hidden"
-                onChange={handleContractUpload}
-                disabled={scanning}
-              />
+            <DialogFooter className="pt-4 gap-2 flex-col sm:flex-row">
               <Button
                 type="button"
                 variant="outline"
-                size="sm"
-                disabled={scanning}
-                onClick={() => fileInputRef.current?.click()}
-                className="text-xs gap-1.5 border-teal-300 text-teal-700 hover:bg-teal-100 hover:text-teal-800 rounded-lg"
+                disabled={loading}
+                onClick={() => executeCreateTenant(false)}
+                className="rounded-xl w-full sm:w-auto"
               >
-                {scanning ? (
-                  <>
-                    <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                    Đang quét...
-                  </>
-                ) : (
-                  <>
-                    <Upload className="h-3.5 w-3.5" />
-                    Tải ảnh hợp đồng
-                  </>
-                )}
+                Giữ thông tin cũ
               </Button>
-            </div>
-
-            {/* Preview ảnh hợp đồng */}
-            {contractPreview && (
-              <div className="relative rounded-lg overflow-hidden border border-gray-200 bg-white">
-                <div className="relative aspect-[4/3] w-full max-h-[160px]">
-                  <Image
-                    src={contractPreview}
-                    alt="Ảnh hợp đồng"
-                    fill
-                    className="object-contain"
-                    unoptimized
-                  />
-                </div>
-                <button
-                  type="button"
-                  onClick={clearContractPreview}
-                  className="absolute top-1.5 right-1.5 rounded-full bg-black/50 hover:bg-black/70 text-white p-1 transition-colors"
-                >
-                  <X className="h-3.5 w-3.5" />
-                </button>
-              </div>
-            )}
-
-            {/* Kết quả quét */}
-            {scanResult && (
-              <div
-                className={`flex items-start gap-2 text-xs p-2 rounded-lg ${
-                  scanResult.success
-                    ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
-                    : 'bg-amber-50 text-amber-700 border border-amber-200'
-                }`}
+              <Button
+                type="button"
+                disabled={loading}
+                onClick={() => executeCreateTenant(true)}
+                className="bg-gradient-to-r from-teal-600 to-emerald-600 hover:from-teal-700 hover:to-emerald-700 text-white rounded-xl shadow-md font-medium w-full sm:w-auto"
               >
-                {scanResult.success ? (
-                  <CheckCircle2 className="h-4 w-4 mt-0.5 shrink-0" />
-                ) : (
-                  <AlertCircle className="h-4 w-4 mt-0.5 shrink-0" />
-                )}
-                <span>{scanResult.message}</span>
-              </div>
-            )}
-
-            {!contractPreview && !scanResult && (
-              <p className="text-xs text-gray-400 text-center">
-                Tải ảnh hợp đồng lên để AI tự động nhận diện tiền cọc
-              </p>
-            )}
+                {loading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+                Cập nhật thông tin mới
+              </Button>
+            </DialogFooter>
           </div>
-
-          <div className="grid grid-cols-2 gap-4">
+        ) : (
+          <form onSubmit={handleSubmit} className="space-y-4 py-4">
             <div className="space-y-2">
-              <Label htmlFor="tenant-deposit" className="text-sm font-medium text-gray-700">
-                Tiền đặt cọc (VND)
+              <Label htmlFor="tenant-fullName" className="text-sm font-medium text-gray-700">
+                Họ và tên khách thuê <span className="text-rose-500">*</span>
               </Label>
               <Input
-                id="tenant-deposit"
-                type="number"
-                placeholder="VD: 3000000"
-                value={formData.depositAmount}
-                onChange={(e) => setFormData({ ...formData, depositAmount: e.target.value })}
-                className="border-gray-200 focus:border-teal-500 focus:ring-teal-500 rounded-xl"
-              />
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="tenant-moveIn" className="text-sm font-medium text-gray-700">
-                Ngày dời vào <span className="text-rose-500">*</span>
-              </Label>
-              <Input
-                id="tenant-moveIn"
-                type="date"
-                value={formData.moveInDate}
-                onChange={(e) => setFormData({ ...formData, moveInDate: e.target.value })}
+                id="tenant-fullName"
+                placeholder="VD: Nguyễn Văn A"
+                value={formData.fullName}
+                onChange={(e) => setFormData({ ...formData, fullName: e.target.value })}
                 className="border-gray-200 focus:border-teal-500 focus:ring-teal-500 rounded-xl"
                 required
               />
             </div>
-          </div>
 
-          <DialogFooter className="pt-4 gap-2">
-            <Button
-              type="button"
-              variant="ghost"
-              onClick={() => setOpen(false)}
-              className="rounded-xl hover:bg-gray-100 text-gray-500"
-            >
-              Hủy
-            </Button>
-            <Button
-              type="submit"
-              disabled={loading}
-              className="bg-gradient-to-r from-teal-600 to-emerald-600 hover:from-teal-700 hover:to-emerald-700 text-white rounded-xl shadow-md font-medium"
-            >
-              {loading ? (
-                <>
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  Đang thêm...
-                </>
-              ) : (
-                'Thêm khách mới'
+            <div className="space-y-2">
+              <Label htmlFor="tenant-email" className="text-sm font-medium text-gray-700">
+                Email <span className="text-rose-500">*</span>
+              </Label>
+              <Input
+                id="tenant-email"
+                type="email"
+                placeholder="VD: nguyenvana@gmail.com"
+                value={formData.email}
+                onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                className="border-gray-200 focus:border-teal-500 focus:ring-teal-500 rounded-xl"
+                required
+              />
+              <p className="text-xs text-amber-600">
+                ⚠️ Bắt buộc nhập email thật để khách thuê có thể lấy lại mật khẩu.
+              </p>
+            </div>
+
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="tenant-phone" className="text-sm font-medium text-gray-700">
+                  Số điện thoại <span className="text-rose-500">*</span>
+                </Label>
+                <Input
+                  id="tenant-phone"
+                  type="tel"
+                  placeholder="VD: 0912345678"
+                  value={formData.phone}
+                  onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
+                  className="border-gray-200 focus:border-teal-500 focus:ring-teal-500 rounded-xl"
+                  required
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="tenant-password" className="text-sm font-medium text-gray-700 flex flex-col gap-0.5">
+                  <span>Mật khẩu</span>
+                </Label>
+                <Input
+                  id="tenant-password"
+                  type="password"
+                  placeholder="Mặc định: 123456"
+                  value={formData.password}
+                  onChange={(e) => setFormData({ ...formData, password: e.target.value })}
+                  className="border-gray-200 focus:border-teal-500 focus:ring-teal-500 rounded-xl"
+                  minLength={6}
+                />
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="tenant-room" className="text-sm font-medium text-gray-700">
+                Chọn phòng thuê <span className="text-rose-500">*</span>
+              </Label>
+              <select
+                id="tenant-room"
+                value={formData.roomId}
+                onChange={(e) => setFormData({ ...formData, roomId: e.target.value })}
+                className="flex h-10 w-full items-center justify-between rounded-md border border-gray-200 focus:border-teal-500 focus:ring-teal-500 bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+                required
+              >
+                <option value="">-- Chọn phòng trống --</option>
+                {rooms.map((r) => (
+                  <option key={r.id} value={r.id.toString()}>
+                    Phòng {r.room_code} ({r.base_price.toLocaleString('vi-VN')} đ/tháng)
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            {/* Upload ảnh hợp đồng + Quét tiền cọc */}
+            <div className="space-y-3 rounded-xl border border-dashed border-teal-300 bg-teal-50/30 p-3">
+              <div className="flex items-center justify-between">
+                <Label className="text-sm font-medium text-gray-700 flex items-center gap-1.5">
+                  <FileSearch className="h-4 w-4 text-teal-600" />
+                  Quét hợp đồng lấy tiền cọc
+                </Label>
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept="image/*"
+                  className="hidden"
+                  onChange={handleContractUpload}
+                  disabled={scanning}
+                />
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  disabled={scanning}
+                  onClick={() => fileInputRef.current?.click()}
+                  className="text-xs gap-1.5 border-teal-300 text-teal-700 hover:bg-teal-100 hover:text-teal-800 rounded-lg"
+                >
+                  {scanning ? (
+                    <>
+                      <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                      Đang quét...
+                    </>
+                  ) : (
+                    <>
+                      <Upload className="h-3.5 w-3.5" />
+                      Tải ảnh hợp đồng
+                    </>
+                  )}
+                </Button>
+              </div>
+
+              {/* Preview ảnh hợp đồng */}
+              {contractPreview && (
+                <div className="relative rounded-lg overflow-hidden border border-gray-200 bg-white">
+                  <div className="relative aspect-[4/3] w-full max-h-[160px]">
+                    <Image
+                      src={contractPreview}
+                      alt="Ảnh hợp đồng"
+                      fill
+                      className="object-contain"
+                      unoptimized
+                    />
+                  </div>
+                  <button
+                    type="button"
+                    onClick={clearContractPreview}
+                    className="absolute top-1.5 right-1.5 rounded-full bg-black/50 hover:bg-black/70 text-white p-1 transition-colors"
+                  >
+                    <X className="h-3.5 w-3.5" />
+                  </button>
+                </div>
               )}
-            </Button>
-          </DialogFooter>
-        </form>
+
+              {/* Kết quả quét */}
+              {scanResult && (
+                <div
+                  className={`flex items-start gap-2 text-xs p-2 rounded-lg ${
+                    scanResult.success
+                      ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
+                      : 'bg-amber-50 text-amber-700 border border-amber-200'
+                  }`}
+                >
+                  {scanResult.success ? (
+                    <CheckCircle2 className="h-4 w-4 mt-0.5 shrink-0" />
+                  ) : (
+                    <AlertCircle className="h-4 w-4 mt-0.5 shrink-0" />
+                  )}
+                  <span>{scanResult.message}</span>
+                </div>
+              )}
+
+              {!contractPreview && !scanResult && (
+                <p className="text-xs text-gray-400 text-center">
+                  Tải ảnh hợp đồng lên để AI tự động nhận diện tiền cọc
+                </p>
+              )}
+            </div>
+
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="tenant-deposit" className="text-sm font-medium text-gray-700">
+                  Tiền đặt cọc (VND)
+                </Label>
+                <Input
+                  id="tenant-deposit"
+                  type="number"
+                  placeholder="VD: 3000000"
+                  value={formData.depositAmount}
+                  onChange={(e) => setFormData({ ...formData, depositAmount: e.target.value })}
+                  className="border-gray-200 focus:border-teal-500 focus:ring-teal-500 rounded-xl"
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="tenant-moveIn" className="text-sm font-medium text-gray-700">
+                  Ngày dời vào <span className="text-rose-500">*</span>
+                </Label>
+                <Input
+                  id="tenant-moveIn"
+                  type="date"
+                  value={formData.moveInDate}
+                  onChange={(e) => setFormData({ ...formData, moveInDate: e.target.value })}
+                  className="border-gray-200 focus:border-teal-500 focus:ring-teal-500 rounded-xl"
+                  required
+                />
+              </div>
+            </div>
+
+            <DialogFooter className="pt-4 gap-2">
+              <Button
+                type="button"
+                variant="ghost"
+                onClick={() => setOpen(false)}
+                className="rounded-xl hover:bg-gray-100 text-gray-500"
+              >
+                Hủy
+              </Button>
+              <Button
+                type="submit"
+                disabled={loading}
+                className="bg-gradient-to-r from-teal-600 to-emerald-600 hover:from-teal-700 hover:to-emerald-700 text-white rounded-xl shadow-md font-medium"
+              >
+                {loading ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    Đang thêm...
+                  </>
+                ) : (
+                  'Thêm khách mới'
+                )}
+              </Button>
+            </DialogFooter>
+          </form>
+        )}
       </DialogContent>
     </Dialog>
   )

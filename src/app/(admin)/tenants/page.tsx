@@ -40,6 +40,7 @@ export default async function TenantsPage({ searchParams }: { searchParams: Prom
       .from('tenants')
       .select('id, move_in_date, move_out_date, room_id, user_id, room:rooms(room_code, branch:branches(name)), user:users!inner(full_name, email, phone), contracts(deposit_amount, status)', { count: 'exact' })
       .eq('user.status', 'active')
+      .is('move_out_date', null)
       .order('created_at', { ascending: false })
       .range(from, to),
     adminSupabase
