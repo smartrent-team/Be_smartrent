@@ -337,13 +337,6 @@ export async function editTenantAction(
       await adminSupabase.from('rooms').update({ status: 'available' }).eq('id', oldRoomId)
     }
     await adminSupabase.from('rooms').update({ status: 'occupied' }).eq('id', newRoomId)
-
-    // Đồng bộ các hóa đơn còn nợ (chưa thanh toán hoặc thanh toán một phần) sang phòng mới
-    await adminSupabase
-      .from('invoices')
-      .update({ room_id: newRoomId })
-      .eq('tenant_id', id)
-      .in('payment_status', ['unpaid', 'partial'])
   }
 
   // 7. Nếu khách hàng trả phòng (có ngày dời ra), giải phóng phòng thành 'available'

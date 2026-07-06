@@ -23,11 +23,6 @@ interface Room {
   room_code: string
   base_price: number
   status: string
-  branch?: {
-    name: string
-  } | {
-    name: string
-  }[] | null
 }
 
 interface Tenant {
@@ -47,14 +42,6 @@ export function EditTenantDialog({ tenant, rooms }: { tenant: Tenant; rooms: Roo
   const [open, setOpen] = useState(false)
   const [loading, setLoading] = useState(false)
   const router = useRouter()
-
-  const getBranchName = (branch: any) => {
-    if (!branch) return 'Chưa phân chi nhánh'
-    if (Array.isArray(branch)) {
-      return branch[0]?.name || 'Chưa phân chi nhánh'
-    }
-    return branch.name || 'Chưa phân chi nhánh'
-  }
 
   const formatDisplayPhone = (p: string) => {
     if (p.startsWith('+84')) return '0' + p.slice(3)
@@ -214,7 +201,7 @@ export function EditTenantDialog({ tenant, rooms }: { tenant: Tenant; rooms: Roo
               <option value="">-- Chọn phòng --</option>
               {availableAndCurrentRooms.map((r) => (
                 <option key={r.id} value={r.id.toString()}>
-                  Phòng {r.room_code} - {getBranchName(r.branch)} ({r.base_price.toLocaleString('vi-VN')} đ/tháng) {r.id === tenant.roomId ? '(Hiện tại)' : ''}
+                  Phòng {r.room_code} ({r.base_price.toLocaleString('vi-VN')} đ/tháng) {r.id === tenant.roomId ? '(Hiện tại)' : ''}
                 </option>
               ))}
             </select>
