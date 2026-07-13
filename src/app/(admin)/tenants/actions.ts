@@ -15,8 +15,13 @@ export async function checkTenantPhoneAction(phone: string) {
     .select('full_name, email, status')
     .or(`phone.eq.${formattedPhone},phone.like.${formattedPhone}_del_%`)
     .order('updated_at', { ascending: false })
-    .limit(1)
     .maybeSingle()
+
+  if (data) {
+    if (data.email && data.email.includes('_del_')) {
+      data.email = data.email.split('_del_')[0]
+    }
+  }
 
   return data
 }
@@ -57,7 +62,7 @@ export async function createTenantAction(data: {
   // 1. Kiểm tra xem có profile cũ nào bị vô hiệu hóa (xóa mềm) trùng SĐT không
   const { data: existingProfile } = await adminSupabase
     .from('users')
-    .select('id, status, phone, email')
+    .select('id, status, phone, email, full_name')
     .or(`phone.eq.${formattedPhone},phone.like.${formattedPhone}_del_%`)
     .order('updated_at', { ascending: false })
     .limit(1)
@@ -81,15 +86,23 @@ export async function createTenantAction(data: {
         profileData = res.data || profileData
       }
     } else {
+      let emailToUse = data.email.trim()
+      let nameToUse = data.fullName.trim()
+      
+      if (existingProfile && existingProfile.status === 'deleted' && data.updateProfile === false) {
+        emailToUse = existingProfile.email ? existingProfile.email.split('_del_')[0] : data.email.trim()
+        nameToUse = existingProfile.full_name || data.fullName.trim()
+      }
+
       // 1. Tạo tài khoản trong Supabase Auth với cả Email và SĐT
       const { data: authData, error: authError } = await adminSupabase.auth.admin.createUser({
-        email: data.email.trim(),
+        email: emailToUse,
         email_confirm: true,
         phone: formattedPhone,
         password: data.password || '123456',
         phone_confirm: true,
         user_metadata: {
-          full_name: data.fullName
+          full_name: nameToUse
         }
       })
 
@@ -104,9 +117,9 @@ export async function createTenantAction(data: {
         const res = await adminSupabase
           .from('users')
           .update({
-            full_name: data.updateProfile !== false ? data.fullName.trim() : undefined,
+            full_name: nameToUse,
             phone: formattedPhone,
-            email: data.updateProfile !== false ? data.email.trim() : undefined,
+            email: emailToUse,
             status: 'active',
             branch_id: branchId,
             updated_at: new Date().toISOString()
