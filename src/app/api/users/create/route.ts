@@ -1,7 +1,6 @@
 import { NextResponse, type NextRequest } from 'next/server'
 import { verifyRole, canCreateUser } from '@/lib/rbac'
 import { createAdminClient } from '@/lib/supabase/admin'
-import { createContractDirectly } from '@/lib/contracts'
 
 function normalizeDateTimeValue(value: unknown): string | null {
   if (typeof value !== 'string') return null
@@ -151,23 +150,7 @@ export async function POST(request: NextRequest) {
       const contractCode = `HD-${roomIdNum}-${tenantData.id}-${Date.now().toString().slice(-4)}`
       let contractErrorMessage: string | null = null
 
-      if (contractImages.length > 0) {
-        try {
-          await createContractDirectly({
-            contractCode,
-            tenantId: tenantData.id,
-            roomId: roomIdNum,
-            startDate: new Date().toISOString(),
-            endDate: contractEndDate,
-            depositAmount: depositAmount,
-            monthlyPrice: roomData?.base_price ?? 0,
-            status: 'active',
-            contractImages,
-          })
-        } catch (error: unknown) {
-          contractErrorMessage = error instanceof Error ? error.message : String(error)
-        }
-      } else {
+      {
         const { error: contractError } = await adminSupabase.from('contracts').insert({
           contract_code: contractCode,
           tenant_id: tenantData.id,
@@ -177,6 +160,7 @@ export async function POST(request: NextRequest) {
           deposit_amount: depositAmount,
           monthly_price: roomData?.base_price ?? 0,
           status: 'active',
+          ...(contractImages.length > 0 ? { contract_images: contractImages } : {}),
         })
 
         contractErrorMessage = contractError?.message ?? null
