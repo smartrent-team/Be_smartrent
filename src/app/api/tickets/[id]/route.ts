@@ -80,7 +80,7 @@ export async function PATCH(
     
     // 2. Lấy dữ liệu từ body
     const body = await request.json()
-    const { status } = body
+    const { status, repairCost } = body
 
     if (!status || !['pending', 'in-progress', 'resolved'].includes(status)) {
       return NextResponse.json(
@@ -103,10 +103,27 @@ export async function PATCH(
       }
     }
 
+    // Prepare update parameters
+    const updateData: { status: string; repair_cost?: number | null } = { status }
+    if (repairCost !== undefined) {
+      if (repairCost === null) {
+        updateData.repair_cost = null
+      } else {
+        const parsedCost = Number(repairCost)
+        if (isNaN(parsedCost) || parsedCost < 0) {
+          return NextResponse.json(
+            { error: 'Số tiền sửa chữa không hợp lệ' }, 
+            { status: 400 }
+          )
+        }
+        updateData.repair_cost = parsedCost
+      }
+    }
+
     // 3. Cập nhật database
     const { error } = await supabase
       .from('maintenance_tickets')
-      .update({ status })
+      .update(updateData)
       .eq('id', id)
 
     if (error) {

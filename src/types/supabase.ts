@@ -156,6 +156,7 @@ export interface Database {
           description: string | null
           priority: 'low' | 'medium' | 'high'
           status: 'pending' | 'in-progress' | 'resolved'
+          repair_cost: number | null
         }
         Insert: Omit<Database['public']['Tables']['maintenance_tickets']['Row'], 'id' | 'created_at'>
         Update: Partial<Database['public']['Tables']['maintenance_tickets']['Insert']>

@@ -1,13 +1,10 @@
+require('dotenv').config();
 const { Client } = require('pg');
 const fs = require('fs');
 
 async function main() {
   const client = new Client({
-    user: 'postgres.xifjbxdrruqtoobzlfqz',
-    password: 'dinhtai@@@999',
-    host: 'aws-1-ap-northeast-1.pooler.supabase.com',
-    port: 6543,
-    database: 'postgres',
+    connectionString: process.env.DATABASE_URL,
     ssl: { rejectUnauthorized: false }
   });
 

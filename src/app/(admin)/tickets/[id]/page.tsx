@@ -82,6 +82,14 @@ export default async function TicketDetailPage({ params }: { params: Promise<{ i
                 <span className="font-semibold text-muted-foreground w-24">Ưu tiên:</span>
                 {getPriorityBadge(ticket.priority)}
               </div>
+              {ticket.repair_cost !== null && ticket.repair_cost !== undefined && (
+                <div className="flex items-center gap-2">
+                  <span className="font-semibold text-muted-foreground w-24">Chi phí:</span>
+                  <span className="font-bold text-blue-600 bg-blue-50 px-2 py-1 rounded text-sm">
+                    {Number(ticket.repair_cost).toLocaleString('vi-VN')} đ
+                  </span>
+                </div>
+              )}
               <div className="pt-4 border-t">
                 <h3 className="font-semibold mb-2">Mô tả sự cố:</h3>
                 <p className="whitespace-pre-wrap text-sm text-gray-700 bg-gray-50 p-4 rounded-md border">
