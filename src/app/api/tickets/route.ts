@@ -16,12 +16,12 @@ export async function GET(request: NextRequest) {
     const status = searchParams.get('status')
 
     const baseSelect = `
-      id, title, description, status, images, created_at, priority,
+      id, title, description, status, images, created_at, priority, repair_cost,
       rooms (id, room_code, floor),
       tenants (id, user:users(full_name, phone))
     `
     const baseSelectInner = `
-      id, title, description, status, images, created_at, priority,
+      id, title, description, status, images, created_at, priority, repair_cost,
       rooms (id, room_code, floor, branch_id),
       tenants (id, user:users(full_name, phone))
     `

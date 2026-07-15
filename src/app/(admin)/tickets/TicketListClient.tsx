@@ -12,10 +12,11 @@ import {
 } from '@/components/ui/table'
 import { Badge } from '@/components/ui/badge'
 import { Button, buttonVariants } from '@/components/ui/button'
-import { Check, Eye } from 'lucide-react'
+import { Check, Eye, DollarSign, CheckCircle2, Wrench, AlertCircle } from 'lucide-react'
 import { toast } from 'sonner'
 import { createClient } from '@/lib/supabase/client'
 import { resolveTicket } from './actions'
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 
 type Ticket = {
   id: number
@@ -25,6 +26,7 @@ type Ticket = {
   date: string
   priority: string
   status: string
+  repairCost?: number
 }
 
 export default function TicketListClient({ initialTickets }: { initialTickets: Ticket[] }) {
@@ -57,6 +59,7 @@ export default function TicketListClient({ initialTickets }: { initialTickets: T
               date: new Date(newDoc.created_at).toLocaleDateString('vi-VN'),
               priority: newDoc.priority || 'medium',
               status: newDoc.status || 'pending',
+              repairCost: newDoc.repair_cost ?? undefined,
             }
             
             setTickets((prev) => [newTicket, ...prev])
@@ -73,7 +76,7 @@ export default function TicketListClient({ initialTickets }: { initialTickets: T
             setTickets((prev) =>
               prev.map((t) =>
                 t.id === updatedDoc.id
-                  ? { ...t, status: updatedDoc.status, priority: updatedDoc.priority }
+                  ? { ...t, status: updatedDoc.status, priority: updatedDoc.priority, repairCost: updatedDoc.repair_cost ?? undefined }
                   : t
               )
             )
@@ -107,56 +110,130 @@ export default function TicketListClient({ initialTickets }: { initialTickets: T
     }
   }
 
+  const resolvedTickets = tickets.filter((t) => t.status === 'resolved')
+  const totalCost = resolvedTickets.reduce((sum, t) => sum + (t.repairCost || 0), 0)
+  const averageCost = resolvedTickets.length > 0 
+    ? Math.round(totalCost / resolvedTickets.length) 
+    : 0
+  const ticketsWithCostCount = resolvedTickets.filter((t) => (t.repairCost || 0) > 0).length
+  const pendingTicketsCount = tickets.filter((t) => t.status === 'pending').length
+  const inProgressTicketsCount = tickets.filter((t) => t.status === 'in-progress').length
+
   return (
-    <div className="rounded-md border bg-white shadow-sm">
-      <Table>
-        <TableHeader>
-          <TableRow>
-            <TableHead className="w-[100px]">Phòng</TableHead>
-            <TableHead>Vấn đề</TableHead>
-            <TableHead>Ngày báo</TableHead>
-            <TableHead>Mức độ</TableHead>
-            <TableHead>Trạng thái</TableHead>
-            <TableHead className="text-right">Thao tác</TableHead>
-          </TableRow>
-        </TableHeader>
-        <TableBody>
-          {tickets.length > 0 ? (
-            tickets.map((ticket) => (
-              <TableRow key={ticket.id}>
-                <TableCell className="font-medium">
-                  {ticket.room && ticket.room !== 'Chung' && ticket.room !== '...' ? `P.${ticket.room}` : ticket.room}
-                  {ticket.roomId && <span className="text-xs text-muted-foreground ml-2">(ID: {ticket.roomId})</span>}
-                </TableCell>
-                <TableCell className="max-w-[300px] truncate" title={ticket.title}>{ticket.title}</TableCell>
-                <TableCell>{ticket.date}</TableCell>
-                <TableCell>{getPriorityBadge(ticket.priority)}</TableCell>
-                <TableCell>{getStatusBadge(ticket.status)}</TableCell>
-                <TableCell className="text-right">
-                  <div className="flex items-center justify-end gap-2">
-                    <Link href={`/tickets/${ticket.id}`} className={buttonVariants({ variant: 'outline', size: 'sm', className: 'gap-2' })}>
-                      <Eye className="h-4 w-4" /> Xem
-                    </Link>
-                    {ticket.status !== 'resolved' && (
-                      <form action={resolveTicket.bind(null, ticket.id)}>
-                        <Button variant="secondary" size="sm" className="gap-2" type="submit">
-                          <Check className="h-4 w-4" /> Xong
-                        </Button>
-                      </form>
-                    )}
-                  </div>
+    <div className="flex flex-col gap-8">
+      <div className="rounded-md border bg-white shadow-sm">
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead className="w-[100px]">Phòng</TableHead>
+              <TableHead>Vấn đề</TableHead>
+              <TableHead>Ngày báo</TableHead>
+              <TableHead>Mức độ</TableHead>
+              <TableHead>Trạng thái</TableHead>
+              <TableHead>Chi phí sửa chữa</TableHead>
+              <TableHead className="text-right">Thao tác</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {tickets.length > 0 ? (
+              tickets.map((ticket) => (
+                <TableRow key={ticket.id}>
+                  <TableCell className="font-medium">
+                    {ticket.room && ticket.room !== 'Chung' && ticket.room !== '...' ? `P.${ticket.room}` : ticket.room}
+                    {ticket.roomId && <span className="text-xs text-muted-foreground ml-2">(ID: {ticket.roomId})</span>}
+                  </TableCell>
+                  <TableCell className="max-w-[300px] truncate" title={ticket.title}>{ticket.title}</TableCell>
+                  <TableCell>{ticket.date}</TableCell>
+                  <TableCell>{getPriorityBadge(ticket.priority)}</TableCell>
+                  <TableCell>{getStatusBadge(ticket.status)}</TableCell>
+                  <TableCell className="font-semibold text-blue-600">
+                    {ticket.repairCost !== undefined && ticket.repairCost !== null
+                      ? `${ticket.repairCost.toLocaleString('vi-VN')} đ`
+                      : '—'}
+                  </TableCell>
+                  <TableCell className="text-right">
+                    <div className="flex items-center justify-end gap-2">
+                      <Link href={`/tickets/${ticket.id}`} className={buttonVariants({ variant: 'outline', size: 'sm', className: 'gap-2' })}>
+                        <Eye className="h-4 w-4" /> Xem
+                      </Link>
+                      {ticket.status !== 'resolved' && (
+                        <form action={resolveTicket.bind(null, ticket.id)}>
+                          <Button variant="secondary" size="sm" className="gap-2" type="submit">
+                            <Check className="h-4 w-4" /> Xong
+                          </Button>
+                        </form>
+                      )}
+                    </div>
+                  </TableCell>
+                </TableRow>
+              ))
+            ) : (
+              <TableRow>
+                <TableCell colSpan={7} className="text-center h-24 text-muted-foreground">
+                  Chưa có yêu cầu sửa chữa nào.
                 </TableCell>
               </TableRow>
-            ))
-          ) : (
-            <TableRow>
-              <TableCell colSpan={6} className="text-center h-24 text-muted-foreground">
-                Chưa có yêu cầu sửa chữa nào.
-              </TableCell>
-            </TableRow>
-          )}
-        </TableBody>
-      </Table>
+            )}
+          </TableBody>
+        </Table>
+      </div>
+
+      <div className="border-t pt-6">
+        <h2 className="text-xl font-bold tracking-tight mb-4">Thống kê chi phí bảo trì</h2>
+        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+          <Card className="bg-slate-50/50 shadow-sm border border-slate-100 hover:border-blue-200 transition-all duration-200">
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium">Tổng chi phí sửa chữa</CardTitle>
+              <div className="p-2 rounded-lg bg-blue-100/80 text-blue-700">
+                <DollarSign className="h-4 w-4" />
+              </div>
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold text-blue-700">{totalCost.toLocaleString('vi-VN')} đ</div>
+              <p className="text-xs text-muted-foreground mt-1">Từ các sự cố đã hoàn tất</p>
+            </CardContent>
+          </Card>
+          
+          <Card className="bg-slate-50/50 shadow-sm border border-slate-100 hover:border-green-200 transition-all duration-200">
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium">Sự cố đã xử lý</CardTitle>
+              <div className="p-2 rounded-lg bg-green-100/80 text-green-700">
+                <CheckCircle2 className="h-4 w-4" />
+              </div>
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold text-green-700">{resolvedTickets.length} sự cố</div>
+              <p className="text-xs text-muted-foreground mt-1">Trong đó {ticketsWithCostCount} sự cố phát sinh phí</p>
+            </CardContent>
+          </Card>
+
+          <Card className="bg-slate-50/50 shadow-sm border border-slate-100 hover:border-purple-200 transition-all duration-200">
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium">Chi phí trung bình</CardTitle>
+              <div className="p-2 rounded-lg bg-purple-100/80 text-purple-700">
+                <Wrench className="h-4 w-4" />
+              </div>
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold text-purple-700">{averageCost.toLocaleString('vi-VN')} đ</div>
+              <p className="text-xs text-muted-foreground mt-1">Tỷ lệ bình quân trên mỗi sự cố</p>
+            </CardContent>
+          </Card>
+
+          <Card className="bg-slate-50/50 shadow-sm border border-slate-100 hover:border-amber-200 transition-all duration-200">
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium">Cần xử lý còn lại</CardTitle>
+              <div className="p-2 rounded-lg bg-amber-100/80 text-amber-700">
+                <AlertCircle className="h-4 w-4" />
+              </div>
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold text-amber-700">{pendingTicketsCount + inProgressTicketsCount} sự cố</div>
+              <p className="text-xs text-muted-foreground mt-1">{pendingTicketsCount} chờ xử lý, {inProgressTicketsCount} đang sửa</p>
+            </CardContent>
+          </Card>
+        </div>
+      </div>
     </div>
   )
 }
