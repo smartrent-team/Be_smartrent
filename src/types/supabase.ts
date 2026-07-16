@@ -62,7 +62,9 @@ export interface Database {
           total_amount: number
           payment_status: 'paid' | 'unpaid' | 'partial'
           issued_at: string
+          due_date: string | null
           paid_at: string | null
+          paid_method: string | null
           payment_link_id: string | null
           checkoutUrl: string | null
           qrPayload: string | null

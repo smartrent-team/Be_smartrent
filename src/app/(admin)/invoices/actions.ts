@@ -1,12 +1,14 @@
 'use server'
 
 import type { SupabaseClient } from '@supabase/supabase-js'
-import { verifySuperAdmin } from '@/lib/rbac'
+import { verifySuperAdmin, verifyRole } from '@/lib/rbac'
 import { attachVNPayToInvoice } from '@/lib/invoice-payment'
 import { revalidatePath } from 'next/cache'
 import { calculateElectricityCost, calculateWaterCost } from '@/lib/billing'
 import { dispatchNotification } from '@/lib/notification_dispatch'
 import { invoiceSchema, formatZodError } from '@/lib/validations'
+import { defaultInvoiceDueDate } from '@/lib/invoice-due-date'
+import { assertManagerCanAccessInvoice } from '@/lib/invoice-access'
 
 export async function createInvoice(
   data: {
@@ -59,6 +61,7 @@ export async function createInvoice(
     }
 
     const invoiceCode = `INV-${yearMonth}-${String(nextNumber).padStart(4, '0')}`
+    const issuedAt = new Date()
 
     const { data: invoice, error: insertError } = await supabase
       .from('invoices')
@@ -77,7 +80,8 @@ export async function createInvoice(
         water_new: data.waterNew ?? null,
         total_amount: totalAmount,
         payment_status: 'unpaid',
-        issued_at: new Date().toISOString(),
+        issued_at: issuedAt.toISOString(),
+        due_date: defaultInvoiceDueDate(issuedAt).toISOString(),
       })
       .select()
       .single()
@@ -154,23 +158,64 @@ export async function resendInvoiceNotification(
   supabaseClient?: SupabaseClient
 ) {
   try {
-    const supabase = supabaseClient || (await verifySuperAdmin())
+    let supabase = supabaseClient
+    let resolvedId: number
+
+    if (!supabase) {
+      const auth = await verifyRole()
+      if (auth.error || !auth.user || !auth.role) {
+        return { success: false, error: auth.error || 'Chưa xác thực' }
+      }
+
+      if (auth.role !== 'super_admin' && auth.role !== 'manager') {
+        return { success: false, error: 'Bạn không có quyền thực hiện hành động này' }
+      }
+
+      supabase = auth.supabase!
+
+      // Check manager access & resolve invoice ID/code
+      const isNumeric = /^\d+$/.test(String(invoiceId));
+      let accessQuery = supabase.from('invoices').select('id, invoice_code, total_amount, payment_status, tenant_id, room_id, rooms(branch_id)')
+      if (isNumeric) {
+        accessQuery = accessQuery.eq('id', Number(invoiceId))
+      } else {
+        accessQuery = accessQuery.eq('invoice_code', invoiceId)
+      }
+      const { data: checkInvoice, error: checkError } = await accessQuery.maybeSingle()
+      if (checkError || !checkInvoice) {
+        throw new Error(checkError?.message || 'Không tìm thấy hóa đơn')
+      }
+
+      if (auth.role === 'manager') {
+        const access = await assertManagerCanAccessInvoice(supabase, checkInvoice.id, auth.role, auth.branchId)
+        if (!access.ok) return { success: false, error: access.error }
+      }
+      resolvedId = checkInvoice.id
+    } else {
+      // Resolve invoice ID/code using the passed supabase client
+      const isNumeric = /^\d+$/.test(String(invoiceId));
+      let accessQuery = supabase.from('invoices').select('id')
+      if (isNumeric) {
+        accessQuery = accessQuery.eq('id', Number(invoiceId))
+      } else {
+        accessQuery = accessQuery.eq('invoice_code', invoiceId)
+      }
+      const { data: checkInvoice, error: checkError } = await accessQuery.maybeSingle()
+      if (checkError || !checkInvoice) {
+        throw new Error(checkError?.message || 'Không tìm thấy hóa đơn')
+      }
+      resolvedId = checkInvoice.id
+    }
 
     const { data: invoice, error } = await supabase
       .from('invoices')
-      .select('id, invoice_code, total_amount, tenant_id, room:rooms(room_code), tenant:tenants(user_id)')
-      .eq('id', invoiceId)
+      .select('id, invoice_code, total_amount, tenant_id, room:rooms(room_code), tenant:tenants(user:users(full_name))')
+      .eq('id', resolvedId)
       .single()
 
     if (error || !invoice || !invoice.tenant_id) {
       throw new Error('Không tìm thấy hóa đơn hoặc người thuê')
     }
-
-    const tenantData = invoice.tenant as unknown
-    const tenantObj = Array.isArray(tenantData)
-      ? (tenantData[0] as { user_id?: string } | undefined)
-      : (tenantData as { user_id?: string } | null)
-    const tenantUserId = tenantObj?.user_id
 
     const roomData = invoice.room as unknown
     const roomObj = Array.isArray(roomData)
@@ -178,11 +223,17 @@ export async function resendInvoiceNotification(
       : (roomData as { room_code?: string } | null)
     const roomCode = roomObj?.room_code || '?'
 
-    if (tenantUserId) {
+    const { data: tenantUser } = await supabase
+      .from('tenants')
+      .select('user_id')
+      .eq('id', invoice.tenant_id)
+      .single()
+
+    if (tenantUser?.user_id) {
       await dispatchNotification(
         supabase,
         {
-          userId: tenantUserId,
+          userId: tenantUser.user_id,
           tenantId: invoice.tenant_id,
         },
         {
@@ -200,6 +251,120 @@ export async function resendInvoiceNotification(
       success: false,
       error: err instanceof Error ? err.message : String(err),
     }
+  }
+}
+
+export async function updateInvoiceDueDate(
+  invoiceId: number,
+  dueDate: string
+) {
+  try {
+    const auth = await verifyRole()
+    if (auth.error || !auth.user || !auth.role) {
+      return { success: false, error: auth.error || 'Chưa xác thực' }
+    }
+
+    if (auth.role !== 'super_admin' && auth.role !== 'manager') {
+      return { success: false, error: 'Bạn không có quyền thực hiện hành động này' }
+    }
+
+    const parsed = new Date(dueDate)
+    if (Number.isNaN(parsed.getTime())) {
+      return { success: false, error: 'Ngày hết hạn không hợp lệ' }
+    }
+
+    const supabase = auth.supabase!
+
+    if (auth.role === 'manager') {
+      const access = await assertManagerCanAccessInvoice(supabase, invoiceId, auth.role, auth.branchId)
+      if (!access.ok) return { success: false, error: access.error }
+    }
+
+    const { error } = await supabase
+      .from('invoices')
+      .update({ due_date: parsed.toISOString() })
+      .eq('id', invoiceId)
+
+    if (error) throw error
+    revalidatePath('/invoices')
+    return { success: true }
+  } catch (err: unknown) {
+    return { success: false, error: err instanceof Error ? err.message : String(err) }
+  }
+}
+
+export async function markInvoicePaidManually(
+  invoiceId: number,
+  method: 'cash' | 'manual' = 'cash'
+) {
+  try {
+    const auth = await verifyRole()
+    if (auth.error || !auth.user || !auth.role) {
+      return { success: false, error: auth.error || 'Chưa xác thực' }
+    }
+
+    if (auth.role !== 'super_admin' && auth.role !== 'manager') {
+      return { success: false, error: 'Bạn không có quyền thực hiện hành động này' }
+    }
+
+    const supabase = auth.supabase!
+
+    if (auth.role === 'manager') {
+      const access = await assertManagerCanAccessInvoice(supabase, invoiceId, auth.role, auth.branchId)
+      if (!access.ok) return { success: false, error: access.error }
+      if (access.invoice.payment_status === 'paid') {
+        return { success: true, alreadyPaid: true }
+      }
+    }
+
+    const { data: invoice, error: fetchError } = await supabase
+      .from('invoices')
+      .select('id, invoice_code, total_amount, payment_status, tenant:tenant_id(user_id)')
+      .eq('id', invoiceId)
+      .maybeSingle()
+
+    if (fetchError || !invoice) {
+      return { success: false, error: 'Không tìm thấy hóa đơn' }
+    }
+
+    if (invoice.payment_status === 'paid') {
+      return { success: true, alreadyPaid: true }
+    }
+
+    const { error: updateError } = await supabase
+      .from('invoices')
+      .update({
+        payment_status: 'paid',
+        paid_at: new Date().toISOString(),
+        paid_method: method,
+      })
+      .eq('id', invoiceId)
+      .eq('payment_status', 'unpaid')
+
+    if (updateError) throw updateError
+
+    const tenantData = invoice.tenant as unknown
+    const tenantObj = Array.isArray(tenantData)
+      ? (tenantData[0] as { user_id?: string } | undefined)
+      : (tenantData as { user_id?: string } | null)
+
+    if (tenantObj?.user_id) {
+      const methodLabel = method === 'cash' ? 'tiền mặt' : 'thủ công'
+      await dispatchNotification(
+        supabase,
+        { userId: tenantObj.user_id, tenantId: null },
+        {
+          title: 'Đã xác nhận thanh toán',
+          body: `Hóa đơn ${invoice.invoice_code} số tiền ${Number(invoice.total_amount).toLocaleString('vi-VN')}đ đã được xác nhận thanh toán (${methodLabel}).`,
+          type: 'payment',
+        }
+      )
+    }
+
+    revalidatePath('/invoices')
+    return { success: true, alreadyPaid: false }
+  } catch (err: unknown) {
+    return { success: false, error: err instanceof Error ? err.message : String(err) }
   }
 }
 

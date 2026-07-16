@@ -25,7 +25,7 @@ import Link from 'next/link'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { addInvoiceAction } from './actions'
-import { ResendNotificationButton } from './_components/ResendNotificationButton'
+import { InvoiceActions } from './_components/InvoiceActions'
 
 export default async function InvoicesPage({ searchParams }: { searchParams: Promise<{ [key: string]: string | string[] | undefined }> }) {
   const params = await searchParams
@@ -44,7 +44,7 @@ export default async function InvoicesPage({ searchParams }: { searchParams: Pro
 
   let query = adminSupabase
     .from('invoices')
-    .select('id, invoice_code, total_amount, payment_status, issued_at, room:rooms(room_code), tenant:tenants(user:users(full_name))', { count: 'exact' })
+    .select('id, invoice_code, total_amount, payment_status, issued_at, due_date, room:rooms(room_code), tenant:tenants(user:users(full_name))', { count: 'exact' })
     .order('created_at', { ascending: false })
 
   if (status !== 'all') {
@@ -56,21 +56,24 @@ export default async function InvoicesPage({ searchParams }: { searchParams: Pro
   const totalPages = count ? Math.ceil(count / limit) : 0
 
   interface InvoiceRaw {
-    id: string;
+    id: number;
     invoice_code?: string;
     total_amount?: number;
     payment_status?: string;
     issued_at?: string;
+    due_date?: string;
     room?: { room_code: string };
     tenant?: { user?: { full_name: string } };
   }
 
   const invoices = ((rawInvoices as unknown as InvoiceRaw[]) || []).map((inv) => ({
-    id: inv.invoice_code || inv.id,
+    id: inv.id,
+    code: inv.invoice_code || inv.id.toString(),
     room: inv.room?.room_code || 'Trống',
     amount: inv.total_amount || 0,
     status: inv.payment_status || 'unpaid',
     date: inv.issued_at ? new Date(inv.issued_at).toLocaleDateString('vi-VN') : 'N/A',
+    dueDate: inv.due_date || '',
     tenant: inv.tenant?.user?.full_name || 'Khách vãng lai',
   }))
 
@@ -171,10 +174,12 @@ export default async function InvoicesPage({ searchParams }: { searchParams: Pro
 }
 
 interface InvoiceFormatted {
-  id: string;
+  id: number;
+  code: string;
   room: string;
   tenant: string;
   date: string;
+  dueDate: string;
   amount: number;
   status: string;
 }
@@ -198,7 +203,7 @@ function InvoiceTable({ invoices }: { invoices: InvoiceFormatted[] }) {
           {invoices.length > 0 ? (
             invoices.map((inv) => (
               <TableRow key={inv.id}>
-                <TableCell className="font-medium">{inv.id}</TableCell>
+                <TableCell className="font-medium">{inv.code}</TableCell>
                 <TableCell>P.{inv.room}</TableCell>
                 <TableCell>{inv.tenant}</TableCell>
                 <TableCell>{inv.date}</TableCell>
@@ -209,9 +214,7 @@ function InvoiceTable({ invoices }: { invoices: InvoiceFormatted[] }) {
                   {inv.status === 'partial' && <Badge variant="outline" className="bg-amber-100 text-amber-800 border-amber-200"><Clock className="w-3 h-3 mr-1"/> Thiếu</Badge>}
                 </TableCell>
                 <TableCell className="text-right">
-                  {inv.status !== 'paid' && (
-                    <ResendNotificationButton invoiceId={inv.id} />
-                  )}
+                  <InvoiceActions invoice={inv} />
                 </TableCell>
               </TableRow>
             ))
