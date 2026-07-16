@@ -19,7 +19,7 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json()
-    const { phone, password, full_name, role: targetRole, branch_id: targetBranchId, room_id, email, identity_number, contractImages: rawContractImages, contractEndDate: rawContractEndDate, contract_end_date: rawContractEndDateSnake, depositAmount: rawDepositAmount, deposit_amount: rawDepositAmountSnake } = body
+    const { phone, password, full_name, role: targetRole, branch_id: targetBranchId, room_id, email, identity_number, contractImages: rawContractImages, contractEndDate: rawContractEndDate, contract_end_date: rawContractEndDateSnake, depositAmount: rawDepositAmount, deposit_amount: rawDepositAmountSnake, updateProfile } = body
     const depositAmount = Number(rawDepositAmount ?? rawDepositAmountSnake ?? 0)
 
     const contractImages = Array.isArray(rawContractImages)
@@ -80,37 +80,133 @@ export async function POST(request: NextRequest) {
     // 3. Khởi tạo Admin Client để tạo user bỏ qua OTP SMS
     const adminSupabase = createAdminClient()
 
-    const { data: authData, error: authError } = await adminSupabase.auth.admin.createUser({
-      email: email.trim(),
-      email_confirm: true,
-      phone: formattedPhone,
-      password,
-      phone_confirm: true, // Ép buộc xác thực SĐT để khách có thể đăng nhập ngay không cần OTP
-      user_metadata: {
-        full_name
-      }
-    })
+    // Kiểm tra xem số điện thoại đã tồn tại dưới dạng bị xóa mềm (deleted) hoặc đang hoạt động (active) chưa
+    const { data: existingProfile } = await adminSupabase
+      .from('users')
+      .select('id, status, phone, email, full_name')
+      .or(`phone.eq.${formattedPhone},phone.like.${formattedPhone}_del_%`)
+      .order('updated_at', { ascending: false })
+      .limit(1)
+      .maybeSingle()
 
-    if (authError || !authData.user) {
-      return NextResponse.json({ error: authError?.message || 'Không thể tạo Auth User' }, { status: 400 })
+    let isOldTenant = false
+    if (existingProfile) {
+      if (existingProfile.status === 'deleted') {
+        isOldTenant = true
+      } else if (existingProfile.status === 'active') {
+        // Kiểm tra xem họ có gán phòng nào đang active không
+        const { data: activeTenants } = await adminSupabase
+          .from('tenants')
+          .select('id')
+          .eq('user_id', existingProfile.id)
+          .is('move_out_date', null)
+
+        const isRented = activeTenants && activeTenants.length > 0
+        if (!isRented) {
+          isOldTenant = true
+        } else {
+          return NextResponse.json({ error: 'Số điện thoại này đã được sử dụng bởi một tài khoản đang hoạt động' }, { status: 400 })
+        }
+      }
     }
 
-    // 4. Lưu thông tin phụ vào bảng public.users (để cột id tự động sinh số nguyên integer)
-    const { data: newUserProfile, error: dbError } = await adminSupabase
-      .from('users')
-      .insert({
-        full_name,
+    const emailToUse = email.trim()
+    const nameToUse = (existingProfile && isOldTenant && updateProfile === false)
+      ? (existingProfile.full_name || full_name.trim())
+      : full_name.trim()
+
+    // 3.1. Tìm kiếm xem tài khoản trong Supabase Auth có tồn tại không để tránh tạo trùng gây lỗi
+    const { data: listData } = await adminSupabase.auth.admin.listUsers()
+    const authUsers = listData?.users ?? []
+    
+    // Tìm auth user trùng email hoặc phone
+    const existingAuthUser = authUsers.find(
+      (u) =>
+        u.email?.toLowerCase() === emailToUse.toLowerCase() ||
+        u.phone === formattedPhone ||
+        (existingProfile && u.email?.toLowerCase() === existingProfile.email?.toLowerCase())
+    )
+
+    let authData: any = null
+    let authError: any = null
+
+    if (existingAuthUser) {
+      // Nếu auth user đã tồn tại, ta cập nhật password mới, email mới và name mới
+      const { data, error } = await adminSupabase.auth.admin.updateUserById(
+        existingAuthUser.id,
+        {
+          email: emailToUse,
+          phone: formattedPhone,
+          password: password,
+          user_metadata: {
+            full_name: nameToUse
+          }
+        }
+      )
+      authData = { user: data.user }
+      authError = error
+    } else {
+      // Nếu chưa có auth user, tạo mới
+      const { data, error } = await adminSupabase.auth.admin.createUser({
+        email: emailToUse,
+        email_confirm: true,
         phone: formattedPhone,
-        role: targetRole,
-        branch_id: finalBranchId || null,
-        email: email.trim()
+        password,
+        phone_confirm: true, // Ép buộc xác thực SĐT để khách có thể đăng nhập ngay không cần OTP
+        user_metadata: {
+          full_name: nameToUse
+        }
       })
-      .select()
-      .single()
+      authData = data
+      authError = error
+    }
+
+    if (authError || !authData.user) {
+      return NextResponse.json({ error: authError?.message || 'Không thể tạo/cập nhật Auth User' }, { status: 400 })
+    }
+
+    let newUserProfile: any = null
+    let dbError: any = null
+
+    if (existingProfile && isOldTenant) {
+      // 4. Khôi phục profile cũ (hoặc cập nhật nếu họ đã trả phòng)
+      const res = await adminSupabase
+        .from('users')
+        .update({
+          full_name: nameToUse,
+          phone: formattedPhone,
+          email: emailToUse,
+          status: 'active',
+          branch_id: finalBranchId || null,
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', existingProfile.id)
+        .select()
+        .single()
+      newUserProfile = res.data
+      dbError = res.error
+    } else {
+      // 4. Tạo profile mới hoàn toàn
+      const res = await adminSupabase
+        .from('users')
+        .insert({
+          full_name: nameToUse,
+          phone: formattedPhone,
+          role: targetRole,
+          branch_id: finalBranchId || null,
+          email: emailToUse
+        })
+        .select()
+        .single()
+      newUserProfile = res.data
+      dbError = res.error
+    }
 
     if (dbError || !newUserProfile) {
-      // Rollback (Xóa auth user nếu chèn DB thất bại)
-      await adminSupabase.auth.admin.deleteUser(authData.user.id)
+      // Rollback (Chỉ xóa auth user nếu nó được tạo mới trong request này)
+      if (authData?.user?.id && !existingAuthUser) {
+        await adminSupabase.auth.admin.deleteUser(authData.user.id)
+      }
       return NextResponse.json({ error: 'Lỗi khi ghi dữ liệu profile: ' + (dbError?.message || 'Unknown error') }, { status: 500 })
     }
 
