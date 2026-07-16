@@ -30,7 +30,7 @@ export async function GET(request: NextRequest) {
     let query
     if (auth.role === 'tenant') {
       // Khách thuê chỉ xem được ticket của phòng mình (Lấy room_id từ bảng tenants)
-      const { data: tenantInfo } = await supabase.from('tenants').select('room_id').eq('user_id', auth.dbUserId).single()
+      const { data: tenantInfo } = await supabase.from('tenants').select('room_id').eq('user_id', auth.dbUserId).is('move_out_date', null).order('created_at', { ascending: false }).limit(1).maybeSingle()
       if (!tenantInfo?.room_id) {
         return NextResponse.json({ success: true, data: [] }) // Không có phòng
       }
@@ -95,9 +95,9 @@ export async function POST(request: NextRequest) {
     let finalTenantId = tenantId;
 
     if (auth.role === 'tenant') {
-      const { data: tenantInfo } = await supabase.from('tenants').select('id, room_id').eq('user_id', auth.dbUserId).single();
+      const { data: tenantInfo } = await supabase.from('tenants').select('id, room_id').eq('user_id', auth.dbUserId).is('move_out_date', null).order('created_at', { ascending: false }).limit(1).maybeSingle();
       if (!tenantInfo) {
-        return NextResponse.json({ error: 'Không tìm thấy thông tin khách thuê' }, { status: 403 })
+        return NextResponse.json({ error: 'Không tìm thấy thông tin khách thuê đang thuê phòng' }, { status: 403 })
       }
       finalRoomId = tenantInfo.room_id;
       finalTenantId = tenantInfo.id;

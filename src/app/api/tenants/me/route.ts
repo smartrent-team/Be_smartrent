@@ -65,7 +65,10 @@ export async function GET() {
         )
       `)
       .eq('user_id', auth.dbUserId)
-      .single()
+      .is('move_out_date', null)
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .maybeSingle()
 
     if (error || !tenant) {
       return NextResponse.json({ error: 'Không tìm thấy hồ sơ khách thuê cho tài khoản này', details: error?.message }, { status: 404 })
