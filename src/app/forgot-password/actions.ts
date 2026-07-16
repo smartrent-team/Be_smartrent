@@ -2,16 +2,12 @@
 
 import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
-import { headers } from 'next/headers'
+import { getPublicAppUrl } from '@/lib/public-url'
 
 export async function resetPassword(formData: FormData) {
   const email = formData.get('email') as string
   const supabase = await createClient()
-  const headersList = await headers()
-  
-  const host = headersList.get('host')
-  const protocol = process.env.NODE_ENV === 'development' ? 'http' : 'https'
-  const origin = `${protocol}://${host}`
+  const origin = await getPublicAppUrl()
 
   // redirectTo trỏ thẳng về /update-password
   // Supabase sẽ gắn #access_token=...&type=recovery vào URL này

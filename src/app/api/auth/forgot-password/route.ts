@@ -1,6 +1,6 @@
 import { NextResponse, type NextRequest } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
-import { headers } from 'next/headers'
+import { getPublicAppUrl } from '@/lib/public-url'
 
 export async function POST(request: NextRequest) {
   try {
@@ -12,11 +12,7 @@ export async function POST(request: NextRequest) {
     }
 
     const supabase = await createClient()
-    const headersList = await headers()
-    
-    const host = headersList.get('host')
-    const protocol = process.env.NODE_ENV === 'development' ? 'http' : 'https'
-    const origin = `${protocol}://${host}`
+    const origin = await getPublicAppUrl()
 
     const { error } = await supabase.auth.resetPasswordForEmail(email, {
       redirectTo: `${origin}/update-password?source=mobile_app`,
