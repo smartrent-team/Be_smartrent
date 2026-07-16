@@ -25,7 +25,7 @@ import Link from 'next/link'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { addInvoiceAction } from './actions'
-import { ResendNotificationButton } from './_components/ResendNotificationButton'
+import { InvoiceActions } from './_components/InvoiceActions'
 
 export default async function InvoicesPage({ searchParams }: { searchParams: Promise<{ [key: string]: string | string[] | undefined }> }) {
   const params = await searchParams
@@ -44,40 +44,47 @@ export default async function InvoicesPage({ searchParams }: { searchParams: Pro
 
   let query = adminSupabase
     .from('invoices')
-    .select('id, invoice_code, total_amount, payment_status, issued_at, room:rooms(room_code), tenant:tenants(user:users(full_name))', { count: 'exact' })
+    .select('id, invoice_code, total_amount, payment_status, issued_at, due_date, room:rooms(room_code), tenant:tenants(user:users(full_name))', { count: 'exact' })
     .order('created_at', { ascending: false })
 
   if (status !== 'all') {
     query = query.eq('payment_status', status)
   }
 
-  const { data: rawInvoices, count } = await query.range(from, to)
+  const { data: rawInvoices, count, error: queryError } = await query.range(from, to)
   
-  const totalPages = count ? Math.ceil(count / limit) : 0
-
-  interface InvoiceRaw {
-    id: string;
-    invoice_code?: string;
-    total_amount?: number;
-    payment_status?: string;
-    issued_at?: string;
-    room?: { room_code: string };
-    tenant?: { user?: { full_name: string } };
+  if (queryError) {
+    console.error("Lỗi truy vấn invoices:", queryError)
   }
 
-  const invoices = ((rawInvoices as unknown as InvoiceRaw[]) || []).map((inv) => ({
-    id: inv.invoice_code || inv.id,
-    room: inv.room?.room_code || 'Trống',
-    amount: inv.total_amount || 0,
-    status: inv.payment_status || 'unpaid',
-    date: inv.issued_at ? new Date(inv.issued_at).toLocaleDateString('vi-VN') : 'N/A',
-    tenant: inv.tenant?.user?.full_name || 'Khách vãng lai',
-  }))
+  const totalPages = count ? Math.ceil(count / limit) : 0
+
+  const invoices = ((rawInvoices as any[]) || []).map((inv) => {
+    const roomObj = Array.isArray(inv.room) ? inv.room[0] : inv.room
+    const tenantObj = Array.isArray(inv.tenant) ? inv.tenant[0] : inv.tenant
+    const userObj = tenantObj ? (Array.isArray(tenantObj.user) ? tenantObj.user[0] : tenantObj.user) : null
+
+    return {
+      id: inv.id,
+      code: inv.invoice_code || inv.id.toString(),
+      room: roomObj?.room_code || 'Trống',
+      amount: inv.total_amount || 0,
+      status: inv.payment_status || 'unpaid',
+      date: inv.issued_at ? new Date(inv.issued_at).toLocaleDateString('vi-VN') : 'N/A',
+      dueDate: inv.due_date || '',
+      tenant: userObj?.full_name || 'Khách vãng lai',
+    }
+  })
 
   const { data: rooms } = await adminSupabase.from('rooms').select('id, room_code').order('room_code')
 
   return (
     <div className="flex flex-col gap-6 p-6">
+      {queryError && (
+        <div className="p-4 mb-4 text-sm text-red-800 rounded-lg bg-red-50 border border-red-200" role="alert">
+          <span className="font-semibold">Lỗi truy vấn cơ sở dữ liệu:</span> {queryError.message} (Mã: {queryError.code})
+        </div>
+      )}
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
           <h1 className="text-3xl font-bold tracking-tight">Hoá đơn</h1>
@@ -171,10 +178,12 @@ export default async function InvoicesPage({ searchParams }: { searchParams: Pro
 }
 
 interface InvoiceFormatted {
-  id: string;
+  id: number;
+  code: string;
   room: string;
   tenant: string;
   date: string;
+  dueDate: string;
   amount: number;
   status: string;
 }
@@ -198,7 +207,7 @@ function InvoiceTable({ invoices }: { invoices: InvoiceFormatted[] }) {
           {invoices.length > 0 ? (
             invoices.map((inv) => (
               <TableRow key={inv.id}>
-                <TableCell className="font-medium">{inv.id}</TableCell>
+                <TableCell className="font-medium">{inv.code}</TableCell>
                 <TableCell>P.{inv.room}</TableCell>
                 <TableCell>{inv.tenant}</TableCell>
                 <TableCell>{inv.date}</TableCell>
@@ -209,9 +218,7 @@ function InvoiceTable({ invoices }: { invoices: InvoiceFormatted[] }) {
                   {inv.status === 'partial' && <Badge variant="outline" className="bg-amber-100 text-amber-800 border-amber-200"><Clock className="w-3 h-3 mr-1"/> Thiếu</Badge>}
                 </TableCell>
                 <TableCell className="text-right">
-                  {inv.status !== 'paid' && (
-                    <ResendNotificationButton invoiceId={inv.id} />
-                  )}
+                  <InvoiceActions invoice={inv} />
                 </TableCell>
               </TableRow>
             ))
