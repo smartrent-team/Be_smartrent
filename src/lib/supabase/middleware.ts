@@ -41,6 +41,7 @@ export async function updateSession(request: NextRequest) {
     !request.nextUrl.pathname.startsWith('/forgot-password') &&
     !request.nextUrl.pathname.startsWith('/update-password') &&
     !request.nextUrl.pathname.startsWith('/api') && // Exclude API routes from redirecting
+    !request.nextUrl.pathname.startsWith('/python') && // Exclude AI proxy routes from redirecting
     !request.nextUrl.pathname.startsWith('/auth') &&
     !request.nextUrl.pathname.startsWith('/swagger.json') // Cho phép đọc file mô tả API
   ) {

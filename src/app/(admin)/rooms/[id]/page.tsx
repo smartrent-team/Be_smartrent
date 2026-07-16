@@ -7,6 +7,7 @@ import Link from 'next/link'
 import { ArrowLeft, Users, FileText, Wrench } from 'lucide-react'
 import { Button, buttonVariants } from '@/components/ui/button'
 import { RoomFixturesSection } from '../_components/RoomFixturesSection'
+import { EditRoomDialog } from '../_components/EditRoomDialog'
 
 export default async function RoomDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
@@ -17,21 +18,32 @@ export default async function RoomDetailPage({ params }: { params: Promise<{ id:
   // Dùng admin client để bypass RLS
   const adminSupabase = createAdminClient()
 
-  const { data: room, error } = await adminSupabase
-    .from('rooms')
-    .select(`
-      *,
-      tenants(id, user:users(full_name, phone), move_in_date, move_out_date),
-      invoices(id, invoice_code, total_amount, payment_status, issued_at),
-      maintenance_tickets(id, title, status, created_at),
-      room_fixtures(id, name, quantity, status, description, created_at)
-    `)
-    .eq('id', id)
-    .single()
+  const [
+    { data: room, error },
+    { data: rawBranches }
+  ] = await Promise.all([
+    adminSupabase
+      .from('rooms')
+      .select(`
+        *,
+        tenants(id, user:users(full_name, phone), move_in_date, move_out_date),
+        invoices(id, invoice_code, total_amount, payment_status, issued_at),
+        maintenance_tickets(id, title, status, created_at),
+        room_fixtures(id, name, quantity, status, description, created_at)
+      `)
+      .eq('id', id)
+      .single(),
+    adminSupabase
+      .from('branches')
+      .select('id, name')
+      .order('name')
+  ])
 
   if (error || !room) {
     notFound()
   }
+
+  const branches = rawBranches || []
 
   interface TenantData {
     id: string;
@@ -76,19 +88,22 @@ export default async function RoomDetailPage({ params }: { params: Promise<{ id:
 
   return (
     <div className="flex flex-col gap-6 p-6">
-      <div className="flex items-center gap-4">
-        <Link href="/rooms">
-          <Button variant="outline" size="icon">
-            <ArrowLeft className="h-4 w-4" />
-          </Button>
-        </Link>
-        <div>
-          <h1 className="text-3xl font-bold tracking-tight">
-            Phòng {room.room_code} 
-            <span className="text-lg font-normal text-muted-foreground ml-2">(ID: {room.id})</span>
-          </h1>
-          <p className="text-muted-foreground mt-1">Thông tin chi tiết và lịch sử phòng.</p>
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 border-b pb-4">
+        <div className="flex items-center gap-4">
+          <Link href="/rooms">
+            <Button variant="outline" size="icon">
+              <ArrowLeft className="h-4 w-4" />
+            </Button>
+          </Link>
+          <div>
+            <h1 className="text-3xl font-bold tracking-tight">
+              Phòng {room.room_code} 
+              <span className="text-lg font-normal text-muted-foreground ml-2">(ID: {room.id})</span>
+            </h1>
+            <p className="text-muted-foreground mt-1">Thông tin chi tiết và lịch sử phòng.</p>
+          </div>
         </div>
+        <EditRoomDialog room={room} branches={branches} />
       </div>
 
       <div className="grid gap-6 md:grid-cols-2">
