@@ -51,36 +51,40 @@ export default async function InvoicesPage({ searchParams }: { searchParams: Pro
     query = query.eq('payment_status', status)
   }
 
-  const { data: rawInvoices, count } = await query.range(from, to)
+  const { data: rawInvoices, count, error: queryError } = await query.range(from, to)
   
-  const totalPages = count ? Math.ceil(count / limit) : 0
-
-  interface InvoiceRaw {
-    id: number;
-    invoice_code?: string;
-    total_amount?: number;
-    payment_status?: string;
-    issued_at?: string;
-    due_date?: string;
-    room?: { room_code: string };
-    tenant?: { user?: { full_name: string } };
+  if (queryError) {
+    console.error("Lỗi truy vấn invoices:", queryError)
   }
 
-  const invoices = ((rawInvoices as unknown as InvoiceRaw[]) || []).map((inv) => ({
-    id: inv.id,
-    code: inv.invoice_code || inv.id.toString(),
-    room: inv.room?.room_code || 'Trống',
-    amount: inv.total_amount || 0,
-    status: inv.payment_status || 'unpaid',
-    date: inv.issued_at ? new Date(inv.issued_at).toLocaleDateString('vi-VN') : 'N/A',
-    dueDate: inv.due_date || '',
-    tenant: inv.tenant?.user?.full_name || 'Khách vãng lai',
-  }))
+  const totalPages = count ? Math.ceil(count / limit) : 0
+
+  const invoices = ((rawInvoices as any[]) || []).map((inv) => {
+    const roomObj = Array.isArray(inv.room) ? inv.room[0] : inv.room
+    const tenantObj = Array.isArray(inv.tenant) ? inv.tenant[0] : inv.tenant
+    const userObj = tenantObj ? (Array.isArray(tenantObj.user) ? tenantObj.user[0] : tenantObj.user) : null
+
+    return {
+      id: inv.id,
+      code: inv.invoice_code || inv.id.toString(),
+      room: roomObj?.room_code || 'Trống',
+      amount: inv.total_amount || 0,
+      status: inv.payment_status || 'unpaid',
+      date: inv.issued_at ? new Date(inv.issued_at).toLocaleDateString('vi-VN') : 'N/A',
+      dueDate: inv.due_date || '',
+      tenant: userObj?.full_name || 'Khách vãng lai',
+    }
+  })
 
   const { data: rooms } = await adminSupabase.from('rooms').select('id, room_code').order('room_code')
 
   return (
     <div className="flex flex-col gap-6 p-6">
+      {queryError && (
+        <div className="p-4 mb-4 text-sm text-red-800 rounded-lg bg-red-50 border border-red-200" role="alert">
+          <span className="font-semibold">Lỗi truy vấn cơ sở dữ liệu:</span> {queryError.message} (Mã: {queryError.code})
+        </div>
+      )}
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
           <h1 className="text-3xl font-bold tracking-tight">Hoá đơn</h1>
