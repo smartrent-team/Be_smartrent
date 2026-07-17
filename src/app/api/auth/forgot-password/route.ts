@@ -1,5 +1,5 @@
 import { NextResponse, type NextRequest } from 'next/server'
-import { createClient } from '@/lib/supabase/server'
+import { createClient } from '@supabase/supabase-js'
 import { getPublicAppUrl } from '@/lib/public-url'
 
 export async function POST(request: NextRequest) {
@@ -11,8 +11,17 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Email là bắt buộc' }, { status: 400 })
     }
 
-    const supabase = await createClient()
-    const origin   = await getPublicAppUrl()
+    const origin = await getPublicAppUrl()
+
+    // Dùng @supabase/supabase-js thuần (không phải @supabase/ssr)
+    // để set flowType: 'implicit' — @supabase/ssr luôn force PKCE và không cho override.
+    // Implicit flow gửi link dạng: /auth/mobile-redirect#access_token=xxx&type=recovery
+    // Browser đọc hash fragment trực tiếp, không cần exchange.
+    const supabase = createClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+      { auth: { flowType: 'implicit' } }
+    )
 
     const { error } = await supabase.auth.resetPasswordForEmail(email, {
       redirectTo: `${origin}/auth/mobile-redirect`,

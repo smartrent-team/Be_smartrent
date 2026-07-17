@@ -3,68 +3,39 @@
 /**
  * /auth/mobile-redirect
  *
- * Xử lý cả 2 flow Supabase gửi về:
- *  - PKCE  : /auth/mobile-redirect?code=xxx   → exchange bằng Supabase JS (browser)
- *  - Implicit: /auth/mobile-redirect#access_token=xxx → đọc hash trực tiếp
+ * Implicit flow: Supabase gửi link dạng
+ *   /auth/mobile-redirect#access_token=xxx&type=recovery
  *
- * Sau khi có access_token → redirect sang deep link smartrent://reset-password
+ * Trang này đọc hash fragment rồi redirect sang deep link:
+ *   smartrent://reset-password?access_token=xxx
  */
 import { useEffect, useState } from 'react'
-import { createClient } from '@/lib/supabase/client'
 
 export default function MobileRedirectPage() {
-  const [status, setStatus]   = useState<'loading' | 'redirecting' | 'error'>('loading')
+  const [status,   setStatus]   = useState<'loading' | 'redirecting' | 'error'>('loading')
   const [errorMsg, setErrorMsg] = useState('')
   const [deepLink, setDeepLink] = useState('')
 
   useEffect(() => {
-    const run = async () => {
-      const supabase = createClient()
+    const hash = window.location.hash // "#access_token=xxx&type=recovery&..."
 
-      // ── Implicit flow: đọc hash fragment ────────────────────────────────
-      const hash = window.location.hash
-      if (hash && hash.includes('access_token')) {
-        const params      = new URLSearchParams(hash.substring(1))
-        const accessToken = params.get('access_token')
-        const type        = params.get('type')
+    if (hash && hash.includes('access_token')) {
+      const params      = new URLSearchParams(hash.substring(1))
+      const accessToken = params.get('access_token')
+      const type        = params.get('type')
 
-        if (accessToken && type === 'recovery') {
-          const link = `smartrent://reset-password?access_token=${encodeURIComponent(accessToken)}`
-          setDeepLink(link)
-          setStatus('redirecting')
-          window.location.href = link
-          return
-        }
-      }
-
-      // ── PKCE flow: exchange ?code= bằng Supabase JS client (browser) ────
-      const urlParams = new URLSearchParams(window.location.search)
-      const code = urlParams.get('code')
-
-      if (code) {
-        // Thử exchange — chỉ hoạt động nếu PKCE tắt trên Supabase Dashboard
-        // Nếu lỗi "code verifier not found" → fallback về web update-password
-        const { data, error } = await supabase.auth.exchangeCodeForSession(code)
-        if (error || !data.session) {
-          // Fallback: gửi thẳng code về trang web đổi mật khẩu
-          // (update-password page xử lý được cả code lẫn token_hash)
-          window.location.href = `/update-password?code=${encodeURIComponent(code)}&source=web`
-          return
-        }
-        const accessToken = data.session.access_token
+      if (accessToken && type === 'recovery') {
         const link = `smartrent://reset-password?access_token=${encodeURIComponent(accessToken)}`
         setDeepLink(link)
         setStatus('redirecting')
         window.location.href = link
         return
       }
-
-      // Không có code hay hash
-      setStatus('error')
-      setErrorMsg('Đường dẫn không hợp lệ. Vui lòng yêu cầu lại email khôi phục.')
     }
 
-    run()
+    // Không có hash hợp lệ
+    setStatus('error')
+    setErrorMsg('Đường dẫn không hợp lệ hoặc đã hết hạn. Vui lòng yêu cầu lại email khôi phục.')
   }, [])
 
   if (status === 'error') {
@@ -114,7 +85,7 @@ export default function MobileRedirectPage() {
           <a href={deepLink} style={{
             display: 'inline-block', padding: '14px 32px', background: '#2e7d32',
             color: '#fff', borderRadius: 12, textDecoration: 'none',
-            fontWeight: 700, fontSize: 16, marginBottom: 16,
+            fontWeight: 700, fontSize: 16,
           }}>
             Mở ứng dụng
           </a>
