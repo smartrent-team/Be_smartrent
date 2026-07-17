@@ -319,7 +319,7 @@ export async function markInvoicePaidManually(
 
     const { data: invoice, error: fetchError } = await supabase
       .from('invoices')
-      .select('id, invoice_code, total_amount, payment_status, tenant:tenant_id(user_id)')
+      .select('id, invoice_code, total_amount, payment_status, tenant_id, tenant:tenant_id(user_id)')
       .eq('id', invoiceId)
       .maybeSingle()
 
@@ -352,7 +352,7 @@ export async function markInvoicePaidManually(
       const methodLabel = method === 'cash' ? 'tiền mặt' : 'thủ công'
       await dispatchNotification(
         supabase,
-        { userId: tenantObj.user_id, tenantId: null },
+        { userId: tenantObj.user_id, tenantId: (invoice.tenant_id as number) ?? null },
         {
           title: 'Đã xác nhận thanh toán',
           body: `Hóa đơn ${invoice.invoice_code} số tiền ${Number(invoice.total_amount).toLocaleString('vi-VN')}đ đã được xác nhận thanh toán (${methodLabel}).`,

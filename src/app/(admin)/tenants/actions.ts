@@ -3,6 +3,7 @@
 import { verifySuperAdmin } from '@/lib/rbac'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { revalidatePath } from 'next/cache'
+import { dispatchNotification } from '@/lib/notification_dispatch'
 
 export async function checkTenantPhoneAction(phone: string) {
   await verifySuperAdmin()
@@ -180,6 +181,24 @@ export async function createTenantAction(data: {
 
     // 5. Cập nhật trạng thái phòng thành 'occupied' (Đã thuê)
     await adminSupabase.from('rooms').update({ status: 'occupied' }).eq('id', newRoomId)
+
+    // 6. Gửi thông báo hợp đồng mới cho tenant
+    if (profileData?.id) {
+      try {
+        await dispatchNotification(
+          adminSupabase,
+          { userId: String(profileData.id), tenantId: tenantData.id },
+          {
+            title: 'Hợp đồng thuê phòng mới',
+            body: `Hợp đồng ${contractCode} phòng ${newRoomId} đã được tạo. Ngày bắt đầu: ${new Date(data.moveInDate).toLocaleDateString('vi-VN')}. Chào mừng bạn!`,
+            type: 'contract',
+            relatedId: `contract:new`,
+          }
+        )
+      } catch (notifyErr) {
+        console.error('Lỗi gửi thông báo hợp đồng mới:', notifyErr)
+      }
+    }
 
   } catch (error: unknown) {
     const err = error as Record<string, unknown>
@@ -383,6 +402,29 @@ export async function editTenantAction(
       monthly_price: room.base_price || 0,
       status: 'active'
     })
+
+    // Gửi thông báo hợp đồng mới cho tenant
+    const { data: tenantUserInfo } = await adminSupabase
+      .from('users')
+      .select('id')
+      .eq('id', userIntId)
+      .maybeSingle()
+    if (tenantUserInfo?.id) {
+      try {
+        await dispatchNotification(
+          adminSupabase,
+          { userId: String(tenantUserInfo.id), tenantId: id },
+          {
+            title: 'Hợp đồng thuê phòng mới',
+            body: `Hợp đồng ${contractCode} phòng ${newRoomId} đã được tạo. Ngày bắt đầu: ${new Date(data.moveInDate).toLocaleDateString('vi-VN')}.`,
+            type: 'contract',
+            relatedId: `contract:new`,
+          }
+        )
+      } catch (notifyErr) {
+        console.error('Lỗi gửi thông báo hợp đồng mới:', notifyErr)
+      }
+    }
   }
 
   // 6. Cập nhật trạng thái phòng cũ và mới nếu đổi phòng

@@ -1,6 +1,5 @@
 import { NextResponse, type NextRequest } from 'next/server'
 import { verifyRole } from '@/lib/rbac'
-import { syncExpiredContractNotifications } from '@/lib/contract-notification-sync'
 import { createNotificationSchema, formatZodError } from '@/lib/validations'
 import { dispatchNotification } from '@/lib/notification_dispatch'
 
@@ -23,6 +22,7 @@ function mapNotification(row: {
     userId: row.user_id,
     title: row.title,
     content: row.body,
+    body: row.body,
     type: row.type,
     relatedId: row.related_id ?? null,
     isRead: row.is_read,
@@ -44,13 +44,8 @@ export async function GET(request: NextRequest) {
     const limit = Number.isFinite(limitParam) ? Math.min(Math.max(limitParam, 1), 200) : 100
     const unreadOnly = searchParams.get('unreadOnly') === 'true'
 
-    void syncExpiredContractNotifications(supabase, {
-      userId: auth.dbUserId,
-      role: auth.role,
-      branchId: auth.branchId,
-    }).catch((syncError) => {
-      console.error('Failed to sync expired contract notifications:', syncError)
-    })
+    // Không còn lazy sync ở đây nữa — thông báo được sinh ra bởi cron job
+    // chạy qua /api/internal/notifications-cron mỗi ngày lúc 8:00 SA.
 
     let query = supabase
       .from('notifications')

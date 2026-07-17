@@ -155,6 +155,32 @@ export async function POST(request: NextRequest) {
       })
     }
 
+    // Gửi thông báo xác nhận tạo sự cố cho chính tenant
+    if (finalTenantId) {
+      const { data: tenantUser } = await supabase
+        .from('tenants')
+        .select('user_id')
+        .eq('id', finalTenantId)
+        .maybeSingle()
+
+      if (tenantUser?.user_id) {
+        await dispatchNotification(
+          supabase,
+          { userId: tenantUser.user_id, tenantId: finalTenantId },
+          {
+            title: 'Sự cố đã được tiếp nhận',
+            body: `Sự cố "${title}" tại phòng ${room?.room_code ?? finalRoomId} đã được ghi nhận và đang chờ xử lý.`,
+            type: 'ticket',
+            data: {
+              ticketId: String(ticket.id),
+              roomId: String(finalRoomId),
+              status: 'pending',
+            },
+          }
+        )
+      }
+    }
+
     return NextResponse.json({ success: true, data: ticket })
   } catch (error: unknown) {
     const errorMessage = error instanceof Error ? error.message : String(error)
