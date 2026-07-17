@@ -7,20 +7,34 @@ import type { SupabaseClient } from '@supabase/supabase-js'
 export const dynamic = 'force-dynamic'
 
 /**
- * Xóa tất cả thông báo đã quá 7 ngày kể từ created_at.
- * Chạy mỗi ngày trong cron để giữ bảng notifications gọn.
+ * Dọn dẹp thông báo cũ:
+ *  - Đã đọc (is_read = true)  : xóa sau 7 ngày
+ *  - Chưa đọc (is_read = false): xóa sau 30 ngày (giữ lâu hơn để tránh mất thông báo quan trọng)
  */
-async function purgeOldNotifications(supabase: SupabaseClient): Promise<number> {
-  const cutoff = new Date()
-  cutoff.setDate(cutoff.getDate() - 7)
+async function purgeOldNotifications(supabase: SupabaseClient): Promise<{ readDeleted: number; unreadDeleted: number }> {
+  const cutoff7d = new Date()
+  cutoff7d.setDate(cutoff7d.getDate() - 7)
 
-  const { error, count } = await supabase
+  const cutoff30d = new Date()
+  cutoff30d.setDate(cutoff30d.getDate() - 30)
+
+  const { error: err1, count: readDeleted } = await supabase
     .from('notifications')
     .delete({ count: 'exact' })
-    .lt('created_at', cutoff.toISOString())
+    .eq('is_read', true)
+    .lt('created_at', cutoff7d.toISOString())
 
-  if (error) throw error
-  return count ?? 0
+  if (err1) throw err1
+
+  const { error: err2, count: unreadDeleted } = await supabase
+    .from('notifications')
+    .delete({ count: 'exact' })
+    .eq('is_read', false)
+    .lt('created_at', cutoff30d.toISOString())
+
+  if (err2) throw err2
+
+  return { readDeleted: readDeleted ?? 0, unreadDeleted: unreadDeleted ?? 0 }
 }
 
 /**
@@ -72,10 +86,10 @@ export async function POST(request: NextRequest) {
     results.invoiceOverdue = err instanceof Error ? err.message : String(err)
   }
 
-  // 4. Xóa thông báo cũ hơn 7 ngày
+  // 4. Dọn thông báo cũ (đã đọc > 7 ngày, chưa đọc > 30 ngày)
   try {
-    const deleted = await purgeOldNotifications(supabase)
-    results.purgeOld = `ok (${deleted} deleted)`
+    const { readDeleted, unreadDeleted } = await purgeOldNotifications(supabase)
+    results.purgeOld = `ok (read: ${readDeleted} deleted, unread: ${unreadDeleted} deleted)`
   } catch (err) {
     console.error('[cron] purgeOldNotifications failed:', err)
     results.purgeOld = err instanceof Error ? err.message : String(err)
