@@ -25,6 +25,7 @@ export default async function MobileRedirectPage({ searchParams }: Props) {
     // PKCE flow: exchange code → session trên server
     const supabase = await createClient()
     const { data, error } = await supabase.auth.exchangeCodeForSession(code)
+    console.log('[mobile-redirect] exchangeCode error:', error?.message ?? 'none', '| user:', data?.user?.id ?? 'none')
     if (error || !data.session) {
       errorMsg = 'Đường dẫn không hợp lệ hoặc đã hết hạn.'
     } else {
