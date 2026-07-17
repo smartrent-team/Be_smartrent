@@ -14,8 +14,6 @@ export async function POST(request: NextRequest) {
     const body = await request.json()
     const { access_token, password } = body
 
-    console.log('[reset-password] body keys:', Object.keys(body))
-
     if (!access_token) {
       return NextResponse.json({ error: 'Thiếu access_token' }, { status: 400 })
     }
@@ -27,7 +25,6 @@ export async function POST(request: NextRequest) {
 
     // Lấy user từ access_token
     const { data: userData, error: userError } = await supabase.auth.getUser(access_token)
-    console.log('[reset-password] getUser error:', userError?.message ?? 'none')
 
     if (userError || !userData.user) {
       return NextResponse.json(
@@ -41,7 +38,6 @@ export async function POST(request: NextRequest) {
       userData.user.id,
       { password }
     )
-    console.log('[reset-password] updateUser error:', updateError?.message ?? 'none')
 
     if (updateError) {
       return NextResponse.json({ error: updateError.message }, { status: 400 })
