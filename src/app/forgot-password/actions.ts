@@ -9,9 +9,8 @@ export async function resetPassword(formData: FormData) {
   const supabase = await createClient()
   const origin = await getPublicAppUrl()
 
-  // redirectTo trỏ thẳng về /update-password
-  // Supabase sẽ gắn #access_token=...&type=recovery vào URL này
-  // Page /update-password là client component sẽ đọc hash và xử lý
+  // Web form: redirectTo trỏ về /update-password (web UI)
+  // Mobile: dùng /api/auth/forgot-password riêng với redirectTo là deep link
   const { error } = await supabase.auth.resetPasswordForEmail(email, {
     redirectTo: `${origin}/update-password?source=web`,
   })
@@ -22,4 +21,3 @@ export async function resetPassword(formData: FormData) {
 
   redirect(`/forgot-password?success=${encodeURIComponent('Đã gửi email khôi phục. Vui lòng kiểm tra hộp thư của bạn.')}`)
 }
-

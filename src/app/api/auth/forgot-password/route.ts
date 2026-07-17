@@ -1,6 +1,5 @@
 import { NextResponse, type NextRequest } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
-import { getPublicAppUrl } from '@/lib/public-url'
 
 export async function POST(request: NextRequest) {
   try {
@@ -12,10 +11,11 @@ export async function POST(request: NextRequest) {
     }
 
     const supabase = await createClient()
-    const origin = await getPublicAppUrl()
 
     const { error } = await supabase.auth.resetPasswordForEmail(email, {
-      redirectTo: `${origin}/update-password?source=mobile_app`,
+      // Deep link: Supabase sẽ gắn ?token_hash=xxx&type=recovery vào URL này.
+      // app_links sẽ intercept và mở ResetPasswordPage trong app.
+      redirectTo: `smartrent://reset-password`,
     })
 
     if (error) {
