@@ -1,5 +1,6 @@
 import { NextResponse, type NextRequest } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
+import { getPublicAppUrl } from '@/lib/public-url'
 
 export async function POST(request: NextRequest) {
   try {
@@ -11,11 +12,12 @@ export async function POST(request: NextRequest) {
     }
 
     const supabase = await createClient()
+    const origin = await getPublicAppUrl()
 
+    // redirectTo trỏ về trang trung gian HTTPS (Supabase yêu cầu HTTPS, không nhận custom scheme).
+    // Trang /auth/mobile-redirect sẽ redirect ngay sang deep link smartrent://reset-password
     const { error } = await supabase.auth.resetPasswordForEmail(email, {
-      // Deep link: Supabase sẽ gắn ?token_hash=xxx&type=recovery vào URL này.
-      // app_links sẽ intercept và mở ResetPasswordPage trong app.
-      redirectTo: `smartrent://reset-password`,
+      redirectTo: `${origin}/auth/mobile-redirect`,
     })
 
     if (error) {
