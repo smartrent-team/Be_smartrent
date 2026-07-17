@@ -45,7 +45,7 @@ export default function MobileRedirectPage() {
         const { data, error } = await supabase.auth.exchangeCodeForSession(code)
         if (error || !data.session) {
           setStatus('error')
-          setErrorMsg('Đường dẫn không hợp lệ hoặc đã hết hạn. Vui lòng yêu cầu lại email.')
+          setErrorMsg(`Exchange lỗi: ${error?.message ?? 'no session'} | code: ${code.substring(0, 8)}...`)
           return
         }
         const accessToken = data.session.access_token
