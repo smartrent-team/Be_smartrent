@@ -1,5 +1,5 @@
 import { NextResponse, type NextRequest } from 'next/server'
-import { createClient } from '@/lib/supabase/server'
+import { createServerClient } from '@supabase/ssr'
 import { getPublicAppUrl } from '@/lib/public-url'
 
 export async function POST(request: NextRequest) {
@@ -11,12 +11,20 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Email là bắt buộc' }, { status: 400 })
     }
 
-    const supabase = await createClient()
     const origin = await getPublicAppUrl()
 
-    // resetPasswordForEmail gửi email + tạo link trỏ về redirectTo
-    // Supabase sẽ gắn ?code=xxx (PKCE) vào URL này khi user click
-    // Trang /auth/mobile-redirect sẽ exchange code → token rồi redirect sang deep link
+    // Dùng implicit flow (không PKCE) để Supabase gửi link dạng:
+    // /auth/mobile-redirect#access_token=xxx&type=recovery
+    // thay vì PKCE ?code=xxx (cần code_verifier trên cùng browser)
+    const supabase = createServerClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+      {
+        auth: { flowType: 'implicit' },
+        cookies: { getAll: () => [], setAll: () => {} },
+      }
+    )
+
     const { error } = await supabase.auth.resetPasswordForEmail(email, {
       redirectTo: `${origin}/auth/mobile-redirect`,
     })
