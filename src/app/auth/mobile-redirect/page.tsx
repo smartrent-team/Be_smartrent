@@ -3,43 +3,65 @@
 /**
  * /auth/mobile-redirect
  *
- * Implicit flow: Supabase gửi link dạng
- *   /auth/mobile-redirect#access_token=xxx&type=recovery
+ * Xử lý cả 2 flow Supabase gửi về:
+ *  - PKCE  : /auth/mobile-redirect?code=xxx   → exchange bằng Supabase JS (browser)
+ *  - Implicit: /auth/mobile-redirect#access_token=xxx → đọc hash trực tiếp
  *
- * Hash fragment (#) không gửi lên server — phải đọc bằng JS client-side.
- * Trang này đọc hash, lấy access_token, rồi redirect sang deep link.
+ * Sau khi có access_token → redirect sang deep link smartrent://reset-password
  */
 import { useEffect, useState } from 'react'
+import { createClient } from '@/lib/supabase/client'
 
 export default function MobileRedirectPage() {
-  const [status, setStatus] = useState<'loading' | 'redirecting' | 'error'>('loading')
+  const [status, setStatus]   = useState<'loading' | 'redirecting' | 'error'>('loading')
   const [errorMsg, setErrorMsg] = useState('')
+  const [deepLink, setDeepLink] = useState('')
 
   useEffect(() => {
-    const hash = window.location.hash // "#access_token=xxx&type=recovery&..."
-    if (!hash) {
-      // Không có hash → có thể là PKCE ?code= (không hỗ trợ ở đây)
+    const run = async () => {
+      const supabase = createClient()
+
+      // ── Implicit flow: đọc hash fragment ────────────────────────────────
+      const hash = window.location.hash
+      if (hash && hash.includes('access_token')) {
+        const params      = new URLSearchParams(hash.substring(1))
+        const accessToken = params.get('access_token')
+        const type        = params.get('type')
+
+        if (accessToken && type === 'recovery') {
+          const link = `smartrent://reset-password?access_token=${encodeURIComponent(accessToken)}`
+          setDeepLink(link)
+          setStatus('redirecting')
+          window.location.href = link
+          return
+        }
+      }
+
+      // ── PKCE flow: exchange ?code= bằng Supabase JS client (browser) ────
+      const urlParams = new URLSearchParams(window.location.search)
+      const code = urlParams.get('code')
+
+      if (code) {
+        const { data, error } = await supabase.auth.exchangeCodeForSession(code)
+        if (error || !data.session) {
+          setStatus('error')
+          setErrorMsg('Đường dẫn không hợp lệ hoặc đã hết hạn. Vui lòng yêu cầu lại email.')
+          return
+        }
+        const accessToken = data.session.access_token
+        const link = `smartrent://reset-password?access_token=${encodeURIComponent(accessToken)}`
+        setDeepLink(link)
+        setStatus('redirecting')
+        window.location.href = link
+        return
+      }
+
+      // Không có code hay hash
       setStatus('error')
       setErrorMsg('Đường dẫn không hợp lệ. Vui lòng yêu cầu lại email khôi phục.')
-      return
     }
 
-    const params = new URLSearchParams(hash.substring(1)) // bỏ dấu #
-    const accessToken = params.get('access_token')
-    const type        = params.get('type')
-
-    if (!accessToken || type !== 'recovery') {
-      setStatus('error')
-      setErrorMsg('Đường dẫn không hợp lệ hoặc đã hết hạn.')
-      return
-    }
-
-    // Tạo deep link với access_token
-    const deepLink = `smartrent://reset-password?access_token=${encodeURIComponent(accessToken)}`
-
-    setStatus('redirecting')
-    // Redirect sang app
-    window.location.href = deepLink
+    run()
   }, [])
 
   if (status === 'error') {
@@ -66,8 +88,7 @@ export default function MobileRedirectPage() {
     <div style={{
       display: 'flex', flexDirection: 'column', alignItems: 'center',
       justifyContent: 'center', minHeight: '100vh', padding: 24,
-      fontFamily: 'system-ui, sans-serif', textAlign: 'center',
-      background: '#f5f5f5',
+      fontFamily: 'system-ui, sans-serif', textAlign: 'center', background: '#f5f5f5',
     }}>
       <div style={{
         width: 72, height: 72, borderRadius: '50%', background: '#e8f5e9',
@@ -82,30 +103,18 @@ export default function MobileRedirectPage() {
         {status === 'loading' ? 'Đang xử lý...' : 'Đang mở ứng dụng SmartRent...'}
       </p>
 
-      {status === 'redirecting' && (
+      {status === 'redirecting' && deepLink && (
         <>
-          <p style={{ fontSize: 13, color: '#888', marginBottom: 16 }}>
+          <p style={{ fontSize: 13, color: '#888', marginBottom: 12 }}>
             Nếu app không tự mở, bấm nút bên dưới:
           </p>
-          {/* Nút này chỉ hiện sau khi có access_token — dùng JS để set href */}
-          <button
-            id="open-app-btn"
-            style={{
-              padding: '14px 32px', background: '#2e7d32', color: '#fff',
-              borderRadius: 12, border: 'none', fontWeight: 700,
-              fontSize: 16, cursor: 'pointer', marginBottom: 16,
-            }}
-            onClick={() => {
-              const hash = window.location.hash
-              const params = new URLSearchParams(hash.substring(1))
-              const token = params.get('access_token')
-              if (token) {
-                window.location.href = `smartrent://reset-password?access_token=${encodeURIComponent(token)}`
-              }
-            }}
-          >
+          <a href={deepLink} style={{
+            display: 'inline-block', padding: '14px 32px', background: '#2e7d32',
+            color: '#fff', borderRadius: 12, textDecoration: 'none',
+            fontWeight: 700, fontSize: 16, marginBottom: 16,
+          }}>
             Mở ứng dụng
-          </button>
+          </a>
         </>
       )}
     </div>
