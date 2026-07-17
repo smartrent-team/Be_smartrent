@@ -1,70 +1,44 @@
 import { NextResponse, type NextRequest } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/admin'
-import { createClient } from '@/lib/supabase/server'
 
 /**
  * POST /api/auth/reset-password
  *
- * Hỗ trợ 2 flow:
+ * Body: { access_token: string, password: string }
  *
- * 1. OTP flow (token_hash) — Supabase Auth settings: "Use OTP" / link type = "magic link"
- *    Body: { token_hash: string, password: string }
- *
- * 2. PKCE flow (code) — phải exchange bằng server client (không phải admin client)
- *    Body: { code: string, password: string }
- *
- * Khuyến nghị dùng token_hash (OTP flow) vì PKCE code chỉ valid một lần
- * và phải được exchange từ server có code_verifier tương ứng.
+ * access_token được lấy từ trang /auth/mobile-redirect sau khi
+ * exchange PKCE code → session. App nhận qua deep link và gửi lên đây.
  */
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json()
-    const { code, token_hash, password } = body
+    const { access_token, password } = body
 
     console.log('[reset-password] body keys:', Object.keys(body))
 
-    if (!code && !token_hash) {
-      return NextResponse.json({ error: 'Thiếu code hoặc token_hash' }, { status: 400 })
+    if (!access_token) {
+      return NextResponse.json({ error: 'Thiếu access_token' }, { status: 400 })
     }
     if (!password || typeof password !== 'string' || password.length < 6) {
       return NextResponse.json({ error: 'Mật khẩu phải có ít nhất 6 ký tự' }, { status: 400 })
     }
 
-    let userId: string | undefined
+    const supabase = createAdminClient()
 
-    if (token_hash) {
-      // OTP flow — dùng admin client, verifyOtp với token_hash
-      const supabase = createAdminClient()
-      const { data, error } = await supabase.auth.verifyOtp({
-        token_hash,
-        type: 'recovery',
-      })
-      console.log('[reset-password] verifyOtp error:', error?.message ?? 'none')
-      if (error || !data.user) {
-        return NextResponse.json(
-          { error: 'Đường dẫn không hợp lệ hoặc đã hết hạn. Vui lòng yêu cầu lại email.' },
-          { status: 400 }
-        )
-      }
-      userId = data.user.id
-    } else {
-      // PKCE flow — dùng server client (có cookie context, không dùng admin)
-      const supabase = await createClient()
-      const { data, error } = await supabase.auth.exchangeCodeForSession(code)
-      console.log('[reset-password] exchangeCode error:', error?.message ?? 'none')
-      if (error || !data.user) {
-        return NextResponse.json(
-          { error: 'Đường dẫn không hợp lệ hoặc đã hết hạn. Vui lòng yêu cầu lại email.' },
-          { status: 400 }
-        )
-      }
-      userId = data.user.id
+    // Lấy user từ access_token
+    const { data: userData, error: userError } = await supabase.auth.getUser(access_token)
+    console.log('[reset-password] getUser error:', userError?.message ?? 'none')
+
+    if (userError || !userData.user) {
+      return NextResponse.json(
+        { error: 'Phiên đăng nhập không hợp lệ hoặc đã hết hạn. Vui lòng yêu cầu lại email.' },
+        { status: 400 }
+      )
     }
 
-    // Cập nhật mật khẩu bằng admin client
-    const adminClient = createAdminClient()
-    const { error: updateError } = await adminClient.auth.admin.updateUserById(
-      userId,
+    // Cập nhật mật khẩu mới
+    const { error: updateError } = await supabase.auth.admin.updateUserById(
+      userData.user.id,
       { password }
     )
     console.log('[reset-password] updateUser error:', updateError?.message ?? 'none')

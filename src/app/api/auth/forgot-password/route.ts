@@ -1,5 +1,5 @@
 import { NextResponse, type NextRequest } from 'next/server'
-import { createAdminClient } from '@/lib/supabase/admin'
+import { createClient } from '@/lib/supabase/server'
 import { getPublicAppUrl } from '@/lib/public-url'
 
 export async function POST(request: NextRequest) {
@@ -11,29 +11,21 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Email là bắt buộc' }, { status: 400 })
     }
 
-    const supabase = createAdminClient()
+    const supabase = await createClient()
     const origin = await getPublicAppUrl()
 
-    // Dùng admin.generateLink để tạo recovery link dạng token_hash (không dùng PKCE)
-    // Token này sẽ được gắn vào deep link và mobile app dùng để đổi mật khẩu
-    const { data, error } = await supabase.auth.admin.generateLink({
-      type: 'recovery',
-      email,
-      options: {
-        redirectTo: `${origin}/auth/mobile-redirect`,
-      },
+    // resetPasswordForEmail gửi email + tạo link trỏ về redirectTo
+    // Supabase sẽ gắn ?code=xxx (PKCE) vào URL này khi user click
+    // Trang /auth/mobile-redirect sẽ exchange code → token rồi redirect sang deep link
+    const { error } = await supabase.auth.resetPasswordForEmail(email, {
+      redirectTo: `${origin}/auth/mobile-redirect`,
     })
 
-    if (error || !data?.properties?.hashed_token) {
-      console.error('[forgot-password] generateLink error:', error?.message)
-      return NextResponse.json(
-        { error: error?.message ?? 'Không thể tạo link khôi phục' },
-        { status: 400 }
-      )
+    if (error) {
+      console.error('[forgot-password] error:', error.message)
+      return NextResponse.json({ error: error.message }, { status: 400 })
     }
 
-    // generateLink đã tự gửi email với link trỏ về redirectTo
-    // (trang /auth/mobile-redirect sẽ redirect sang deep link smartrent://)
     return NextResponse.json({
       success: true,
       message: 'Đã gửi email khôi phục mật khẩu. Vui lòng kiểm tra hộp thư của bạn.',

@@ -1,40 +1,58 @@
 /**
  * /auth/mobile-redirect
  *
- * Trang trung gian — nhận params từ Supabase email rồi redirect
- * ngay sang deep link smartrent://reset-password để mở app.
- *
- * Supabase gửi 2 dạng tuỳ cấu hình Auth:
- *  - PKCE flow : ?code=xxx
- *  - OTP flow  : ?token_hash=xxx&type=recovery
+ * Trang trung gian — nhận ?code từ Supabase email (PKCE flow),
+ * exchange lấy access_token trên server, rồi redirect sang
+ * deep link smartrent://reset-password?access_token=xxx để mở app.
  */
 import { redirect } from 'next/navigation'
+import { createClient } from '@/lib/supabase/server'
 
 interface Props {
   searchParams: Promise<Record<string, string | undefined>>
 }
 
 export default async function MobileRedirectPage({ searchParams }: Props) {
-  const params     = await searchParams
-  const code       = params['code']
-  const tokenHash  = params['token_hash']
-  const type       = params['type']
+  const params    = await searchParams
+  const code      = params['code']
+  const tokenHash = params['token_hash']
+  const type      = params['type']
 
-  // Xây deep link với bất kỳ param nào Supabase gửi về
-  const qs = new URLSearchParams()
+  let accessToken: string | null = null
+  let errorMsg: string | null = null
 
   if (code) {
-    qs.set('code', code)
-  } else if (tokenHash) {
-    qs.set('token_hash', tokenHash)
-    if (type) qs.set('type', type)
+    // PKCE flow: exchange code → session trên server
+    const supabase = await createClient()
+    const { data, error } = await supabase.auth.exchangeCodeForSession(code)
+    if (error || !data.session) {
+      errorMsg = 'Đường dẫn không hợp lệ hoặc đã hết hạn.'
+    } else {
+      accessToken = data.session.access_token
+    }
+  } else if (tokenHash && type === 'recovery') {
+    // OTP flow: truyền thẳng token_hash vào deep link
+    const qs = new URLSearchParams({ token_hash: tokenHash, type })
+    const deepLink = `smartrent://reset-password?${qs.toString()}`
+    const webFallback = `/update-password?${qs.toString()}&source=web`
+    return renderPage(deepLink, webFallback)
   } else {
-    redirect('/forgot-password?message=' + encodeURIComponent('Đường dẫn không hợp lệ hoặc đã hết hạn.'))
+    errorMsg = 'Đường dẫn không hợp lệ hoặc đã hết hạn.'
   }
 
+  if (errorMsg) {
+    redirect('/forgot-password?message=' + encodeURIComponent(errorMsg))
+  }
+
+  // Gửi access_token vào deep link — app dùng để updateUser trực tiếp
+  const qs = new URLSearchParams({ access_token: accessToken! })
   const deepLink    = `smartrent://reset-password?${qs.toString()}`
   const webFallback = `/update-password?${qs.toString()}&source=web`
 
+  return renderPage(deepLink, webFallback)
+}
+
+function renderPage(deepLink: string, webFallback: string) {
   return (
     <html lang="vi">
       <head>
