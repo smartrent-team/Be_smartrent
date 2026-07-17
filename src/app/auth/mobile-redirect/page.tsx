@@ -42,10 +42,13 @@ export default function MobileRedirectPage() {
       const code = urlParams.get('code')
 
       if (code) {
+        // Thử exchange — chỉ hoạt động nếu PKCE tắt trên Supabase Dashboard
+        // Nếu lỗi "code verifier not found" → fallback về web update-password
         const { data, error } = await supabase.auth.exchangeCodeForSession(code)
         if (error || !data.session) {
-          setStatus('error')
-          setErrorMsg(`Exchange lỗi: ${error?.message ?? 'no session'} | code: ${code.substring(0, 8)}...`)
+          // Fallback: gửi thẳng code về trang web đổi mật khẩu
+          // (update-password page xử lý được cả code lẫn token_hash)
+          window.location.href = `/update-password?code=${encodeURIComponent(code)}&source=web`
           return
         }
         const accessToken = data.session.access_token
