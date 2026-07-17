@@ -1,5 +1,5 @@
 import { NextResponse, type NextRequest } from 'next/server'
-import { createClient } from '@/lib/supabase/server'
+import { createAdminClient } from '@/lib/supabase/admin'
 import { getPublicAppUrl } from '@/lib/public-url'
 
 export async function POST(request: NextRequest) {
@@ -11,22 +11,53 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Email là bắt buộc' }, { status: 400 })
     }
 
-    const supabase = await createClient()
+    const supabase = createAdminClient()
     const origin = await getPublicAppUrl()
 
-    // redirectTo trỏ về trang trung gian HTTPS (Supabase yêu cầu HTTPS, không nhận custom scheme).
-    // Trang /auth/mobile-redirect sẽ redirect ngay sang deep link smartrent://reset-password
-    const { error } = await supabase.auth.resetPasswordForEmail(email, {
+    // Dùng admin.generateLink để tạo recovery link dạng token_hash (không dùng PKCE)
+    // Token này sẽ được gắn vào deep link và mobile app dùng để đổi mật khẩu
+    const { data, error } = await supabase.auth.admin.generateLink({
+      type: 'recovery',
+      email,
+      options: {
+        redirectTo: `${origin}/auth/mobile-redirect`,
+      },
+    })
+
+    if (error || !data?.properties?.hashed_token) {
+      console.error('[forgot-password] generateLink error:', error?.message)
+      return NextResponse.json(
+        { error: error?.message ?? 'Không thể tạo link khôi phục' },
+        { status: 400 }
+      )
+    }
+
+    // Gửi email thủ công với deep link thay vì dùng link Supabase mặc định
+    // Tạo link trực tiếp trỏ vào trang trung gian với token_hash
+    const tokenHash = data.properties.hashed_token
+    const recoveryUrl = `${origin}/auth/mobile-redirect?token_hash=${encodeURIComponent(tokenHash)}&type=recovery`
+
+    // Gửi email qua Supabase (dùng resetPasswordForEmail để trigger email template)
+    // Nhưng người dùng sẽ nhận link trỏ về trang trung gian
+    const { error: sendError } = await supabase.auth.resetPasswordForEmail(email, {
       redirectTo: `${origin}/auth/mobile-redirect`,
     })
 
-    if (error) {
-      return NextResponse.json({ error: error.message }, { status: 400 })
+    if (sendError) {
+      console.error('[forgot-password] sendError:', sendError.message)
+      return NextResponse.json({ error: sendError.message }, { status: 400 })
     }
 
-    return NextResponse.json({ success: true, message: 'Đã gửi email khôi phục mật khẩu. Vui lòng kiểm tra hộp thư của bạn.' })
+    console.log('[forgot-password] recovery link generated:', recoveryUrl)
+    return NextResponse.json({
+      success: true,
+      message: 'Đã gửi email khôi phục mật khẩu. Vui lòng kiểm tra hộp thư của bạn.',
+    })
   } catch (error: unknown) {
-    const errorMessage = error instanceof Error ? error.message : String(error)
-    return NextResponse.json({ error: errorMessage }, { status: 500 })
+    console.error('[forgot-password] unexpected error:', error)
+    return NextResponse.json(
+      { error: error instanceof Error ? error.message : String(error) },
+      { status: 500 }
+    )
   }
 }
