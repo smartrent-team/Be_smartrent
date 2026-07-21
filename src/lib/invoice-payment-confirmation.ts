@@ -12,6 +12,7 @@ type InvoiceRecord = {
   total_amount: number
   payment_status: string
   tenant?: TenantRef | TenantRef[]
+  room?: any
 }
 
 type ConfirmInvoicePaymentResult =
@@ -34,6 +35,12 @@ function normalizeTenant(value: InvoiceRecord['tenant']): { id?: number; user_id
   return value
 }
 
+function normalizeRoom(value: any): { room_code?: string; branch_id?: number } | null {
+  if (!value) return null
+  if (Array.isArray(value)) return value[0] ?? null
+  return value
+}
+
 export async function confirmInvoicePaymentAndNotify(
   supabase: SupabaseClient,
   paymentLinkId: string,
@@ -41,7 +48,7 @@ export async function confirmInvoicePaymentAndNotify(
 ): Promise<ConfirmInvoicePaymentResult> {
   const { data: invoice, error: fetchError } = await supabase
     .from('invoices')
-    .select('id, invoice_code, total_amount, payment_status, tenant:tenant_id(id, user_id)')
+    .select('id, invoice_code, total_amount, payment_status, tenant:tenant_id(id, user_id), room:room_id(room_code, branch_id)')
     .eq('payment_link_id', paymentLinkId)
     .maybeSingle()
 
@@ -74,7 +81,7 @@ export async function confirmInvoicePaymentAndNotify(
     })
     .eq('id', invoice.id)
     .eq('payment_status', 'unpaid')
-    .select('id, invoice_code, total_amount, tenant:tenant_id(id, user_id)')
+    .select('id, invoice_code, total_amount, tenant:tenant_id(id, user_id), room:room_id(room_code, branch_id)')
     .maybeSingle()
 
   if (updateError) {
@@ -101,6 +108,30 @@ export async function confirmInvoicePaymentAndNotify(
         type: 'payment',
       }
     )
+  }
+
+  const roomObj = normalizeRoom((updatedInvoice as InvoiceRecord).room)
+  let managerQuery = supabase.from('profiles').select('id')
+  if (roomObj?.branch_id != null) {
+    managerQuery = managerQuery.or(`role.eq.super_admin,and(role.eq.manager,branch_id.eq.${roomObj.branch_id})`)
+  } else {
+    managerQuery = managerQuery.eq('role', 'super_admin')
+  }
+
+  const { data: managers } = await managerQuery
+  if (managers && managers.length > 0) {
+    const roomStr = roomObj?.room_code ? ` (Phòng ${roomObj.room_code})` : ''
+    for (const manager of managers) {
+      await dispatchNotification(
+        supabase,
+        { userId: manager.id },
+        {
+          title: 'Thanh toán mới',
+          body: `Hóa đơn ${updatedInvoice.invoice_code}${roomStr} đã được thanh toán thành công qua VNPay (${Number(updatedInvoice.total_amount).toLocaleString('vi-VN')}đ).`,
+          type: 'payment',
+        }
+      )
+    }
   }
 
   return {
