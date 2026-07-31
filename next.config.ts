@@ -1,9 +1,12 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
-  // Cho phép Server Actions hoạt động qua Ngrok domain
+  // Cho phép Server Actions hoạt động qua tunnel domain
   allowedDevOrigins: [
     "postabdominal-vicenta-sapiential.ngrok-free.dev",
+    "*.ngrok-free.app",
+    "*.ngrok.io",
+    "*.trycloudflare.com",
   ],
   images: {
     remotePatterns: [
