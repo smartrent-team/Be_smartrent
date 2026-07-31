@@ -2,6 +2,8 @@ import { NextResponse, type NextRequest } from 'next/server'
 import { verifyRole } from '@/lib/rbac'
 import { createNotificationSchema, formatZodError } from '@/lib/validations'
 import { dispatchNotification } from '@/lib/notification_dispatch'
+import { syncOverdueInvoiceNotifications } from '@/lib/invoice-overdue-notification'
+import { syncExpiringContractWarnings } from '@/lib/contract-notification-sync'
 
 export const dynamic = 'force-dynamic'
 export const revalidate = 0
@@ -44,8 +46,19 @@ export async function GET(request: NextRequest) {
     const limit = Number.isFinite(limitParam) ? Math.min(Math.max(limitParam, 1), 200) : 100
     const unreadOnly = searchParams.get('unreadOnly') === 'true'
 
-    // Không còn lazy sync ở đây nữa — thông báo được sinh ra bởi cron job
-    // chạy qua /api/internal/notifications-cron mỗi ngày lúc 8:00 SA.
+    // Lazy sync thông báo hóa đơn quá hạn khi người dùng mở màn hình thông báo
+    try {
+      await syncOverdueInvoiceNotifications(supabase)
+    } catch (e) {
+      console.warn('[notifications GET] syncOverdueInvoiceNotifications warning:', e)
+    }
+
+    // Lazy sync hợp đồng sắp hết hạn (không phụ thuộc cron job)
+    try {
+      await syncExpiringContractWarnings(supabase)
+    } catch (e) {
+      console.warn('[notifications GET] syncExpiringContractWarnings warning:', e)
+    }
 
     let query = supabase
       .from('notifications')

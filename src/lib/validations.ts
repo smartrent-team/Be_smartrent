@@ -75,7 +75,7 @@ export const createNotificationSchema = z.object({
   title: z.string().trim().min(1, 'Thiếu tiêu đề'),
   content: z.string().trim().min(1, 'Thiếu nội dung'),
   type: z.string().trim().min(1, 'Thiếu loại thông báo'),
-  relatedId: z.string().optional(),
+  relatedId: z.string().nullable().optional(),
 })
 
 // Helper phân tích lỗi
