@@ -41,6 +41,7 @@ export async function GET(request: NextRequest) {
         total_amount,
         payment_status,
         issued_at,
+        due_date,
         created_at,
         payment_link_id,
         checkoutUrl,
@@ -128,6 +129,7 @@ export async function GET(request: NextRequest) {
         totalAmount: inv.total_amount,
         paymentStatus: inv.payment_status,
         issuedAt: inv.issued_at,
+        dueDate: inv.due_date,
         createdAt: inv.created_at,
         checkoutUrl: inv.checkoutUrl,
       }

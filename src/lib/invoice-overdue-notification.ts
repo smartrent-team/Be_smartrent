@@ -7,8 +7,6 @@ import { dispatchNotification } from '@/lib/notification_dispatch'
  * Dedup cứng theo (user_id, related_id="invoice:{id}", type="invoice_overdue").
  */
 export async function syncOverdueInvoiceNotifications(supabase: SupabaseClient) {
-  const now = new Date().toISOString()
-
   const { data: invoices, error } = await supabase
     .from('invoices')
     .select(`
@@ -22,15 +20,32 @@ export async function syncOverdueInvoiceNotifications(supabase: SupabaseClient) 
       room:rooms(room_code, branch_id)
     `)
     .eq('payment_status', 'unpaid')
-    .lt('due_date', now)
+    .not('due_date', 'is', null)
     .not('tenant_id', 'is', null)
 
-  if (error) {
-    console.error('Failed to load overdue invoices:', error)
+  if (error || !invoices) {
+    if (error) console.error('Failed to load overdue invoices:', error)
     return
   }
 
-  for (const invoice of invoices ?? []) {
+  const now = new Date()
+
+  for (const invoice of invoices) {
+    if (!invoice.due_date) continue
+    const dueDate = new Date(invoice.due_date)
+    if (Number.isNaN(dueDate.getTime())) continue
+
+    // Tính thời điểm hết hạn (23:59:59 của ngày due_date)
+    const endOfDueDay = new Date(
+      dueDate.getFullYear(),
+      dueDate.getMonth(),
+      dueDate.getDate(),
+      23, 59, 59, 999
+    )
+
+    // Nếu chưa qua hết ngày due_date thì chưa quá hạn
+    if (now.getTime() <= endOfDueDay.getTime()) continue
+
     const relatedId = `invoice:${invoice.id}`
 
     const tenantData = invoice.tenant as unknown
@@ -45,7 +60,13 @@ export async function syncOverdueInvoiceNotifications(supabase: SupabaseClient) 
 
     if (!tenantObj?.user_id) continue
 
-    // Kiểm tra đã gửi chưa
+    const dayStr = String(dueDate.getDate()).padStart(2, '0')
+    const monthStr = String(dueDate.getMonth() + 1).padStart(2, '0')
+    const dueStr = `${dayStr}/${monthStr}/${dueDate.getFullYear()}`
+    const amount = Number(invoice.total_amount).toLocaleString('vi-VN')
+    const roomCode = roomObj?.room_code ?? '?'
+
+    // 1. Kiểm tra & gửi thông báo cho Cư dân
     const { data: existing } = await supabase
       .from('notifications')
       .select('id')
@@ -54,25 +75,20 @@ export async function syncOverdueInvoiceNotifications(supabase: SupabaseClient) 
       .eq('type', 'invoice_overdue')
       .maybeSingle()
 
-    if (existing) continue
+    if (!existing) {
+      await dispatchNotification(
+        supabase,
+        { userId: tenantObj.user_id, tenantId: (invoice.tenant_id as number) ?? null },
+        {
+          title: 'Hóa đơn chưa thanh toán — đã quá hạn',
+          body: `Hóa đơn ${invoice.invoice_code} phòng ${roomCode} số tiền ${amount}đ đã quá hạn thanh toán (hạn: ${dueStr}). Vui lòng liên hệ ban quản lý!`,
+          type: 'invoice_overdue',
+          relatedId,
+        }
+      )
+    }
 
-    const amount = Number(invoice.total_amount).toLocaleString('vi-VN')
-    const dueStr = new Date(invoice.due_date as string).toLocaleDateString('vi-VN')
-    const roomCode = roomObj?.room_code ?? '?'
-
-    // Thông báo tenant
-    await dispatchNotification(
-      supabase,
-      { userId: tenantObj.user_id, tenantId: invoice.tenant_id as number ?? null },
-      {
-        title: 'Hóa đơn chưa thanh toán — đã quá hạn',
-        body: `Hóa đơn ${invoice.invoice_code} phòng ${roomCode} số tiền ${amount}đ đã quá hạn thanh toán (hạn: ${dueStr}). Vui lòng thanh toán ngay!`,
-        type: 'invoice_overdue',
-        relatedId,
-      }
-    )
-
-    // Thông báo manager + super_admin của chi nhánh
+    // 2. Kiểm tra & gửi thông báo cho Quản lý / Admin chi nhánh
     if (roomObj?.branch_id != null) {
       const { data: managers } = await supabase
         .from('users')
@@ -97,7 +113,7 @@ export async function syncOverdueInvoiceNotifications(supabase: SupabaseClient) 
           supabase,
           { userId: mgrId },
           {
-            title: 'Cư dân chưa thanh toán hóa đơn',
+            title: 'Cư dân chưa thanh toán hóa đơn (Quá hạn)',
             body: `Hóa đơn ${invoice.invoice_code} phòng ${roomCode} (${amount}đ) đã quá hạn ngày ${dueStr}.`,
             type: 'invoice_overdue',
             relatedId,

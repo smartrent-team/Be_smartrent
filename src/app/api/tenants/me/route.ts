@@ -42,6 +42,7 @@ export async function GET() {
           total_amount,
           payment_status,
           issued_at,
+          due_date,
           qrPayload,
           checkoutUrl,
           room_price,

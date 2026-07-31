@@ -69,7 +69,14 @@ export async function POST(_request: Request, context: RouteContext) {
       return NextResponse.json({ error: 'Hóa đơn đã được thanh toán' }, { status: 400 })
     }
 
-    if (invoice.checkoutUrl) {
+    if (isInvoiceOverdue(invoice.due_date)) {
+      return NextResponse.json(
+        { error: 'Hóa đơn đã quá hạn thanh toán. Vui lòng liên hệ ban quản lý.' },
+        { status: 400 }
+      )
+    }
+
+    if (invoice.checkoutUrl && !isVNPayUrlExpired(invoice.checkoutUrl)) {
       return NextResponse.json({
         success: true,
         invoice: mapInvoice(invoice),
@@ -145,5 +152,55 @@ function mapInvoice(inv: Record<string, unknown>) {
     checkoutUrl: inv.checkoutUrl,
     isPaid: inv.payment_status === 'paid',
     hasLink: Boolean(inv.checkoutUrl),
+  }
+}
+
+/**
+ * Kiểm tra xem link thanh toán VNPay có bị hết hạn (quá 15 phút) hay chưa.
+ * VNPay mã hóa thời gian tạo dưới dạng param vnp_CreateDate (YYYYMMDDHHmmss, timezone ICT).
+ */
+function isVNPayUrlExpired(url: string, maxAgeMinutes = 15): boolean {
+  try {
+    const parsedUrl = new URL(url)
+    const createDateStr = parsedUrl.searchParams.get('vnp_CreateDate')
+    if (!createDateStr || createDateStr.length !== 14) return true
+
+    const year = parseInt(createDateStr.slice(0, 4), 10)
+    const month = parseInt(createDateStr.slice(4, 6), 10) - 1
+    const day = parseInt(createDateStr.slice(6, 8), 10)
+    const hour = parseInt(createDateStr.slice(8, 10), 10)
+    const minute = parseInt(createDateStr.slice(10, 12), 10)
+    const second = parseInt(createDateStr.slice(12, 14), 10)
+
+    // vnp_CreateDate được định dạng theo múi giờ Việt Nam (Asia/Ho_Chi_Minh, UTC+7)
+    const createTime = Date.UTC(year, month, day, hour - 7, minute, second)
+    const nowTime = Date.now()
+
+    const ageInMinutes = (nowTime - createTime) / (1000 * 60)
+    return ageInMinutes >= maxAgeMinutes
+  } catch {
+    return true
+  }
+}
+
+/**
+ * Kiểm tra xem hóa đơn đã quá hạn thanh toán hay chưa (so với 23:59:59 của ngày due_date).
+ */
+function isInvoiceOverdue(dueDateStr: string | null): boolean {
+  if (!dueDateStr) return false
+  try {
+    const dueDate = new Date(dueDateStr)
+    if (Number.isNaN(dueDate.getTime())) return false
+
+    // Hạn thanh toán có hiệu lực cho đến hết 23:59:59 của ngày do Admin set
+    const endOfDueDay = new Date(
+      dueDate.getFullYear(),
+      dueDate.getMonth(),
+      dueDate.getDate(),
+      23, 59, 59, 999
+    )
+    return Date.now() > endOfDueDay.getTime()
+  } catch {
+    return false
   }
 }
