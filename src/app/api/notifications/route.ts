@@ -5,8 +5,17 @@ import { dispatchNotification } from '@/lib/notification_dispatch'
 import { syncOverdueInvoiceNotifications } from '@/lib/invoice-overdue-notification'
 import { syncExpiringContractWarnings } from '@/lib/contract-notification-sync'
 
-export const dynamic = 'force-dynamic'
-export const revalidate = 0
+// Cache thời gian sync gần nhất để tránh chạy liên tục mỗi request
+const syncCooldownMs = 60 * 60 * 1000 // 1 giờ
+const lastSyncTime: Record<string, number> = {}
+
+function shouldSync(key: string): boolean {
+  const last = lastSyncTime[key] ?? 0
+  const now = Date.now()
+  if (now - last < syncCooldownMs) return false
+  lastSyncTime[key] = now
+  return true
+}
 
 function mapNotification(row: {
   id: string | number
@@ -46,18 +55,21 @@ export async function GET(request: NextRequest) {
     const limit = Number.isFinite(limitParam) ? Math.min(Math.max(limitParam, 1), 200) : 100
     const unreadOnly = searchParams.get('unreadOnly') === 'true'
 
-    // Lazy sync thông báo hóa đơn quá hạn khi người dùng mở màn hình thông báo
-    try {
-      await syncOverdueInvoiceNotifications(supabase)
-    } catch (e) {
-      console.warn('[notifications GET] syncOverdueInvoiceNotifications warning:', e)
+    // Lazy sync — chỉ chạy tối đa 1 lần/giờ để tránh spam notification
+    if (shouldSync('overdue_invoices')) {
+      try {
+        await syncOverdueInvoiceNotifications(supabase)
+      } catch (e) {
+        console.warn('[notifications GET] syncOverdueInvoiceNotifications warning:', e)
+      }
     }
 
-    // Lazy sync hợp đồng sắp hết hạn (không phụ thuộc cron job)
-    try {
-      await syncExpiringContractWarnings(supabase)
-    } catch (e) {
-      console.warn('[notifications GET] syncExpiringContractWarnings warning:', e)
+    if (shouldSync('expiring_contracts')) {
+      try {
+        await syncExpiringContractWarnings(supabase)
+      } catch (e) {
+        console.warn('[notifications GET] syncExpiringContractWarnings warning:', e)
+      }
     }
 
     let query = supabase
@@ -110,6 +122,21 @@ export async function POST(request: NextRequest) {
 
     if (targetUserId !== auth.dbUserId && auth.role === 'tenant') {
       return NextResponse.json({ error: 'Cư dân chỉ có thể tạo thông báo cho chính mình' }, { status: 403 })
+    }
+
+    // Dedup: nếu đã có notification cùng (user_id, related_id, type) thì không tạo mới
+    if (relatedId) {
+      const { data: existing } = await supabase
+        .from('notifications')
+        .select('id')
+        .eq('user_id', targetUserId)
+        .eq('related_id', relatedId)
+        .eq('type', type)
+        .maybeSingle()
+
+      if (existing) {
+        return NextResponse.json({ success: true, created: false, deduplicated: true })
+      }
     }
 
     await dispatchNotification(
