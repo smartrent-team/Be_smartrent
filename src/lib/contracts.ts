@@ -30,8 +30,14 @@ export type CreateContractInput = {
 
 function normalizeContractImages(value: ContractImagesDbValue): string[] {
   if (!Array.isArray(value)) return []
+  const seen = new Set<string>()
   return value.filter(
-    (url: unknown): url is string => typeof url === 'string' && url.length > 0
+    (url: unknown): url is string => {
+      if (typeof url !== 'string' || url.length === 0) return false
+      if (seen.has(url)) return false
+      seen.add(url)
+      return true
+    }
   )
 }
 
