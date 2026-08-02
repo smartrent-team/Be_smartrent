@@ -28,6 +28,9 @@ function mapNotification(row: {
   created_at: string
   updated_at?: string | null
 }) {
+  // Trích endDate từ related_id nếu là contract notification
+  // related_id = "contract:{id}" — cần query thêm end_date
+  // Để tránh N+1 query, endDate được Flutter tính từ body hoặc endDate field riêng
   return {
     id: row.id,
     userId: row.user_id,
@@ -86,6 +89,28 @@ export async function GET(request: NextRequest) {
     const { data: notifications, error } = await query
     if (error) throw error
 
+    // Enrich endDate cho contract notifications (tránh số ngày bị đóng băng trong body)
+    const contractNotifTypes = ['contract_expiring_7d', 'contract_expiring_30d', 'contract_expired']
+    const contractNotifs = (notifications ?? []).filter(
+      (n) => contractNotifTypes.includes(n.type) && n.related_id?.startsWith('contract:')
+    )
+
+    const endDateMap: Record<number, string> = {}
+    if (contractNotifs.length > 0) {
+      const contractIds = contractNotifs
+        .map((n) => parseInt(n.related_id!.replace('contract:', ''), 10))
+        .filter((id) => !isNaN(id))
+
+      const { data: contracts } = await supabase
+        .from('contracts')
+        .select('id, end_date')
+        .in('id', contractIds)
+
+      for (const c of contracts ?? []) {
+        if (c.end_date) endDateMap[c.id] = c.end_date
+      }
+    }
+
     const { count: unreadCount } = await supabase
       .from('notifications')
       .select('id', { count: 'exact', head: true })
@@ -94,7 +119,17 @@ export async function GET(request: NextRequest) {
 
     return NextResponse.json({
       success: true,
-      data: (notifications ?? []).map(mapNotification),
+      data: (notifications ?? []).map((n) => {
+        const mapped = mapNotification(n)
+        // Thêm endDate real-time cho contract notifications
+        if (n.related_id?.startsWith('contract:')) {
+          const contractId = parseInt(n.related_id.replace('contract:', ''), 10)
+          if (!isNaN(contractId) && endDateMap[contractId]) {
+            return { ...mapped, endDate: endDateMap[contractId] }
+          }
+        }
+        return mapped
+      }),
       unreadCount: unreadCount ?? 0,
     })
   } catch (error: unknown) {

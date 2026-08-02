@@ -204,7 +204,10 @@ export async function syncExpiringContractWarnings(supabase: SupabaseClient) {
     const room = firstItem(contractRaw.room)
     if (!tenant?.user_id) continue
 
-    const daysLeft = Math.ceil((endDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24))
+    const daysLeft = Math.ceil(
+      (endDate.setHours(0, 0, 0, 0) - new Date().setHours(0, 0, 0, 0)) /
+      (1000 * 60 * 60 * 24)
+    )
 
     // Mốc 30 ngày
     if (daysLeft <= 30 && daysLeft > 7) {
