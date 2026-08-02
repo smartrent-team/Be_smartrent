@@ -249,7 +249,7 @@ export async function syncExpiringContractWarnings(supabase: SupabaseClient) {
         tenant.user_id,
         contractRaw.tenant_id ?? null,
         contractRaw.id,
-        'Hợp đồng sắp hết hạn — còn 7 ngày',
+        `Hợp đồng sắp hết hạn — còn ${daysLeft} ngày`,
         `Hợp đồng ${contractRaw.contract_code} tại phòng ${room?.room_code ?? contractRaw.id} chỉ còn ${daysLeft} ngày nữa sẽ hết hạn. Vui lòng gia hạn ngay!`,
         'contract_expiring_7d'
       )
@@ -266,7 +266,7 @@ export async function syncExpiringContractWarnings(supabase: SupabaseClient) {
             mgrId,
             null,
             contractRaw.id,
-            'Hợp đồng cư dân sắp hết hạn — còn 7 ngày',
+            'Hợp đồng cư dân sắp hết hạn',
             `Phòng ${room.room_code ?? contractRaw.id}: hợp đồng ${contractRaw.contract_code} chỉ còn ${daysLeft} ngày.`,
             'contract_expiring_7d'
           )
