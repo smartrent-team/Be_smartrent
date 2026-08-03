@@ -9,7 +9,8 @@ export const dynamic = 'force-dynamic'
 /**
  * Dọn dẹp thông báo cũ:
  *  - Đã đọc (is_read = true)  : xóa sau 7 ngày
- *  - Chưa đọc (is_read = false): xóa sau 30 ngày (giữ lâu hơn để tránh mất thông báo quan trọng)
+ *  - Chưa đọc (is_read = false): xóa sau 30 ngày
+ *  - KHÔNG xóa thông báo hợp đồng (contract_expiring_*) để tránh tạo lại gây spam
  */
 async function purgeOldNotifications(supabase: SupabaseClient): Promise<{ readDeleted: number; unreadDeleted: number }> {
   const cutoff7d = new Date()
@@ -18,11 +19,14 @@ async function purgeOldNotifications(supabase: SupabaseClient): Promise<{ readDe
   const cutoff30d = new Date()
   cutoff30d.setDate(cutoff30d.getDate() - 30)
 
+  const contractTypes = ['contract_expiring_7d', 'contract_expiring_30d', 'contract_expired']
+
   const { error: err1, count: readDeleted } = await supabase
     .from('notifications')
     .delete({ count: 'exact' })
     .eq('is_read', true)
     .lt('created_at', cutoff7d.toISOString())
+    .not('type', 'in', `(${contractTypes.join(',')})`)
 
   if (err1) throw err1
 

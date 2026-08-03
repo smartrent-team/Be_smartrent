@@ -102,11 +102,12 @@ export async function GET(_request: Request, context: RouteContext) {
         paymentDescription:     (inv as any).payment_description    ?? null,
         // Room
         room: room ? {
-          id:        room.id,
-          roomCode:  room.room_code,
-          floor:     room.floor,
-          basePrice: room.base_price,
-          branch:    branch ? { id: branch.id, name: branch.name } : null,
+          id:         room.id,
+          roomCode:   room.room_code,
+          floor:      room.floor,
+          basePrice:  room.base_price,
+          branchName: branch?.name ?? null,
+          branch:     branch ? { id: branch.id, name: branch.name } : null,
         } : null,
         // Tenant
         tenant: user ? {
