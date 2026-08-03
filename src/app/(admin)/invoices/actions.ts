@@ -19,6 +19,7 @@ export async function createInvoice(
     serviceCost?: number
     electricCost?: number
     waterCost?: number
+    repairCost?: number
     electricOld?: number
     electricNew?: number
     waterOld?: number
@@ -29,7 +30,12 @@ export async function createInvoice(
   try {
     const supabase = supabaseClient || (await verifySuperAdmin())
 
-    const totalAmount = data.roomPrice + (data.serviceCost || 0) + (data.electricCost || 0) + (data.waterCost || 0)
+    const totalAmount =
+      data.roomPrice +
+      (data.serviceCost  || 0) +
+      (data.electricCost || 0) +
+      (data.waterCost    || 0) +
+      (data.repairCost   || 0)
 
     const date = new Date()
     const yearMonth = `${date.getFullYear()}${String(date.getMonth() + 1).padStart(2, '0')}`
@@ -74,6 +80,7 @@ export async function createInvoice(
         service_cost: data.serviceCost || 0,
         electric_cost: data.electricCost || 0,
         water_cost: data.waterCost || 0,
+        repair_cost: data.repairCost || 0,
         electric_old: data.electricOld ?? null,
         electric_new: data.electricNew ?? null,
         water_old: data.waterOld ?? null,

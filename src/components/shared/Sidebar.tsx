@@ -2,7 +2,7 @@
 
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { Home, LayoutDashboard, FileText, Wrench, Users, Shield, Building2, Zap } from 'lucide-react'
+import { Home, LayoutDashboard, FileText, Wrench, Users, Shield, Building2, Zap, ConciergeBell } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
 export function Sidebar() {
@@ -17,6 +17,7 @@ export function Sidebar() {
     { name: 'Bảo trì', href: '/tickets', icon: Wrench },
     { name: 'Quản lý Manager', href: '/managers', icon: Shield },
     { name: 'Chi nhánh', href: '/branches', icon: Building2 },
+    { name: 'Dịch vụ', href: '/services', icon: ConciergeBell },
   ]
 
   return (

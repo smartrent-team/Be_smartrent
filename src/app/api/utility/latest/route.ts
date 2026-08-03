@@ -1,5 +1,6 @@
 import { verifyRole } from '@/lib/rbac'
 import { NextResponse, type NextRequest } from 'next/server'
+import { getBranchPricing } from '@/lib/service-pricing'
 
 export async function GET(request: NextRequest) {
   try {
@@ -13,8 +14,11 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Tenant không có quyền xem thông tin điện nước' }, { status: 403 })
     }
 
-    // 1. Get rooms
-    let roomQuery = supabase.from('rooms').select('id, room_code, floor, status, branch_id')
+    // ── 1. Lấy danh sách phòng ──────────────────────────────────────────────
+    let roomQuery = supabase
+      .from('rooms')
+      .select('id, room_code, floor, status, branch_id')
+
     if (auth.role === 'manager') {
       if (!auth.branchId) {
         return NextResponse.json({ error: 'Manager chưa được gán chi nhánh' }, { status: 403 })
@@ -31,48 +35,61 @@ export async function GET(request: NextRequest) {
 
     const roomIds = rooms.map(r => r.id)
 
-    // 2. Query latest utility log for each room
+    // ── 2. Lấy utility logs mới nhất ────────────────────────────────────────
     const { data: logs, error: logError } = await supabase
       .from('utility_logs')
       .select('*')
       .in('room_id', roomIds)
-      .order('year', { ascending: false })
+      .order('year',  { ascending: false })
       .order('month', { ascending: false })
 
     if (logError) throw logError
 
-    // Group logs by room_id and pick the latest one
-    const latestLogsMap: Record<number, any> = {}
-    if (logs) {
-      for (const log of logs) {
-        if (!latestLogsMap[log.room_id]) {
-          latestLogsMap[log.room_id] = log
-        }
+    // Group by room_id → chỉ giữ log mới nhất
+    const latestLogsMap: Record<number, Record<string, unknown>> = {}
+    for (const log of (logs ?? [])) {
+      if (!latestLogsMap[log.room_id]) {
+        latestLogsMap[log.room_id] = log
       }
     }
 
-    // Merge room info and its latest utility log
+    // ── 3. Lấy giá branch_services theo từng chi nhánh (cache by branch_id) ─
+    const branchPricingCache: Record<number, Awaited<ReturnType<typeof getBranchPricing>>> = {}
+
+    const uniqueBranchIds = [...new Set(rooms.map(r => r.branch_id as number).filter(Boolean))]
+    await Promise.all(
+      uniqueBranchIds.map(async (bid) => {
+        branchPricingCache[bid] = await getBranchPricing(supabase, bid)
+      })
+    )
+
+    // ── 4. Build response ───────────────────────────────────────────────────
     const docs = rooms.map(room => {
       const latestLog = latestLogsMap[room.id]
+      const pricing   = branchPricingCache[room.branch_id] ?? null
+
       return {
-        roomId: room.id,
-        roomName: `Phòng ${room.room_code}`,
-        floor: room.floor,
-        status: room.status,
-        prevElectric: latestLog ? (latestLog.electric_new ?? 0) : 0,
-        prevWater: latestLog ? (latestLog.water_new ?? 0) : 0,
-        electricOld: latestLog ? (latestLog.electric_old ?? 0) : 0,
-        waterOld: latestLog ? (latestLog.water_old ?? 0) : 0,
-        lastMonth: latestLog ? latestLog.month : null,
-        lastYear: latestLog ? latestLog.year : null,
-        utilityLogId: latestLog ? latestLog.id : null,
+        roomId:      room.id,
+        roomName:    `Phòng ${room.room_code}`,
+        floor:       room.floor,
+        status:      room.status,
+        // Chỉ số kỳ trước
+        prevElectric: latestLog ? (latestLog.electric_new as number ?? 0) : 0,
+        prevWater:    latestLog ? (latestLog.water_new    as number ?? 0) : 0,
+        electricOld:  latestLog ? (latestLog.electric_old as number ?? 0) : 0,
+        waterOld:     latestLog ? (latestLog.water_old    as number ?? 0) : 0,
+        lastMonth:    latestLog ? latestLog.month  : null,
+        lastYear:     latestLog ? latestLog.year   : null,
+        utilityLogId: latestLog ? latestLog.id     : null,
+        // ★ Giá từ branch_services (mobile dùng để preview trước khi tạo HĐ)
+        electricPrice:    pricing?.electricPrice    ?? 3_500,
+        waterPrice:       pricing?.waterPrice       ?? 30_000,
+        fixedServiceCost: pricing?.fixedServiceCost ?? 0,
+        fixedServices:    pricing?.fixedServices    ?? [],
       }
     })
 
-    return NextResponse.json({
-      success: true,
-      docs,
-    })
+    return NextResponse.json({ success: true, docs })
 
   } catch (error: unknown) {
     console.error('Error fetching latest utilities:', error)
