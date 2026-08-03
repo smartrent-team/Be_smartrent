@@ -206,8 +206,15 @@ function InvoiceTable({ invoices }: { invoices: InvoiceFormatted[] }) {
         <TableBody>
           {invoices.length > 0 ? (
             invoices.map((inv) => (
-              <TableRow key={inv.id}>
-                <TableCell className="font-medium">{inv.code}</TableCell>
+              <TableRow key={inv.id} className="hover:bg-slate-50/50 transition-colors">
+                <TableCell className="font-medium">
+                  <Link
+                    href={`/invoices/${inv.id}`}
+                    className="text-teal-600 hover:text-teal-800 hover:underline font-semibold"
+                  >
+                    {inv.code}
+                  </Link>
+                </TableCell>
                 <TableCell>P.{inv.room}</TableCell>
                 <TableCell>{inv.tenant}</TableCell>
                 <TableCell>{inv.date}</TableCell>
@@ -218,7 +225,14 @@ function InvoiceTable({ invoices }: { invoices: InvoiceFormatted[] }) {
                   {inv.status === 'partial' && <Badge variant="outline" className="bg-amber-100 text-amber-800 border-amber-200"><Clock className="w-3 h-3 mr-1"/> Thiếu</Badge>}
                 </TableCell>
                 <TableCell className="text-right">
-                  <InvoiceActions invoice={inv} />
+                  <div className="flex items-center justify-end gap-1">
+                    <Link href={`/invoices/${inv.id}`}>
+                      <Button variant="ghost" size="icon" className="h-8 w-8 rounded-lg hover:bg-teal-50" title="Xem chi tiết">
+                        <Send className="h-3.5 w-3.5 text-teal-600 rotate-[-45deg]" />
+                      </Button>
+                    </Link>
+                    <InvoiceActions invoice={inv} />
+                  </div>
                 </TableCell>
               </TableRow>
             ))

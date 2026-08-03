@@ -33,7 +33,7 @@ interface InvoiceFormatted {
   status: string
 }
 
-export function InvoiceActions({ invoice }: { invoice: InvoiceFormatted }) {
+export function InvoiceActions({ invoice, showLabel = false }: { invoice: InvoiceFormatted; showLabel?: boolean }) {
   const [loading, setLoading] = useState(false)
   const [dueDateOpen, setDueDateOpen] = useState(false)
   const [paidOpen, setPaidOpen] = useState(false)
@@ -113,11 +113,14 @@ export function InvoiceActions({ invoice }: { invoice: InvoiceFormatted }) {
         <DropdownMenuTrigger
           render={
             <Button
-              variant="ghost"
-              size="icon"
-              className="h-8 w-8 rounded-lg hover:bg-gray-100"
+              variant={showLabel ? 'outline' : 'ghost'}
+              size={showLabel ? 'default' : 'icon'}
+              className={showLabel
+                ? 'rounded-xl border-gray-200 text-gray-700 hover:bg-gray-50 gap-2 w-full justify-start'
+                : 'h-8 w-8 rounded-lg hover:bg-gray-100'}
             >
               <MoreVertical className="h-4 w-4 text-gray-500" />
+              {showLabel && <span className="text-sm">Thao tác khác</span>}
               <span className="sr-only">Thao tác</span>
             </Button>
           }
