@@ -57,7 +57,7 @@ export default async function ManagersPage() {
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
           <h1 className="text-3xl font-extrabold tracking-tight bg-gradient-to-r from-teal-600 to-emerald-600 bg-clip-text text-transparent">
-            Quản lý Manager
+            Tài khoản Quản lý
           </h1>
           <p className="text-muted-foreground mt-2 text-sm sm:text-base">
             Tạo tài khoản và phân công quản lý chi nhánh cho các Manager.

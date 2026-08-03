@@ -15,7 +15,7 @@ export function Sidebar() {
     { name: 'Hoá đơn', href: '/invoices', icon: DollarSign },
     { name: 'Điện nước', href: '/utilities', icon: Zap },
     { name: 'Bảo trì', href: '/tickets', icon: Wrench },
-    { name: 'Quản lý Manager', href: '/managers', icon: UserCog },
+    { name: 'Tài khoản Quản lý', href: '/managers', icon: UserCog },
     { name: 'Chi nhánh', href: '/branches', icon: Building2 },
     { name: 'Dịch vụ', href: '/services', icon: PackagePlus },
   ]
