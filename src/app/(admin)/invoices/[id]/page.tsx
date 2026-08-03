@@ -25,6 +25,10 @@ import {
   CreditCard,
   Calendar,
   Hash,
+  ExternalLink,
+  QrCode,
+  Banknote,
+  Link2,
 } from 'lucide-react'
 
 type PageProps = { params: Promise<{ id: string }> }
@@ -133,6 +137,13 @@ export default async function InvoiceDetailPage({ params }: PageProps) {
     waterNew:     raw.water_new     as number | null,
     room:    room   ? { id: room.id, roomCode: room.room_code, floor: room.floor, basePrice: room.base_price, branchName: branch?.name ?? '—' } : null,
     tenant:  user   ? { id: tenant.id, fullName: user.full_name, phone: user.phone, email: user.email } : null,
+    // Thanh toán online
+    checkoutUrl:         (raw as any).checkoutUrl             ?? null as string | null,
+    qrPayload:           (raw as any).qrPayload               ?? null as string | null,
+    paymentAccountName:  (raw as any).payment_account_name    ?? null as string | null,
+    paymentAccountNum:   (raw as any).payment_account_number  ?? null as string | null,
+    paymentBankBin:      (raw as any).payment_bank_bin        ?? null as string | null,
+    paymentDescription:  (raw as any).payment_description     ?? null as string | null,
   }
 
   // Tickets sửa chữa gắn với HĐ này
@@ -393,27 +404,90 @@ export default async function InvoiceDetailPage({ params }: PageProps) {
               </CardContent>
             </Card>
 
-            {/* Thanh toán */}
+            {/* Trạng thái & thanh toán */}
             <Card className="border-gray-100 shadow-sm">
               <CardContent className="p-0">
                 <div className="px-5 py-4 border-b border-gray-100">
                   <h2 className="text-sm font-bold text-gray-700 flex items-center gap-2">
                     <CreditCard className="h-4 w-4 text-emerald-600" />
-                    Thông tin thanh toán
+                    Thanh toán
                   </h2>
                 </div>
                 <div className="px-5 py-4 space-y-3">
-                  {(raw as any).payment_account_name && (
-                    <Row label="Chủ tài khoản" value={(raw as any).payment_account_name} />
+
+                  {/* Trạng thái */}
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs text-gray-400">Trạng thái</span>
+                    <StatusBadge status={inv.status} dueDate={inv.dueDate} />
+                  </div>
+
+                  {/* Đã thanh toán */}
+                  {inv.status === 'paid' && (
+                    <div className="rounded-xl bg-emerald-50 border border-emerald-100 px-4 py-3 flex items-center gap-3">
+                      <Banknote className="h-4 w-4 text-emerald-600 shrink-0" />
+                      <div>
+                        <p className="text-xs font-semibold text-emerald-700">Đã thanh toán</p>
+                        {inv.paidAt && (
+                          <p className="text-xs text-emerald-600 mt-0.5">{fmtDatetime(inv.paidAt)}</p>
+                        )}
+                      </div>
+                    </div>
                   )}
-                  {(raw as any).payment_account_number && (
-                    <Row label="Số tài khoản" value={(raw as any).payment_account_number} />
-                  )}
-                  {(raw as any).payment_description && (
-                    <Row label="Nội dung CK" value={(raw as any).payment_description} />
-                  )}
-                  {!(raw as any).payment_account_name && !(raw as any).payment_account_number && (
-                    <p className="text-sm text-gray-400 italic">Chưa có thông tin thanh toán</p>
+
+                  {/* Chưa thanh toán — hiển thị link VNPay nếu có */}
+                  {inv.status !== 'paid' && (
+                    <>
+                      {inv.checkoutUrl ? (
+                        <div className="space-y-2">
+                          <div className="rounded-xl bg-blue-50 border border-blue-100 px-4 py-3 flex items-start gap-3">
+                            <Link2 className="h-4 w-4 text-blue-600 shrink-0 mt-0.5" />
+                            <div className="flex-1 min-w-0">
+                              <p className="text-xs font-semibold text-blue-700 mb-1">Link thanh toán VNPay</p>
+                              <p className="text-xs text-blue-500 truncate">{inv.checkoutUrl}</p>
+                            </div>
+                          </div>
+                          <a
+                            href={inv.checkoutUrl}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="flex items-center justify-center gap-2 w-full rounded-xl border border-blue-200 bg-blue-50 hover:bg-blue-100 transition-colors py-2.5 text-xs font-semibold text-blue-700"
+                          >
+                            <ExternalLink className="h-3.5 w-3.5" />
+                            Mở trang thanh toán
+                          </a>
+                        </div>
+                      ) : (
+                        <div className="rounded-xl bg-amber-50 border border-amber-100 px-4 py-3 flex items-center gap-3">
+                          <Clock className="h-4 w-4 text-amber-500 shrink-0" />
+                          <p className="text-xs text-amber-700">
+                            Chưa có link thanh toán. Tenant cần mở app để tạo link.
+                          </p>
+                        </div>
+                      )}
+
+                      {/* Thông tin QR / bank nếu có */}
+                      {inv.paymentAccountNum && (
+                        <div className="pt-1 space-y-2 border-t border-gray-100">
+                          <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide pt-1">
+                            Tài khoản thụ hưởng
+                          </p>
+                          {inv.paymentAccountName && (
+                            <Row label="Chủ TK" value={inv.paymentAccountName} />
+                          )}
+                          <Row label="Số TK" value={inv.paymentAccountNum} />
+                          {inv.paymentDescription && (
+                            <Row label="Nội dung CK" value={inv.paymentDescription} />
+                          )}
+                        </div>
+                      )}
+
+                      {inv.qrPayload && (
+                        <div className="flex items-center gap-2 rounded-xl bg-slate-50 border border-slate-100 px-4 py-3">
+                          <QrCode className="h-4 w-4 text-slate-500 shrink-0" />
+                          <p className="text-xs text-slate-500">QR code đã được tạo (xem trên app cư dân)</p>
+                        </div>
+                      )}
+                    </>
                   )}
                 </div>
               </CardContent>
