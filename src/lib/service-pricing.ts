@@ -36,7 +36,7 @@ export interface BranchPricing {
   electricPrice: number
   /** Đơn giá nước (đ/m³) lấy từ branch_services, fallback về DEFAULT */
   waterPrice: number
-  /** Tổng phí dịch vụ cố định per-room (đ/tháng) */
+  /** Tổng phí dịch vụ cố định per-room (đ/tháng) — KHÔNG bao gồm per_unit */
   fixedServiceCost: number
   /** Chi tiết từng dịch vụ cố định đang active */
   fixedServices: Array<{
@@ -164,6 +164,28 @@ export async function getRoomBranchId(
 
   if (error || !data) return null
   return data.branch_id as number
+}
+
+/**
+ * Tính tổng phí dịch vụ cố định có tính đến số lượng xe (per_unit).
+ *
+ * @param pricing       Kết quả từ getBranchPricing
+ * @param vehicleCount  Số xe trong phòng (mặc định 0)
+ * @param tenantCount   Số người trong phòng (mặc định 1, dùng cho per_person)
+ */
+export function calcTotalServiceCost(
+  pricing: BranchPricing,
+  vehicleCount = 0,
+  tenantCount  = 1,
+): number {
+  return pricing.fixedServices.reduce((sum, svc) => {
+    switch (svc.billingType) {
+      case 'per_room':   return sum + svc.price
+      case 'per_person': return sum + svc.price * Math.max(1, tenantCount)
+      case 'per_unit':   return sum + svc.price * vehicleCount
+      default:           return sum
+    }
+  }, 0)
 }
 
 // ─── Private ───────────────────────────────────────────────────────────────

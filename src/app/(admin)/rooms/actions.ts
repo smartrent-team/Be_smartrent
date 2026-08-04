@@ -10,6 +10,7 @@ export async function addRoom(data: {
   price: number
   area?: number
   floor?: number
+  vehicleCount?: number
 }) {
   const supabase = await verifySuperAdmin()
 
@@ -18,7 +19,7 @@ export async function addRoom(data: {
     throw new Error(formatZodError(parsed.error))
   }
 
-  const { roomNumber, branch, price, area, floor } = parsed.data
+  const { roomNumber, branch, price, area, floor, vehicleCount } = parsed.data
 
   const { error } = await supabase
     .from('rooms')
@@ -29,7 +30,8 @@ export async function addRoom(data: {
         base_price: price,
         area: area || null,
         floor: floor || null,
-        status: 'available'
+        status: 'available',
+        vehicle_count: vehicleCount ?? null,
       }
     ])
 
@@ -50,6 +52,7 @@ export async function updateRoom(
     area?: number
     floor?: number
     status?: 'available' | 'occupied' | 'maintenance'
+    vehicleCount?: number
   }
 ) {
   const supabase = await verifySuperAdmin()
@@ -59,7 +62,7 @@ export async function updateRoom(
     throw new Error(formatZodError(parsed.error))
   }
 
-  const { roomNumber, branch, price, area, floor } = parsed.data
+  const { roomNumber, branch, price, area, floor, vehicleCount } = parsed.data
 
   const { error } = await supabase
     .from('rooms')
@@ -70,6 +73,7 @@ export async function updateRoom(
       area: area || null,
       floor: floor || null,
       status: data.status || 'available',
+      vehicle_count: vehicleCount ?? null,
     })
     .eq('id', id)
 

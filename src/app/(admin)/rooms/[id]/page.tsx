@@ -4,7 +4,7 @@ import { notFound } from 'next/navigation'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import Link from 'next/link'
-import { ArrowLeft, Users, FileText, Wrench } from 'lucide-react'
+import { ArrowLeft, Users, FileText, Wrench, Car } from 'lucide-react'
 import { Button, buttonVariants } from '@/components/ui/button'
 import { RoomFixturesSection } from '../_components/RoomFixturesSection'
 import { EditRoomDialog } from '../_components/EditRoomDialog'
@@ -130,6 +130,22 @@ export default async function RoomDetailPage({ params }: { params: Promise<{ id:
                 <Badge variant={room.status === 'available' ? 'outline' : 'default'} className={room.status === 'available' ? 'text-green-600' : 'bg-blue-600'}>
                   {room.status === 'available' ? 'Trống' : room.status === 'occupied' ? 'Đã thuê' : 'Bảo trì'}
                 </Badge>
+              </div>
+              <div className="col-span-2 flex items-center gap-3 pt-1 border-t">
+                <Car className="h-4 w-4 text-muted-foreground shrink-0" />
+                <div>
+                  <p className="text-sm text-muted-foreground">Số lượng xe</p>
+                  <p className="font-medium">
+                    {room.vehicle_count != null ? (
+                      <>
+                        <span className="text-base">{room.vehicle_count}</span>
+                        <span className="text-sm text-muted-foreground ml-1">xe</span>
+                      </>
+                    ) : (
+                      <span className="text-muted-foreground text-sm">Chưa cập nhật</span>
+                    )}
+                  </p>
+                </div>
               </div>
             </div>
           </CardContent>

@@ -1,6 +1,7 @@
 import { Suspense } from "react"
 import { Skeleton } from "@/components/ui/skeleton"
 import { createAdminClient } from '@/lib/supabase/admin'
+import DashboardRealtimeRefresher from "./_components/DashboardStatsClient"
 import DashboardStats from "./_components/DashboardStats"
 import RecentActivities from "./_components/RecentActivities"
 import PendingTickets from "./_components/PendingTickets"

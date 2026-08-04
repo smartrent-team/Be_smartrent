@@ -7,9 +7,11 @@ export async function GET(request: NextRequest) {
 
     // Extract query params
     const statusParam = searchParams.get('status') // 'paid' | 'unpaid' | 'partial'
-    const roomParam = searchParams.get('room_id')
-    const pageParam = parseInt(searchParams.get('page') || '1', 10)
-    const limitParam = parseInt(searchParams.get('limit') || '20', 10)
+    const roomParam   = searchParams.get('room_id')
+    const monthParam  = searchParams.get('month')   // 1–12
+    const yearParam   = searchParams.get('year')    // e.g. 2026
+    const pageParam   = parseInt(searchParams.get('page')  || '1',  10)
+    const limitParam  = parseInt(searchParams.get('limit') || '20', 10)
 
     const page = Number.isFinite(pageParam) ? Math.max(pageParam, 1) : 1
     const limit = Number.isFinite(limitParam) ? Math.min(Math.max(limitParam, 1), 100) : 20
@@ -88,6 +90,18 @@ export async function GET(request: NextRequest) {
     }
     if (roomParam) {
       query = query.eq('room_id', Number(roomParam))
+    }
+    // Filter theo tháng/năm dựa vào issued_at
+    if (monthParam && yearParam) {
+      const m = parseInt(monthParam, 10)
+      const y = parseInt(yearParam, 10)
+      if (!isNaN(m) && !isNaN(y)) {
+        const from = `${y}-${String(m).padStart(2, '0')}-01`
+        const to   = m < 12
+          ? `${y}-${String(m + 1).padStart(2, '0')}-01`
+          : `${y + 1}-01-01`
+        query = query.gte('issued_at', from).lt('issued_at', to)
+      }
     }
 
     // 5. Sắp xếp và phân trang

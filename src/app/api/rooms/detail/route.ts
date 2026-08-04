@@ -172,6 +172,7 @@ export async function GET(request: NextRequest) {
         waterPrice:       pricing?.waterPrice       ?? room.water_price    ?? 30_000,
         fixedServiceCost: pricing?.fixedServiceCost ?? 0,
         fixedServices:    pricing?.fixedServices    ?? [],
+        vehicleCount: room.vehicle_count ?? 0,
         status:   room.status,
         tenant:   tenantInfo,
         invoices: invoicesList,

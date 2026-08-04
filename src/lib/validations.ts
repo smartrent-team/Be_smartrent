@@ -11,6 +11,7 @@ export const roomSchema = z.object({
   price: z.coerce.number().int().min(0, 'Giá phòng không được âm'),
   area: z.coerce.number().int().min(0, 'Diện tích không được âm').optional(),
   floor: z.coerce.number().int().min(1, 'Tầng không hợp lệ').optional(),
+  vehicleCount: z.coerce.number().int().min(0, 'Số lượng xe không được âm').optional(),
 });
 
 // 3. Validate Tenant

@@ -174,6 +174,7 @@ export async function changeTenantRoom(
 export type LeaveRoomReason =
   | 'contract_expired'
   | 'tenant_request'
+  | 'early_checkout'
   | 'other'
 
 export async function leaveTenantRoom(
@@ -183,16 +184,20 @@ export async function leaveTenantRoom(
   options?: {
     moveOutDate?: string
     reason?: LeaveRoomReason
+    isTenantSelf?: boolean
   }
-): Promise<{ success: true; moveOutDate: string; roomId: number | null } | { error: string; status: number }> {
+): Promise<{ success: true; moveOutDate: string; roomId: number | null; isEarly: boolean; depositAmount: number } | { error: string; status: number }> {
   const { tenant, error: loadError, status: loadStatus } = await loadTenant(supabase, tenantId)
   if (!tenant) {
     return { error: loadError || 'Không tìm thấy cư dân', status: loadStatus || 404 }
   }
 
-  const accessError = await assertManagerAccessToTenant(supabase, auth, tenant)
-  if (accessError.error) {
-    return { error: accessError.error, status: accessError.status || 403 }
+  // Nếu cư dân tự thực hiện trả phòng thì không cần assertManagerAccessToTenant
+  if (!options?.isTenantSelf) {
+    const accessError = await assertManagerAccessToTenant(supabase, auth, tenant)
+    if (accessError.error) {
+      return { error: accessError.error, status: accessError.status || 403 }
+    }
   }
 
   if (tenant.move_out_date) {
@@ -203,6 +208,7 @@ export async function leaveTenantRoom(
     ? new Date(options.moveOutDate).toISOString()
     : new Date().toISOString()
 
+  // 1. Cập nhật ngày trả phòng cho tenant
   const { error: tenantUpdateError } = await supabase
     .from('tenants')
     .update({ move_out_date: moveOutIso })
@@ -212,46 +218,120 @@ export async function leaveTenantRoom(
     return { error: 'Không thể cập nhật ngày trả phòng', status: 400 }
   }
 
+  // 2. Lấy thông tin user và phòng
+  let tenantUserName = 'Cư dân'
+  if (tenant.user_id) {
+    const { data: userRec } = await supabase
+      .from('users')
+      .select('full_name')
+      .eq('id', tenant.user_id)
+      .single()
+    if (userRec?.full_name) tenantUserName = userRec.full_name
+
+    // Khóa tài khoản user cư dân
+    await supabase
+      .from('users')
+      .update({ status: 'locked' })
+      .eq('id', tenant.user_id)
+  }
+
+  let roomCode = 'P.' + (tenant.room_id || 'Chưa xác định')
+  if (tenant.room_id) {
+    const { data: roomRec } = await supabase
+      .from('rooms')
+      .select('room_code')
+      .eq('id', tenant.room_id)
+      .single()
+    if (roomRec?.room_code) roomCode = `Phòng ${roomRec.room_code}`
+  }
+
+  // 3. Lấy hợp đồng active
   const { data: activeContract } = await supabase
     .from('contracts')
-    .select('id, contract_text')
+    .select('id, contract_text, end_date, deposit_amount')
     .eq('tenant_id', tenantId)
     .eq('status', 'active')
     .maybeSingle()
 
+  let isEarly = false
+  let depositAmount = 0
+
   if (activeContract?.id) {
-    const reasonLabels: Record<LeaveRoomReason, string> = {
-      contract_expired: 'Hợp đồng hết hạn, không gia hạn',
-      tenant_request: 'Người thuê không muốn tiếp tục',
-      other: 'Lý do khác',
+    depositAmount = activeContract.deposit_amount || 0
+    if (activeContract.end_date) {
+      const contractEndDate = new Date(activeContract.end_date)
+      const now = new Date(moveOutIso)
+      if (now < contractEndDate) {
+        isEarly = true
+      }
     }
 
-    const reasonNote = options?.reason
-      ? reasonLabels[options.reason]
-      : undefined
+    const reasonNote = isEarly
+      ? `Trả phòng trước hạn (Tịch thu cọc: ${depositAmount.toLocaleString('vi-VN')} đ)`
+      : (options?.reason ? options.reason : 'Đã hết hạn hợp đồng')
 
-    const contractUpdate: {
-      end_date: string
-      status: string
-      contract_text?: string
-    } = {
-      end_date: moveOutIso,
-      status: 'expired',
-    }
+    const existingText = activeContract.contract_text?.trim() || ''
+    const updatedContractText = existingText
+      ? `${existingText}\n[Lý do trả phòng: ${reasonNote}]`
+      : `[Lý do trả phòng: ${reasonNote}]`
 
-    if (reasonNote) {
-      const existingText = activeContract.contract_text?.trim() || ''
-      contractUpdate.contract_text = existingText
-        ? `${existingText}\n[Lý do trả phòng: ${reasonNote}]`
-        : `[Lý do trả phòng: ${reasonNote}]`
-    }
-
-    await supabase.from('contracts').update(contractUpdate).eq('id', activeContract.id)
+    await supabase
+      .from('contracts')
+      .update({
+        end_date: moveOutIso,
+        status: isEarly ? 'terminated' : 'expired',
+        contract_text: updatedContractText,
+      })
+      .eq('id', activeContract.id)
   }
 
+  // 4. Giải phóng phòng
   if (tenant.room_id) {
     await supabase.from('rooms').update({ status: 'available' }).eq('id', tenant.room_id)
   }
 
-  return { success: true, moveOutDate: moveOutIso, roomId: tenant.room_id }
+  // 5. Gửi thông báo đến Super Admin và Manager
+  try {
+    const { dispatchNotification } = await import('@/lib/notification_dispatch')
+
+    // Super Admin: Báo tịch thu cọc nếu trước hạn
+    const { data: superAdmins } = await supabase.from('users').select('id').eq('role', 'super_admin')
+    if (superAdmins) {
+      for (const sa of superAdmins) {
+        await dispatchNotification(
+          supabase,
+          { userId: sa.id },
+          {
+            title: isEarly ? 'Thanh lý trước hạn — Tịch thu cọc' : 'Trả phòng đúng hạn',
+            body: isEarly
+              ? `${tenantUserName} (${roomCode}) đã trả phòng trước hạn. Tiền cọc ${depositAmount.toLocaleString('vi-VN')}đ bị tịch thu.`
+              : `${tenantUserName} (${roomCode}) đã hoàn tất trả phòng đúng hạn hợp đồng.`,
+            type: 'contract',
+            relatedId: String(tenantId),
+          }
+        )
+      }
+    }
+
+    // Manager: Báo lên kiểm tra phòng & lập Form báo cáo hư hỏng
+    const { data: managers } = await supabase.from('users').select('id').eq('role', 'manager')
+    if (managers) {
+      for (const mgr of managers) {
+        await dispatchNotification(
+          supabase,
+          { userId: mgr.id },
+          {
+            title: 'Yêu cầu kiểm tra bàn giao phòng',
+            body: `${tenantUserName} (${roomCode}) đã trả phòng. Vui lòng tiến hành kiểm tra thiết bị & lập Form báo cáo hư hỏng.`,
+            type: 'ticket',
+            relatedId: String(tenantId),
+          }
+        )
+      }
+    }
+  } catch (notifErr) {
+    console.error('Lỗi gửi thông báo trả phòng:', notifErr)
+  }
+
+  return { success: true, moveOutDate: moveOutIso, roomId: tenant.room_id, isEarly, depositAmount }
 }

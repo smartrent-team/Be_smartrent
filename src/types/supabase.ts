@@ -22,6 +22,7 @@ export interface Database {
           electric_price: number | null
           water_price: number | null
           images: string[] | null
+          vehicle_count: number | null
         }
         Insert: Omit<Database['public']['Tables']['rooms']['Row'], 'id' | 'created_at'>
         Update: Partial<Database['public']['Tables']['rooms']['Insert']>

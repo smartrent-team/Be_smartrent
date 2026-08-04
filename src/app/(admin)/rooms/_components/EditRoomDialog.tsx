@@ -31,6 +31,7 @@ interface Room {
   area: number | null
   floor: number | null
   status: string
+  vehicle_count: number | null
 }
 
 export function EditRoomDialog({ room, branches }: { room: Room; branches: Branch[] }) {
@@ -45,6 +46,7 @@ export function EditRoomDialog({ room, branches }: { room: Room; branches: Branc
     price: room.base_price?.toString() || '',
     area: room.area?.toString() || '',
     status: room.status || 'available',
+    vehicleCount: room.vehicle_count?.toString() || '0',
   })
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -63,6 +65,7 @@ export function EditRoomDialog({ room, branches }: { room: Room; branches: Branc
         floor: formData.floor ? parseInt(formData.floor, 10) : 1,
         area: formData.area ? parseInt(formData.area, 10) : undefined,
         status: formData.status as 'available' | 'occupied' | 'maintenance',
+        vehicleCount: formData.vehicleCount ? parseInt(formData.vehicleCount, 10) : 0,
       })
 
       toast.success('Cập nhật thông tin phòng thành công!')
@@ -196,6 +199,24 @@ export function EditRoomDialog({ room, branches }: { room: Room; branches: Branc
                 <option value="maintenance">Bảo trì</option>
               </select>
             </div>
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="edit-room-vehicle-count" className="text-sm font-medium text-gray-700">
+              Số lượng xe
+            </Label>
+            <Input
+              id="edit-room-vehicle-count"
+              type="number"
+              placeholder="VD: 2"
+              value={formData.vehicleCount}
+              onChange={(e) => setFormData({ ...formData, vehicleCount: e.target.value })}
+              className="border-gray-200 focus:border-teal-500 focus:ring-teal-500 rounded-xl"
+              min={0}
+            />
+            <p className="text-xs text-muted-foreground">
+              Dùng để tính phí giữ xe theo xe/tháng khi tạo hoá đơn.
+            </p>
           </div>
 
           <DialogFooter className="pt-4 gap-2">

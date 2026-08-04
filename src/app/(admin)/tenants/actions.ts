@@ -508,3 +508,33 @@ export async function deleteTenantAction(id: number, userIntId: number) {
   revalidatePath('/tenants')
   revalidatePath('/rooms')
 }
+
+export async function lockTenantUserAction(userId: string, reason: string, isLocked: boolean = true) {
+  await verifySuperAdmin()
+  const adminSupabase = createAdminClient()
+
+  const { error } = await adminSupabase
+    .from('users')
+    .update({ status: isLocked ? 'locked' : 'active' })
+    .eq('id', userId)
+
+  if (error) throw new Error('Không thể cập nhật trạng thái tài khoản: ' + error.message)
+
+  try {
+    await dispatchNotification(
+      adminSupabase,
+      { userId },
+      {
+        title: isLocked ? 'Tài khoản đã bị khóa' : 'Tài khoản đã mở khóa',
+        body: isLocked
+          ? `Tài khoản của bạn đã bị khóa. Lý do: ${reason}`
+          : 'Tài khoản của bạn đã được mở khóa hoạt động bình thường.',
+        type: 'system',
+      }
+    )
+  } catch (_) {}
+
+  revalidatePath('/tenants')
+  revalidatePath(`/tenants/${userId}`)
+  return { success: true }
+}

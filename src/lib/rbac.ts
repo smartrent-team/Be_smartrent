@@ -26,12 +26,16 @@ export async function verifyRole() {
   // 2. Lấy role và branch_id bằng adminSupabase để không bị RLS chặn
   const { data: userProfile, error: profileError } = await adminSupabase
     .from('users')
-    .select('id, role, branch_id')
+    .select('id, role, branch_id, status')
     .eq('email', user.email)
     .single()
 
   if (profileError || !userProfile) {
     return { error: 'Không tìm thấy hồ sơ', status: 403 }
+  }
+
+  if (userProfile.status === 'locked') {
+    return { error: 'Tài khoản của bạn đã bị khóa. Vui lòng liên hệ quản lý.', status: 403 }
   }
 
   return {

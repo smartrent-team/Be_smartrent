@@ -15,6 +15,7 @@ import { buttonVariants } from '@/components/ui/button'
 import { Eye } from 'lucide-react'
 import Link from 'next/link'
 import { CreateRoomDialog } from './_components/CreateRoomDialog'
+import RoomListClient, { type RoomRow } from './_components/RoomListClient'
 
 export default async function RoomsPage({ searchParams }: { searchParams: Promise<{ [key: string]: string | string[] | undefined }> }) {
   const params = await searchParams
@@ -122,72 +123,7 @@ export default async function RoomsPage({ searchParams }: { searchParams: Promis
         </Link>
       </div>
       
-      <div className="rounded-md border">
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead>Mã phòng</TableHead>
-              <TableHead>Chi nhánh</TableHead>
-              <TableHead>Tầng</TableHead>
-              <TableHead>Giá thuê</TableHead>
-              <TableHead>Trạng thái</TableHead>
-              <TableHead>Khách thuê</TableHead>
-              <TableHead className="text-right">Hành động</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {roomsList.map((room) => (
-              <TableRow key={room.id}>
-                <TableCell className="font-medium">
-                  {room.room_code}
-                  <span className="text-xs text-muted-foreground ml-2">(ID: {room.id})</span>
-                </TableCell>
-                <TableCell className="font-semibold text-emerald-800">
-                  {room.branch?.name || 'Chưa phân chi nhánh'}
-                </TableCell>
-                <TableCell>{room.floor}</TableCell>
-                <TableCell>
-                  {new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(room.base_price)}
-                </TableCell>
-                <TableCell>{getStatusBadge(room.status)}</TableCell>
-                <TableCell>
-                  {(() => {
-                    const activeTenant = room.tenants && room.tenants.length > 0 
-                      ? room.tenants.find((t) => !t.move_out_date) 
-                      : null
-                    return activeTenant ? (
-                      <span className="font-semibold text-slate-700">
-                        {activeTenant.user?.full_name || 'Khách chưa đặt tên'}
-                        <span className="text-xs text-gray-400 font-normal ml-2">(ID: {activeTenant.id})</span>
-                      </span>
-                    ) : (
-                      <span className="text-gray-400 italic text-xs">Trống</span>
-                    )
-                  })()}
-                </TableCell>
-                <TableCell className="text-right">
-                  <div className="flex items-center justify-end gap-1">
-                    <Link
-                      href={`/rooms/${room.id}`}
-                      className={buttonVariants({ variant: 'ghost', size: 'icon' }) + " text-teal-600 hover:text-teal-700 hover:bg-teal-50/50 rounded-lg h-9 w-9 flex items-center justify-center"}
-                      title="Xem chi tiết"
-                    >
-                      <Eye className="h-4 w-4" />
-                    </Link>
-                  </div>
-                </TableCell>
-              </TableRow>
-            ))}
-            {roomsList.length === 0 && (
-              <TableRow>
-                <TableCell colSpan={7} className="h-24 text-center">
-                  Không có dữ liệu phòng.
-                </TableCell>
-              </TableRow>
-            )}
-          </TableBody>
-        </Table>
-      </div>
+      <RoomListClient initialRooms={roomsList as RoomRow[]} />
     </div>
   )
 }

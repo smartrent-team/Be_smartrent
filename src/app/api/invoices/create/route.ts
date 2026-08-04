@@ -6,6 +6,7 @@ import {
   getRoomBranchId,
   calcElectricCost,
   calcWaterCost,
+  calcTotalServiceCost,
 } from '@/lib/service-pricing'
 
 export async function POST(request: NextRequest) {
@@ -47,6 +48,14 @@ export async function POST(request: NextRequest) {
     const branchId = await getRoomBranchId(supabase, Number(roomId))
     const pricing  = branchId ? await getBranchPricing(supabase, branchId) : null
 
+    // ── 1b. Số xe trong phòng (dùng cho per_unit services) ──────────────────
+    const { data: roomData } = await supabase
+      .from('rooms')
+      .select('vehicle_count')
+      .eq('id', Number(roomId))
+      .single()
+    const vehicleCount = (roomData?.vehicle_count as number | null) ?? 0
+
     // ── 2. Tiền điện ─────────────────────────────────────────────────────────
     let finalElectricCost: number
     if (electricCost !== undefined) {
@@ -74,9 +83,13 @@ export async function POST(request: NextRequest) {
     }
 
     // ── 4. Phí dịch vụ cố định ───────────────────────────────────────────────
+    // Nếu mobile/web truyền serviceCost thì dùng luôn (đã preview đúng).
+    // Nếu không, server tự tính: per_room + per_unit * vehicle_count + per_person * tenantCount
     const finalServiceCost = serviceCost !== undefined
       ? Number(serviceCost)
-      : (pricing?.fixedServiceCost ?? 0)
+      : pricing
+        ? calcTotalServiceCost(pricing, vehicleCount)
+        : 0
 
     // ── 5. Chi phí sửa chữa ──────────────────────────────────────────────────
     // Nếu mobile truyền repairCost thì dùng luôn (đã được preview trước).

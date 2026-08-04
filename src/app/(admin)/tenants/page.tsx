@@ -16,6 +16,7 @@ import Link from 'next/link'
 import { CreateTenantDialog } from './_components/CreateTenantDialog'
 import { EditTenantDialog } from './_components/EditTenantDialog'
 import { DeleteTenantButton } from './_components/DeleteTenantButton'
+import { LockTenantButton } from './_components/LockTenantButton'
 
 export default async function TenantsPage({ searchParams }: { searchParams: Promise<{ [key: string]: string | string[] | undefined }> }) {
   const params = await searchParams
@@ -136,6 +137,7 @@ export default async function TenantsPage({ searchParams }: { searchParams: Prom
                         <Eye className="h-4 w-4" />
                       </Link>
                       <EditTenantDialog tenant={tenant} rooms={allRooms} />
+                      <LockTenantButton userId={tenant.userId} tenantName={tenant.name} />
                       <DeleteTenantButton id={tenant.id} userId={tenant.userId} name={tenant.name} />
                     </div>
                   </TableCell>

@@ -26,6 +26,7 @@ import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { addInvoiceAction } from './actions'
 import { InvoiceActions } from './_components/InvoiceActions'
+import InvoiceListClient, { type InvoiceRow } from './_components/InvoiceListClient'
 
 export default async function InvoicesPage({ searchParams }: { searchParams: Promise<{ [key: string]: string | string[] | undefined }> }) {
   const params = await searchParams

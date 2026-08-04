@@ -1,6 +1,6 @@
 import { verifyRole } from '@/lib/rbac'
 import { NextResponse, type NextRequest } from 'next/server'
-import { getBranchPricing } from '@/lib/service-pricing'
+import { getBranchPricing, calcTotalServiceCost } from '@/lib/service-pricing'
 
 export async function GET(request: NextRequest) {
   try {
@@ -17,7 +17,7 @@ export async function GET(request: NextRequest) {
     // ── 1. Lấy danh sách phòng ──────────────────────────────────────────────
     let roomQuery = supabase
       .from('rooms')
-      .select('id, room_code, floor, status, branch_id')
+      .select('id, room_code, floor, status, branch_id, vehicle_count')
 
     if (auth.role === 'manager') {
       if (!auth.branchId) {
@@ -65,14 +65,19 @@ export async function GET(request: NextRequest) {
 
     // ── 4. Build response ───────────────────────────────────────────────────
     const docs = rooms.map(room => {
-      const latestLog = latestLogsMap[room.id]
-      const pricing   = branchPricingCache[room.branch_id] ?? null
+      const latestLog    = latestLogsMap[room.id]
+      const pricing      = branchPricingCache[room.branch_id] ?? null
+      const vehicleCount = (room.vehicle_count as number | null) ?? 0
+      const totalServiceCost = pricing
+        ? calcTotalServiceCost(pricing, vehicleCount)
+        : 0
 
       return {
         roomId:      room.id,
         roomName:    `Phòng ${room.room_code}`,
         floor:       room.floor,
         status:      room.status,
+        vehicleCount,
         // Chỉ số kỳ trước
         prevElectric: latestLog ? (latestLog.electric_new as number ?? 0) : 0,
         prevWater:    latestLog ? (latestLog.water_new    as number ?? 0) : 0,
@@ -81,11 +86,11 @@ export async function GET(request: NextRequest) {
         lastMonth:    latestLog ? latestLog.month  : null,
         lastYear:     latestLog ? latestLog.year   : null,
         utilityLogId: latestLog ? latestLog.id     : null,
-        // ★ Giá từ branch_services (mobile dùng để preview trước khi tạo HĐ)
-        electricPrice:    pricing?.electricPrice    ?? 3_500,
-        waterPrice:       pricing?.waterPrice       ?? 30_000,
-        fixedServiceCost: pricing?.fixedServiceCost ?? 0,
-        fixedServices:    pricing?.fixedServices    ?? [],
+        // ★ Giá từ branch_services — fixedServiceCost đã tính per_unit * vehicleCount
+        electricPrice:    pricing?.electricPrice ?? 3_500,
+        waterPrice:       pricing?.waterPrice    ?? 30_000,
+        fixedServiceCost: totalServiceCost,
+        fixedServices:    pricing?.fixedServices ?? [],
       }
     })
 

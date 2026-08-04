@@ -4,7 +4,7 @@ import { notFound } from 'next/navigation'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import Link from 'next/link'
-import { ArrowLeft, User, MapPin, FileText } from 'lucide-react'
+import { ArrowLeft, User, MapPin, FileText, Car } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { ContractImages } from '@/components/shared/ContractImages'
 import { getContractImagesById } from '@/lib/contracts'
@@ -23,7 +23,7 @@ export default async function TenantDetailPage({ params }: { params: Promise<{ i
     .select(`
       *,
       user:users(*),
-      room:rooms(id, room_code, base_price),
+      room:rooms(id, room_code, base_price, vehicle_count),
       invoices(id, invoice_code, total_amount, payment_status, issued_at),
       contracts(id, status, deposit_amount, end_date)
     `)
@@ -134,6 +134,22 @@ export default async function TenantDetailPage({ params }: { params: Promise<{ i
                     ? new Date(activeContract.end_date).toLocaleDateString('vi-VN')
                     : '---'}
                 </p>
+              </div>
+              <div className="col-span-2 flex items-center gap-2 pt-1 border-t">
+                <Car className="h-4 w-4 text-muted-foreground shrink-0" />
+                <div>
+                  <p className="text-sm text-muted-foreground">Số lượng xe</p>
+                  <p className="font-medium">
+                    {(tenant.room as unknown as { vehicle_count: number | null })?.vehicle_count != null ? (
+                      <>
+                        <span>{(tenant.room as unknown as { vehicle_count: number | null }).vehicle_count}</span>
+                        <span className="text-sm text-muted-foreground ml-1">xe</span>
+                      </>
+                    ) : (
+                      <span className="text-muted-foreground text-sm">Chưa cập nhật</span>
+                    )}
+                  </p>
+                </div>
               </div>
             </div>
           </CardContent>
