@@ -12,6 +12,8 @@ export async function GET(request: NextRequest) {
     const floorParam = searchParams.get('floor')
     const pageParam = parseInt(searchParams.get('page') || '1', 10)
     const limitParam = parseInt(searchParams.get('limit') || '10', 10)
+    // include_partial=true: hiện cả phòng 'occupied' nhưng còn chỗ trống theo diện tích
+    const includePartial = searchParams.get('include_partial') === 'true'
 
     const page = Number.isFinite(pageParam) ? Math.max(pageParam, 1) : 1
     const limit = Number.isFinite(limitParam) ? Math.min(Math.max(limitParam, 1), 100) : 10
@@ -61,7 +63,10 @@ export async function GET(request: NextRequest) {
     }
 
     // Apply Filters
-    if (statusParam) {
+    if (includePartial) {
+      // Khi include_partial: lấy cả available + occupied, sau đó lọc phòng còn chỗ
+      query = query.in('status', ['available', 'occupied'])
+    } else if (statusParam) {
       query = query.eq('status', statusParam)
     }
     if (searchParam) {
@@ -74,13 +79,26 @@ export async function GET(request: NextRequest) {
       }
     }
 
-    // Apply pagination
-    query = query.range(offset, offset + limit - 1)
+    // Apply pagination (khi include_partial không dùng pagination server-side)
+    if (!includePartial) {
+      query = query.range(offset, offset + limit - 1)
+    }
 
     const { data: rooms, error, count } = await query
 
     if (error) {
       throw error
+    }
+
+    // Hàm tính capacity tối đa theo diện tích phòng
+    function getMaxCapacity(area: number): number {
+      if (area < 16) return 1
+      if (area < 24) return 2
+      return 3
+    }
+
+    function getCapacityLabel(area: number, max: number): string {
+      return `Tối đa ${max} người (${area}m²)`
     }
 
     // Transform response to match legacy format if needed
@@ -94,12 +112,10 @@ export async function GET(request: NextRequest) {
       } | null
     }
 
-    const docs = rooms.map(room => {
-      // Pick first active tenant (where move_out_date is null)
+    const allDocs = (rooms ?? []).map(room => {
       const tenantsList = room.tenants as unknown as TenantItem[] | undefined
-      const activeTenant = tenantsList && tenantsList.length > 0 
-        ? tenantsList.find(t => !t.move_out_date) 
-        : null
+      const activeTenants = tenantsList ? tenantsList.filter(t => !t.move_out_date) : []
+      const activeTenant = activeTenants.length > 0 ? activeTenants[0] : null
 
       const tenant = activeTenant ? {
         id: activeTenant.id,
@@ -107,6 +123,11 @@ export async function GET(request: NextRequest) {
         phone: activeTenant.user?.phone || 'Chưa cập nhật',
         check_in_date: activeTenant.move_in_date
       } : null
+
+      const area = Number(room.area ?? 0)
+      const maxCapacity = getMaxCapacity(area)
+      const currentTenantCount = activeTenants.length
+      const remainingSlots = Math.max(0, maxCapacity - currentTenantCount)
 
       return {
         id: room.id,
@@ -118,17 +139,27 @@ export async function GET(request: NextRequest) {
         waterPrice: room.water_price,
         status: room.status,
         branch: room.branch_id,
-        tenant
+        tenant,
+        // Thông tin capacity cư dân
+        currentTenantCount,
+        maxCapacity,
+        remainingSlots,
+        areaCapacityLabel: getCapacityLabel(area, maxCapacity),
       }
     })
+
+    // Nếu include_partial: chỉ trả về phòng còn chỗ trống
+    const docs = includePartial
+      ? allDocs.filter(r => r.remainingSlots > 0)
+      : allDocs
 
     return NextResponse.json({
       success: true,
       docs,
-      totalDocs: count || 0,
+      totalDocs: includePartial ? docs.length : (count || 0),
       limit,
       page,
-      totalPages: count ? Math.ceil(count / limit) : 0,
+      totalPages: includePartial ? 1 : (count ? Math.ceil(count / limit) : 0),
     })
 
   } catch (error: unknown) {

@@ -48,7 +48,7 @@ export async function confirmInvoicePaymentAndNotify(
 ): Promise<ConfirmInvoicePaymentResult> {
   const { data: invoice, error: fetchError } = await supabase
     .from('invoices')
-    .select('id, invoice_code, total_amount, payment_status, tenant:tenant_id(id, user_id), room:room_id(room_code, branch_id)')
+    .select('id, invoice_code, total_amount, payment_status, room_id, tenant:tenant_id(id, user_id), room:room_id(room_code, branch_id)')
     .eq('payment_link_id', paymentLinkId)
     .maybeSingle()
 
@@ -81,7 +81,7 @@ export async function confirmInvoicePaymentAndNotify(
     })
     .eq('id', invoice.id)
     .eq('payment_status', 'unpaid')
-    .select('id, invoice_code, total_amount, tenant:tenant_id(id, user_id), room:room_id(room_code, branch_id)')
+    .select('id, invoice_code, total_amount, room_id, tenant:tenant_id(id, user_id), room:room_id(room_code, branch_id)')
     .maybeSingle()
 
   if (updateError) {
@@ -97,20 +97,44 @@ export async function confirmInvoicePaymentAndNotify(
     }
   }
 
-  const tenant = normalizeTenant((updatedInvoice as InvoiceRecord).tenant)
-  if (tenant?.user_id) {
-    await dispatchNotification(
-      supabase,
-      { userId: tenant.user_id, tenantId: tenant.id ?? null },
-      {
-        title: 'Đã nhận tiền phòng',
-        body: `Cảm ơn bạn! Hóa đơn ${updatedInvoice.invoice_code} số tiền ${Number(updatedInvoice.total_amount).toLocaleString('vi-VN')}đ đã được thanh toán thành công qua VNPay.`,
-        type: 'payment',
+  // Thông báo cho TẤT CẢ cư dân đang ở trong phòng khi thanh toán thành công
+  const invoiceRoomId = (updatedInvoice as any).room_id ?? (invoice as any).room_id
+  if (invoiceRoomId) {
+    const { data: allRoomTenants } = await supabase
+      .from('tenants')
+      .select('id, user_id')
+      .eq('room_id', invoiceRoomId)
+      .is('move_out_date', null)
+    for (const t of allRoomTenants ?? []) {
+      if (t.user_id) {
+        await dispatchNotification(
+          supabase,
+          { userId: t.user_id, tenantId: t.id },
+          {
+            title: 'Đã nhận tiền phòng',
+            body: `Hóa đơn ${updatedInvoice.invoice_code} số tiền ${Number(updatedInvoice.total_amount).toLocaleString('vi-VN')}đ đã được thanh toán thành công.`,
+            type: 'payment',
+          }
+        )
       }
-    )
+    }
+  } else {
+    // Fallback: thông báo chỉ cho tenant trên hóa đơn nếu không có room_id
+    const tenant = normalizeTenant((updatedInvoice as unknown as InvoiceRecord).tenant)
+    if (tenant?.user_id) {
+      await dispatchNotification(
+        supabase,
+        { userId: tenant.user_id, tenantId: tenant.id ?? null },
+        {
+          title: 'Đã nhận tiền phòng',
+          body: `Hóa đơn ${updatedInvoice.invoice_code} số tiền ${Number(updatedInvoice.total_amount).toLocaleString('vi-VN')}đ đã được thanh toán thành công.`,
+          type: 'payment',
+        }
+      )
+    }
   }
 
-  const roomObj = normalizeRoom((updatedInvoice as InvoiceRecord).room)
+  const roomObj = normalizeRoom((updatedInvoice as unknown as InvoiceRecord).room)
   let managerQuery = supabase.from('profiles').select('id')
   if (roomObj?.branch_id != null) {
     managerQuery = managerQuery.or(`role.eq.super_admin,and(role.eq.manager,branch_id.eq.${roomObj.branch_id})`)

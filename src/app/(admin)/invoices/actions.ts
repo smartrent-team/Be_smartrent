@@ -326,7 +326,7 @@ export async function markInvoicePaidManually(
 
     const { data: invoice, error: fetchError } = await supabase
       .from('invoices')
-      .select('id, invoice_code, total_amount, payment_status, tenant_id, tenant:tenant_id(user_id)')
+      .select('id, invoice_code, total_amount, payment_status, tenant_id, room_id')
       .eq('id', invoiceId)
       .maybeSingle()
 
@@ -350,22 +350,28 @@ export async function markInvoicePaidManually(
 
     if (updateError) throw updateError
 
-    const tenantData = invoice.tenant as unknown
-    const tenantObj = Array.isArray(tenantData)
-      ? (tenantData[0] as { user_id?: string } | undefined)
-      : (tenantData as { user_id?: string } | null)
+    // Gửi thông báo cho TẤT CẢ cư dân đang ở trong phòng (không chỉ tenant_id trên hóa đơn)
+    if (invoice.room_id) {
+      const { data: allRoomTenants } = await supabase
+        .from('tenants')
+        .select('id, user_id')
+        .eq('room_id', invoice.room_id)
+        .is('move_out_date', null)
 
-    if (tenantObj?.user_id) {
       const methodLabel = method === 'cash' ? 'tiền mặt' : 'thủ công'
-      await dispatchNotification(
-        supabase,
-        { userId: tenantObj.user_id, tenantId: (invoice.tenant_id as number) ?? null },
-        {
-          title: 'Đã xác nhận thanh toán',
-          body: `Hóa đơn ${invoice.invoice_code} số tiền ${Number(invoice.total_amount).toLocaleString('vi-VN')}đ đã được xác nhận thanh toán (${methodLabel}).`,
-          type: 'payment',
+      for (const t of allRoomTenants ?? []) {
+        if (t.user_id) {
+          await dispatchNotification(
+            supabase,
+            { userId: t.user_id, tenantId: t.id },
+            {
+              title: 'Đã xác nhận thanh toán',
+              body: `Hóa đơn ${invoice.invoice_code} số tiền ${Number(invoice.total_amount).toLocaleString('vi-VN')}đ đã được xác nhận thanh toán (${methodLabel}).`,
+              type: 'payment',
+            }
+          )
         }
-      )
+      }
     }
 
     revalidatePath('/invoices')

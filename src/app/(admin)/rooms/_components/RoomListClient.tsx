@@ -9,7 +9,7 @@ import {
 } from '@/components/ui/table'
 import { Badge } from '@/components/ui/badge'
 import { buttonVariants } from '@/components/ui/button'
-import { Eye, RefreshCw } from 'lucide-react'
+import { Eye, RefreshCw, Users } from 'lucide-react'
 import Link from 'next/link'
 import { toast } from 'sonner'
 
@@ -32,8 +32,13 @@ export interface RoomRow {
 export default function RoomListClient({ initialRooms }: { initialRooms: RoomRow[] }) {
   const [rooms, setRooms] = useState<RoomRow[]>(initialRooms)
   const [lastUpdated, setLastUpdated] = useState<Date>(new Date())
+  const [mounted, setMounted] = useState<boolean>(false)
   const router = useRouter()
   const supabase = createClient()
+
+  useEffect(() => {
+    setMounted(true)
+  }, [])
 
   const refresh = useCallback(() => {
     router.refresh()
@@ -82,7 +87,9 @@ export default function RoomListClient({ initialRooms }: { initialRooms: RoomRow
     <>
       <div className="flex items-center gap-2 text-xs text-muted-foreground mb-2">
         <RefreshCw className="h-3 w-3" />
-        <span>Cập nhật lần cuối: {lastUpdated.toLocaleTimeString('vi-VN')}</span>
+        <span suppressHydrationWarning>
+          Cập nhật lần cuối: {mounted ? lastUpdated.toLocaleTimeString('vi-VN') : ''}
+        </span>
         <span className="ml-1 w-2 h-2 rounded-full bg-green-500 animate-pulse inline-block" title="Đang kết nối realtime" />
       </div>
 
@@ -94,6 +101,7 @@ export default function RoomListClient({ initialRooms }: { initialRooms: RoomRow
               <TableHead>Chi nhánh</TableHead>
               <TableHead>Tầng</TableHead>
               <TableHead>Giá thuê</TableHead>
+              <TableHead>Số người thuê</TableHead>
               <TableHead>Trạng thái</TableHead>
               <TableHead>Khách thuê</TableHead>
               <TableHead className="text-right">Hành động</TableHead>
@@ -101,7 +109,7 @@ export default function RoomListClient({ initialRooms }: { initialRooms: RoomRow
           </TableHeader>
           <TableBody>
             {rooms.map((room) => {
-              const activeTenant = room.tenants?.find(t => !t.move_out_date) ?? null
+              const activeTenants = room.tenants?.filter(t => !t.move_out_date) ?? []
               return (
                 <TableRow key={room.id}>
                   <TableCell className="font-medium">
@@ -115,13 +123,27 @@ export default function RoomListClient({ initialRooms }: { initialRooms: RoomRow
                   <TableCell>
                     {new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(room.base_price)}
                   </TableCell>
+                  <TableCell>
+                    {activeTenants.length > 0 ? (
+                      <Badge variant="secondary" className="bg-slate-100 text-slate-800 font-bold flex items-center gap-1 w-fit">
+                        <Users className="h-3 w-3 text-slate-500" />
+                        {activeTenants.length} người
+                      </Badge>
+                    ) : (
+                      <span className="text-gray-400 text-xs">0 người</span>
+                    )}
+                  </TableCell>
                   <TableCell>{getStatusBadge(room.status)}</TableCell>
                   <TableCell>
-                    {activeTenant ? (
-                      <span className="font-semibold text-slate-700">
-                        {activeTenant.user?.full_name || 'Khách chưa đặt tên'}
-                        <span className="text-xs text-gray-400 font-normal ml-2">(ID: {activeTenant.id})</span>
-                      </span>
+                    {activeTenants.length > 0 ? (
+                      <div className="flex flex-col gap-1">
+                        {activeTenants.map((t) => (
+                          <span key={t.id} className="font-semibold text-slate-700 text-sm">
+                            {t.user?.full_name || 'Khách chưa đặt tên'}
+                            <span className="text-xs text-gray-400 font-normal ml-1.5">(ID: {t.id})</span>
+                          </span>
+                        ))}
+                      </div>
                     ) : (
                       <span className="text-gray-400 italic text-xs">Trống</span>
                     )}
@@ -140,7 +162,7 @@ export default function RoomListClient({ initialRooms }: { initialRooms: RoomRow
             })}
             {rooms.length === 0 && (
               <TableRow>
-                <TableCell colSpan={7} className="h-24 text-center">Không có dữ liệu phòng.</TableCell>
+                <TableCell colSpan={8} className="h-24 text-center">Không có dữ liệu phòng.</TableCell>
               </TableRow>
             )}
           </TableBody>

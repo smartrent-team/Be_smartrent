@@ -62,7 +62,7 @@ export async function POST(request: NextRequest) {
       const roomIdNum = Number(room_id)
       const { data: roomCheck } = await auth.supabase!
         .from('rooms')
-        .select('branch_id')
+        .select('branch_id, area')
         .eq('id', roomIdNum)
         .single()
       
@@ -75,6 +75,20 @@ export async function POST(request: NextRequest) {
       
       // Ghi đè lại finalBranchId bằng đúng branch_id của phòng để đảm bảo tính nhất quán
       finalBranchId = roomCheck.branch_id
+
+      // Kiểm tra giới hạn số cư dân theo diện tích phòng
+      const area = Number(roomCheck.area ?? 0)
+      const maxCapacity = area < 16 ? 1 : area < 24 ? 2 : 3
+      const { count: currentCount } = await auth.supabase!
+        .from('tenants')
+        .select('id', { count: 'exact', head: true })
+        .eq('room_id', roomIdNum)
+        .is('move_out_date', null)
+      if ((currentCount ?? 0) >= maxCapacity) {
+        return NextResponse.json({
+          error: `Phòng đã đạt giới hạn ${maxCapacity} cư dân (diện tích ${area}m²). Không thể thêm cư dân mới.`
+        }, { status: 400 })
+      }
     }
 
     // 3. Khởi tạo Admin Client để tạo user bỏ qua OTP SMS
@@ -272,7 +286,21 @@ export async function POST(request: NextRequest) {
         )
       }
 
-      // Cập nhật trạng thái phòng thành occupied
+      // Cập nhật trạng thái phòng: đếm lại số cư dân sau khi thêm mới
+      // Lấy thông tin diện tích phòng để tính capacity
+      const { data: roomForCapacity } = await adminSupabase
+        .from('rooms')
+        .select('area')
+        .eq('id', roomIdNum)
+        .single()
+      const roomArea = Number(roomForCapacity?.area ?? 0)
+      const roomMaxCapacity = roomArea < 16 ? 1 : roomArea < 24 ? 2 : 3
+      const { count: newTenantCount } = await adminSupabase
+        .from('tenants')
+        .select('id', { count: 'exact', head: true })
+        .eq('room_id', roomIdNum)
+        .is('move_out_date', null)
+      // Chỉ đặt sang 'occupied' sau khi thêm cư dân (luôn occupied vì đã có ít nhất 1 cư dân)
       const { error: roomUpdateError } = await adminSupabase
         .from('rooms')
         .update({ status: 'occupied' })

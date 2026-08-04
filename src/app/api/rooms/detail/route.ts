@@ -91,17 +91,16 @@ export async function GET(request: NextRequest) {
       }
     }
 
-    // ── 3. Active tenant ────────────────────────────────────────────────────
-    const activeTenant = roomTenants?.find(t => !t.move_out_date) ?? null
-    const tenantInfo = activeTenant
-      ? {
-          id:          activeTenant.id,
-          name:        activeTenant.user?.full_name ?? 'Khách chưa có tên',
-          phone:       activeTenant.user?.phone     ?? 'Chưa cập nhật',
-          checkInDate: activeTenant.move_in_date,
-          checkOutDate: activeTenant.move_out_date,
-        }
-      : null
+    // ── 3. Active tenants ───────────────────────────────────────────────────
+    const activeTenants = roomTenants?.filter(t => !t.move_out_date) ?? []
+    const tenantsListInfo = activeTenants.map(t => ({
+      id:          t.id,
+      name:        t.user?.full_name ?? 'Khách chưa có tên',
+      phone:       t.user?.phone     ?? 'Chưa cập nhật',
+      checkInDate: t.move_in_date,
+      checkOutDate: t.move_out_date,
+    }))
+    const tenantInfo = tenantsListInfo.length > 0 ? tenantsListInfo[0] : null
 
     // ── 4. Invoices ─────────────────────────────────────────────────────────
     interface RoomInvoice {
@@ -175,6 +174,7 @@ export async function GET(request: NextRequest) {
         vehicleCount: room.vehicle_count ?? 0,
         status:   room.status,
         tenant:   tenantInfo,
+        tenants:  tenantsListInfo,
         invoices: invoicesList,
         tickets:  ticketsList,
         fixtures: fixturesList,
