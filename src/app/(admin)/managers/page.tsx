@@ -67,7 +67,7 @@ export default async function ManagersPage() {
       </div>
 
       {/* Stats Cards */}
-      <div className="grid gap-4 md:grid-cols-3">
+      <div className="grid gap-4 md:grid-cols-2">
         <Card className="border-gray-100 bg-white shadow-sm hover:shadow-md transition-shadow duration-300">
           <CardContent className="flex items-center gap-4 p-6">
             <div className="rounded-xl bg-teal-50 p-3 text-teal-600">
@@ -88,18 +88,6 @@ export default async function ManagersPage() {
             <div>
               <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Đã gán chi nhánh</p>
               <h3 className="text-2xl font-bold text-gray-800 mt-1">{assignedManagers}</h3>
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card className="border-gray-100 bg-white shadow-sm hover:shadow-md transition-shadow duration-300">
-          <CardContent className="flex items-center gap-4 p-6">
-            <div className="rounded-xl bg-amber-50 p-3 text-amber-600">
-              <AlertCircle className="h-6 w-6" />
-            </div>
-            <div>
-              <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Chưa có chi nhánh</p>
-              <h3 className="text-2xl font-bold text-gray-800 mt-1">{unassignedManagers}</h3>
             </div>
           </CardContent>
         </Card>

@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState, useCallback } from 'react'
+import { useEffect, useState, useCallback, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import {
@@ -27,6 +27,107 @@ export interface RoomRow {
   base_price: number
   status: string
   tenants?: RoomTenant[]
+}
+
+// ─── Avatar stack + dropdown cho khách thuê ──────────────────────────────
+function getInitials(name: string) {
+  return name
+    .split(' ')
+    .filter(Boolean)
+    .slice(-2)
+    .map((w: string) => w[0].toUpperCase())
+    .join('')
+}
+
+const AVATAR_COLORS = [
+  'bg-teal-100 text-teal-700',
+  'bg-blue-100 text-blue-700',
+  'bg-violet-100 text-violet-700',
+  'bg-amber-100 text-amber-700',
+  'bg-rose-100 text-rose-700',
+]
+
+function TenantAvatarStack({ tenants }: { tenants: RoomTenant[] }) {
+  const [open, setOpen] = useState(false)
+  const ref = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    if (!open) return
+    function handler(e: MouseEvent) {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false)
+    }
+    document.addEventListener('mousedown', handler)
+    return () => document.removeEventListener('mousedown', handler)
+  }, [open])
+
+  if (tenants.length === 0) {
+    return <span className="text-gray-400 italic text-xs">Trống</span>
+  }
+
+  const MAX_SHOW = 3
+  const visible = tenants.slice(0, MAX_SHOW)
+  const extra = tenants.length - MAX_SHOW
+
+  return (
+    <div ref={ref} className="relative inline-block">
+      {/* Avatar stack */}
+      <button
+        onClick={() => setOpen(p => !p)}
+        className="flex items-center cursor-pointer group"
+        title={tenants.length > 1 ? 'Xem tất cả khách thuê' : tenants[0].user?.full_name || ''}
+      >
+        <div className="flex -space-x-2">
+          {visible.map((t, i) => {
+            const name = t.user?.full_name || '?'
+            return (
+              <span
+                key={t.id}
+                className={`h-7 w-7 rounded-full border-2 border-white text-[10px] font-bold flex items-center justify-center shrink-0 ${AVATAR_COLORS[i % AVATAR_COLORS.length]}`}
+              >
+                {getInitials(name)}
+              </span>
+            )
+          })}
+          {extra > 0 && (
+            <span className="h-7 w-7 rounded-full border-2 border-white bg-gray-100 text-gray-500 text-[10px] font-bold flex items-center justify-center shrink-0">
+              +{extra}
+            </span>
+          )}
+        </div>
+        {/* Tên nếu chỉ có 1 người */}
+        {tenants.length === 1 && (
+          <span className="ml-2 text-sm font-medium text-slate-700 group-hover:text-teal-700 transition-colors">
+            {tenants[0].user?.full_name || 'Khách chưa đặt tên'}
+          </span>
+        )}
+        {tenants.length > 1 && (
+          <span className="ml-2 text-xs text-gray-500">{tenants.length} người</span>
+        )}
+      </button>
+
+      {/* Dropdown danh sách */}
+      {open && (
+        <div className="absolute left-0 top-full mt-1.5 z-50 w-60 rounded-xl border border-gray-200 bg-white shadow-lg overflow-hidden">
+          <div className="px-3 py-2 border-b bg-gray-50">
+            <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Khách thuê ({tenants.length})</p>
+          </div>
+          <div className="divide-y max-h-48 overflow-y-auto">
+            {tenants.map((t, i) => {
+              const name = t.user?.full_name || 'Khách chưa đặt tên'
+              return (
+                <div key={t.id} className="flex items-center gap-2.5 px-3 py-2 hover:bg-slate-50">
+                  <span className={`h-6 w-6 rounded-full text-[10px] font-bold flex items-center justify-center shrink-0 ${AVATAR_COLORS[i % AVATAR_COLORS.length]}`}>
+                    {getInitials(name)}
+                  </span>
+                  <span className="text-sm font-medium text-gray-800 truncate">{name}</span>
+                </div>
+              )
+            })}
+          </div>
+        </div>
+      )}
+    </div>
+  )
 }
 
 export default function RoomListClient({ initialRooms }: { initialRooms: RoomRow[] }) {
@@ -114,7 +215,6 @@ export default function RoomListClient({ initialRooms }: { initialRooms: RoomRow
                 <TableRow key={room.id}>
                   <TableCell className="font-medium">
                     {room.room_code}
-                    <span className="text-xs text-muted-foreground ml-2">(ID: {room.id})</span>
                   </TableCell>
                   <TableCell className="font-semibold text-emerald-800">
                     {room.branch?.name || 'Chưa phân chi nhánh'}
@@ -135,18 +235,7 @@ export default function RoomListClient({ initialRooms }: { initialRooms: RoomRow
                   </TableCell>
                   <TableCell>{getStatusBadge(room.status)}</TableCell>
                   <TableCell>
-                    {activeTenants.length > 0 ? (
-                      <div className="flex flex-col gap-1">
-                        {activeTenants.map((t) => (
-                          <span key={t.id} className="font-semibold text-slate-700 text-sm">
-                            {t.user?.full_name || 'Khách chưa đặt tên'}
-                            <span className="text-xs text-gray-400 font-normal ml-1.5">(ID: {t.id})</span>
-                          </span>
-                        ))}
-                      </div>
-                    ) : (
-                      <span className="text-gray-400 italic text-xs">Trống</span>
-                    )}
+                    <TenantAvatarStack tenants={activeTenants} />
                   </TableCell>
                   <TableCell className="text-right">
                     <Link

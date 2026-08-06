@@ -14,6 +14,7 @@ import { CreateServiceDialog } from './_components/CreateServiceDialog'
 import { DeleteServiceButton } from './_components/DeleteServiceButton'
 import { EditServiceDialog } from './_components/EditServiceDialog'
 import { BranchPricingDialog } from './_components/BranchPricingDialog'
+import { BranchPricingCell } from './_components/BranchPricingCell'
 import {
   ConciergeBell,
   ShieldAlert,
@@ -145,37 +146,7 @@ function ServiceGroup({
 
                   {/* Giá theo chi nhánh */}
                   <TableCell className="py-4">
-                    {pricings.length === 0 ? (
-                      <span className="text-xs italic text-gray-400">Chưa cấu hình giá</span>
-                    ) : (
-                      <div className="flex flex-wrap gap-2">
-                        {pricings.map((ps) => {
-                          const branch = branches.find((b) => b.id === ps.branch_id)
-                          return (
-                            <div
-                              key={ps.branch_id}
-                              className={`inline-flex items-center gap-1.5 rounded-lg border px-2.5 py-1 text-xs font-medium ${
-                                ps.is_active
-                                  ? 'border-emerald-200 bg-emerald-50 text-emerald-800'
-                                  : 'border-gray-200 bg-gray-50 text-gray-400'
-                              }`}
-                            >
-                              {ps.is_active ? (
-                                <CheckCircle2 className="h-3 w-3 text-emerald-500 shrink-0" />
-                              ) : (
-                                <XCircle className="h-3 w-3 text-gray-400 shrink-0" />
-                              )}
-                              <span className="font-semibold">{branch?.name ?? `CN #${ps.branch_id}`}</span>
-                              <span className="text-gray-400">·</span>
-                              <span>
-                                {Number(ps.price).toLocaleString('vi-VN')}đ
-                                {ps.unit ? `/${ps.unit}` : ''}
-                              </span>
-                            </div>
-                          )
-                        })}
-                      </div>
-                    )}
+                    <BranchPricingCell pricings={pricings} branches={branches} />
                   </TableCell>
 
                   {/* Thao tác */}
