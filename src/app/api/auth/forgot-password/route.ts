@@ -29,7 +29,8 @@ export async function POST(request: NextRequest) {
 
     if (error) {
       console.error('[forgot-password] error:', error.message)
-      return NextResponse.json({ error: error.message }, { status: 400 })
+      // Không lộ message kỹ thuật từ Supabase — luôn trả về message chung để tránh email enumeration
+      return NextResponse.json({ error: 'Không thể gửi email khôi phục. Vui lòng kiểm tra địa chỉ email và thử lại.' }, { status: 400 })
     }
 
     return NextResponse.json({
@@ -39,7 +40,7 @@ export async function POST(request: NextRequest) {
   } catch (error: unknown) {
     console.error('[forgot-password] unexpected error:', error)
     return NextResponse.json(
-      { error: error instanceof Error ? error.message : String(error) },
+      { error: 'Lỗi máy chủ. Vui lòng thử lại sau.' },
       { status: 500 }
     )
   }

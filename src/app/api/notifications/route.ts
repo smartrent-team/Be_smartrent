@@ -75,7 +75,7 @@ export async function GET(request: NextRequest) {
       }
     }
 
-    let query = supabase
+    let notifQuery = supabase
       .from('notifications')
       .select('id, user_id, title, body, type, related_id, is_read, created_at, updated_at')
       .eq('user_id', auth.dbUserId)
@@ -83,10 +83,18 @@ export async function GET(request: NextRequest) {
       .limit(limit)
 
     if (unreadOnly) {
-      query = query.eq('is_read', false)
+      notifQuery = notifQuery.eq('is_read', false)
     }
 
-    const { data: notifications, error } = await query
+    // Chạy song song: notifications + unread count
+    const [{ data: notifications, error }, { count: unreadCount }] = await Promise.all([
+      notifQuery,
+      supabase
+        .from('notifications')
+        .select('id', { count: 'exact', head: true })
+        .eq('user_id', auth.dbUserId)
+        .eq('is_read', false),
+    ])
     if (error) throw error
 
     // Enrich endDate cho contract notifications (tránh số ngày bị đóng băng trong body)
@@ -110,12 +118,6 @@ export async function GET(request: NextRequest) {
         if (c.end_date) endDateMap[c.id] = c.end_date
       }
     }
-
-    const { count: unreadCount } = await supabase
-      .from('notifications')
-      .select('id', { count: 'exact', head: true })
-      .eq('user_id', auth.dbUserId)
-      .eq('is_read', false)
 
     return NextResponse.json({
       success: true,

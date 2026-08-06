@@ -34,42 +34,54 @@ export async function GET(request: NextRequest) {
     }
 
     const roomIds = rooms.map(r => r.id)
+    const uniqueBranchIds = [...new Set(rooms.map(r => r.branch_id as number).filter(Boolean))]
 
-    // ── 2. Lấy utility logs mới nhất ────────────────────────────────────────
-    const { data: logs, error: logError } = await supabase
-      .from('utility_logs')
-      .select('*')
-      .in('room_id', roomIds)
-      .order('year',  { ascending: false })
-      .order('month', { ascending: false })
+    // ── 2 + 3 + 3b. Chạy song song: logs, branch pricing, tenant counts ───────
+    const [logsResult, activeTenants, ...pricingResults] = await Promise.all([
+      supabase
+        .from('utility_logs')
+        .select('*')
+        .in('room_id', roomIds)
+        .order('year',  { ascending: false })
+        .order('month', { ascending: false }),
+      supabase
+        .from('tenants')
+        .select('room_id')
+        .in('room_id', roomIds)
+        .is('move_out_date', null),
+      ...uniqueBranchIds.map(bid => getBranchPricing(supabase, bid)),
+    ] as const)
 
-    if (logError) throw logError
+    if (logsResult.error) throw logsResult.error
 
-    // Group by room_id → chỉ giữ log mới nhất
+    // Group logs by room_id → chỉ giữ log mới nhất
     const latestLogsMap: Record<number, Record<string, unknown>> = {}
-    for (const log of (logs ?? [])) {
+    for (const log of (logsResult.data ?? [])) {
       if (!latestLogsMap[log.room_id]) {
         latestLogsMap[log.room_id] = log
       }
     }
 
-    // ── 3. Lấy giá branch_services theo từng chi nhánh (cache by branch_id) ─
+    // Build pricing cache từ kết quả song song
     const branchPricingCache: Record<number, Awaited<ReturnType<typeof getBranchPricing>>> = {}
+    uniqueBranchIds.forEach((bid, i) => {
+      branchPricingCache[bid] = pricingResults[i] as Awaited<ReturnType<typeof getBranchPricing>>
+    })
 
-    const uniqueBranchIds = [...new Set(rooms.map(r => r.branch_id as number).filter(Boolean))]
-    await Promise.all(
-      uniqueBranchIds.map(async (bid) => {
-        branchPricingCache[bid] = await getBranchPricing(supabase, bid)
-      })
-    )
+    // Build tenant count map
+    const tenantCountByRoom: Record<number, number> = {}
+    for (const t of ((activeTenants as { data: Array<{ room_id: number }> | null }).data ?? [])) {
+      tenantCountByRoom[t.room_id] = (tenantCountByRoom[t.room_id] ?? 0) + 1
+    }
 
     // ── 4. Build response ───────────────────────────────────────────────────
     const docs = rooms.map(room => {
       const latestLog    = latestLogsMap[room.id]
       const pricing      = branchPricingCache[room.branch_id] ?? null
       const vehicleCount = (room.vehicle_count as number | null) ?? 0
+      const tenantCount  = tenantCountByRoom[room.id] ?? 1
       const totalServiceCost = pricing
-        ? calcTotalServiceCost(pricing, vehicleCount)
+        ? calcTotalServiceCost(pricing, vehicleCount, tenantCount)
         : 0
 
       return {
@@ -86,11 +98,12 @@ export async function GET(request: NextRequest) {
         lastMonth:    latestLog ? latestLog.month  : null,
         lastYear:     latestLog ? latestLog.year   : null,
         utilityLogId: latestLog ? latestLog.id     : null,
-        // ★ Giá từ branch_services — fixedServiceCost đã tính per_unit * vehicleCount
+        // ★ Giá từ branch_services — fixedServiceCost đã tính per_unit * vehicleCount + per_person * tenantCount
         electricPrice:    pricing?.electricPrice ?? 3_500,
         waterPrice:       pricing?.waterPrice    ?? 30_000,
         fixedServiceCost: totalServiceCost,
         fixedServices:    pricing?.fixedServices ?? [],
+        tenantCount,
       }
     })
 

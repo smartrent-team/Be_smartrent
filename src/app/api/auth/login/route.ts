@@ -3,6 +3,31 @@ import { createApiClient } from '@/lib/supabase/server'
 import { z } from 'zod'
 import { formatZodError } from '@/lib/validations'
 
+/** Map các error message tiếng Anh từ Supabase Auth sang tiếng Việt */
+function mapSupabaseAuthError(message: string): string {
+  const lower = message.toLowerCase()
+  if (lower.includes('invalid login credentials') || lower.includes('invalid email or password')) {
+    return 'Số điện thoại hoặc mật khẩu không đúng.'
+  }
+  if (lower.includes('email not confirmed')) {
+    return 'Tài khoản chưa được xác nhận. Vui lòng kiểm tra email.'
+  }
+  if (lower.includes('user not found')) {
+    return 'Tài khoản không tồn tại trong hệ thống.'
+  }
+  if (lower.includes('too many requests') || lower.includes('rate limit')) {
+    return 'Quá nhiều lần thử. Vui lòng đợi vài phút rồi thử lại.'
+  }
+  if (lower.includes('user is disabled') || lower.includes('account is disabled')) {
+    return 'Tài khoản đã bị vô hiệu hóa. Vui lòng liên hệ quản trị viên.'
+  }
+  if (lower.includes('network') || lower.includes('fetch')) {
+    return 'Không thể kết nối. Vui lòng thử lại.'
+  }
+  // Fallback: trả về message gốc không chứa thông tin kỹ thuật nhạy cảm
+  return 'Đăng nhập thất bại. Vui lòng kiểm tra lại thông tin.'
+}
+
 const loginSchema = z.object({
   phone: z.string().min(1, 'Vui lòng nhập số điện thoại hoặc email'),
   password: z.string().min(6, 'Mật khẩu phải có ít nhất 6 ký tự')
@@ -48,7 +73,8 @@ export async function POST(request: NextRequest) {
     })
 
     if (error) {
-      return NextResponse.json({ error: error.message }, { status: 401 })
+      const viMessage = mapSupabaseAuthError(error.message)
+      return NextResponse.json({ error: viMessage }, { status: 401 })
     }
 
     // Lấy thêm profile bằng email để mobile app biết role

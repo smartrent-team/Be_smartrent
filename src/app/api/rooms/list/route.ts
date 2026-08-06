@@ -124,6 +124,14 @@ export async function GET(request: NextRequest) {
         check_in_date: activeTenant.move_in_date
       } : null
 
+      // Danh sách đầy đủ tất cả cư dân đang ở (cho phòng nhiều người)
+      const tenants = activeTenants.map(t => ({
+        id: t.id,
+        name: t.user?.full_name || 'Khách chưa có tên',
+        phone: t.user?.phone || 'Chưa cập nhật',
+        check_in_date: t.move_in_date
+      }))
+
       const area = Number(room.area ?? 0)
       const maxCapacity = getMaxCapacity(area)
       const currentTenantCount = activeTenants.length
@@ -140,6 +148,7 @@ export async function GET(request: NextRequest) {
         status: room.status,
         branch: room.branch_id,
         tenant,
+        tenants,
         // Thông tin capacity cư dân
         currentTenantCount,
         maxCapacity,

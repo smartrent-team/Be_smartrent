@@ -63,7 +63,6 @@ export async function GET(request: NextRequest) {
         return NextResponse.json({ error: 'Người dùng chưa được gán vào cơ sở nào' }, { status: 403 })
       }
       // Lấy danh sách room_id thuộc chi nhánh của manager
-      // (Supabase không hỗ trợ filter trực tiếp trên foreign table)
       const { data: branchRooms, error: roomsError } = await supabase
         .from('rooms')
         .select('id')
@@ -76,7 +75,6 @@ export async function GET(request: NextRequest) {
       const branchRoomIds = (branchRooms || []).map((r: { id: number }) => r.id)
 
       if (branchRoomIds.length === 0) {
-        // Chi nhánh chưa có phòng nào → trả về rỗng luôn
         return NextResponse.json({ success: true, docs: [], totalDocs: 0, limit, page, totalPages: 0 })
       }
 

@@ -25,12 +25,11 @@ export async function POST(request: NextRequest) {
     })
 
     if (error) {
-      return NextResponse.json({ error: error.message }, { status: 400 })
+      return NextResponse.json({ error: 'Không thể đổi mật khẩu. Vui lòng thử lại.' }, { status: 400 })
     }
 
     return NextResponse.json({ success: true, message: 'Đổi mật khẩu thành công' })
   } catch (error: unknown) {
-    const errorMessage = error instanceof Error ? error.message : String(error)
-    return NextResponse.json({ error: errorMessage }, { status: 500 })
+    return NextResponse.json({ error: 'Lỗi máy chủ. Vui lòng thử lại sau.' }, { status: 500 })
   }
 }

@@ -29,29 +29,27 @@ export async function GET(request: NextRequest) {
     // Phân quyền RBAC
     let query
     if (auth.role === 'tenant') {
-      // Khách thuê chỉ xem được ticket của phòng mình (Lấy room_id từ bảng tenants)
-      const { data: tenantInfo } = await supabase.from('tenants').select('room_id').eq('user_id', auth.dbUserId).is('move_out_date', null).order('created_at', { ascending: false }).limit(1).maybeSingle()
+      // Lấy room_id của tenant trước, sau đó query tickets
+      const { data: tenantInfo } = await supabase
+        .from('tenants').select('room_id')
+        .eq('user_id', auth.dbUserId).is('move_out_date', null)
+        .order('created_at', { ascending: false }).limit(1).maybeSingle()
       if (!tenantInfo?.room_id) {
-        return NextResponse.json({ success: true, data: [] }) // Không có phòng
+        return NextResponse.json({ success: true, data: [] })
       }
       query = supabase.from('maintenance_tickets').select(baseSelect).eq('room_id', tenantInfo.room_id)
     } else if (auth.role === 'manager') {
-      // Quản lý chỉ xem được ticket của chi nhánh mình
       if (!auth.branchId) {
         return NextResponse.json({ error: 'Manager không có chi nhánh' }, { status: 403 })
       }
-      // Lấy danh sách room_id thuộc chi nhánh (Supabase không filter được qua foreign table)
       const { data: branchRooms } = await supabase
-        .from('rooms')
-        .select('id')
-        .eq('branch_id', auth.branchId)
+        .from('rooms').select('id').eq('branch_id', auth.branchId)
       const branchRoomIds = (branchRooms || []).map((r: { id: number }) => r.id)
       if (branchRoomIds.length === 0) {
         return NextResponse.json({ success: true, data: [] })
       }
       query = supabase.from('maintenance_tickets').select(baseSelectInner).in('room_id', branchRoomIds)
     } else {
-      // super_admin: xem được tất cả, không cần filter thêm
       query = supabase.from('maintenance_tickets').select(baseSelect)
     }
 
@@ -124,14 +122,9 @@ export async function POST(request: NextRequest) {
 
     if (error) throw error
 
+    // Lấy room info
     const { data: room } = await supabase
-      .from('rooms')
-      .select('room_code, branch_id')
-      .eq('id', finalRoomId)
-      .single()
-
-    const notificationTitle = 'Có sự cố mới'
-    const notificationBody = `Phòng ${room?.room_code ?? 'chưa xác định'}: ${title}`
+      .from('rooms').select('room_code, branch_id').eq('id', finalRoomId).single()
 
     let managerQuery = supabase.from('users').select('id')
     if (room?.branch_id != null) {
@@ -140,46 +133,40 @@ export async function POST(request: NextRequest) {
       managerQuery = managerQuery.eq('role', 'super_admin')
     }
 
-    const { data: managers } = await managerQuery
+    // Lấy managers + tenantUser song song
+    const [{ data: managers }, tenantUserResult] = await Promise.all([
+      managerQuery,
+      finalTenantId
+        ? supabase.from('tenants').select('user_id').eq('id', finalTenantId).maybeSingle()
+        : Promise.resolve({ data: null }),
+    ])
 
-    for (const manager of managers ?? []) {
-      await dispatchNotification(supabase, { userId: manager.id }, {
-        title: notificationTitle,
-        body: notificationBody,
-        type: 'ticket',
-        data: {
-          ticketId: String(ticket.id),
-          roomId: String(finalRoomId),
-          status: 'pending',
-        },
-      })
-    }
+    const notificationTitle = 'Có sự cố mới'
+    const notificationBody = `Phòng ${room?.room_code ?? 'chưa xác định'}: ${title}`
 
-    // Gửi thông báo xác nhận tạo sự cố cho chính tenant
-    if (finalTenantId) {
-      const { data: tenantUser } = await supabase
-        .from('tenants')
-        .select('user_id')
-        .eq('id', finalTenantId)
-        .maybeSingle()
-
-      if (tenantUser?.user_id) {
-        await dispatchNotification(
+    // Gửi tất cả notifications song song
+    await Promise.all([
+      ...(managers ?? []).map(manager =>
+        dispatchNotification(supabase, { userId: manager.id }, {
+          title: notificationTitle,
+          body: notificationBody,
+          type: 'ticket',
+          data: { ticketId: String(ticket.id), roomId: String(finalRoomId), status: 'pending' },
+        })
+      ),
+      ...(tenantUserResult?.data?.user_id ? [
+        dispatchNotification(
           supabase,
-          { userId: tenantUser.user_id, tenantId: finalTenantId },
+          { userId: tenantUserResult.data.user_id, tenantId: finalTenantId },
           {
             title: 'Sự cố đã được tiếp nhận',
             body: `Sự cố "${title}" tại phòng ${room?.room_code ?? finalRoomId} đã được ghi nhận và đang chờ xử lý.`,
             type: 'ticket',
-            data: {
-              ticketId: String(ticket.id),
-              roomId: String(finalRoomId),
-              status: 'pending',
-            },
+            data: { ticketId: String(ticket.id), roomId: String(finalRoomId), status: 'pending' },
           }
         )
-      }
-    }
+      ] : []),
+    ])
 
     return NextResponse.json({ success: true, data: ticket })
   } catch (error: unknown) {

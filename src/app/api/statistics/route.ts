@@ -21,58 +21,39 @@ export async function GET(request: NextRequest) {
     let roomQuery = supabase.from('rooms').select('id, branch_id, status, area, base_price')
     let invoiceQuery = supabase.from('invoices').select('id, room_id, total_amount, payment_status, issued_at')
     
-    // Nếu là manager, chỉ lấy dữ liệu của chi nhánh đó
     if (auth.role === 'manager') {
       if (!auth.branchId) {
         return NextResponse.json({ error: 'Người dùng chưa được gán vào cơ sở nào' }, { status: 403 })
       }
-      
-      const { data: branchRooms, error: roomsError } = await supabase
-        .from('rooms')
-        .select('id')
-        .eq('branch_id', auth.branchId)
+      roomQuery = roomQuery.eq('branch_id', auth.branchId)
+    }
 
-      if (roomsError) {
-        return NextResponse.json({ error: 'Không thể lấy danh sách phòng theo chi nhánh' }, { status: 500 })
-      }
+    // Lấy rooms trước để có room_id list cho invoice filter
+    const { data: rooms, error: err1 } = await roomQuery
+    if (err1) throw err1
 
-      const branchRoomIds = (branchRooms || []).map((r: { id: number }) => r.id)
-      
-      if (branchRoomIds.length === 0) {
-        return NextResponse.json({
-          success: true,
-          data: {
-            totalRevenue: 0,
-            totalDebt: 0,
-            totalRooms: 0,
-            occupiedRooms: 0,
-            occupancyRate: 0,
-            paidInvoicesCount: 0,
-            unpaidInvoicesCount: 0
-          }
-        })
-      }
-      
-      roomQuery = roomQuery.in('id', branchRoomIds)
+    const roomList = rooms || []
+    const branchRoomIds = roomList.map((r: { id: number }) => r.id)
+
+    if (auth.role === 'manager' && branchRoomIds.length === 0) {
+      return NextResponse.json({
+        success: true,
+        data: { totalRevenue: 0, totalDebt: 0, totalRooms: 0, occupiedRooms: 0, occupancyRate: 0, paidInvoicesCount: 0, unpaidInvoicesCount: 0 }
+      })
+    }
+
+    if (auth.role === 'manager') {
       invoiceQuery = invoiceQuery.in('room_id', branchRoomIds)
     }
 
-    // Fetch data parallel
+    // Fetch invoices song song
     const [
-      { data: rooms, error: err1 },
       { data: monthInvoices, error: err2 },
-      { data: debtInvoices, error: err3 },
+      { data: debtInvoices,  error: err3 },
     ] = await Promise.all([
-      roomQuery,
       invoiceQuery.gte('issued_at', monthStart).lt('issued_at', monthEnd),
       invoiceQuery.in('payment_status', ['unpaid', 'partial'])
     ])
-
-    if (err1) throw err1
-    if (err2) throw err2
-    if (err3) throw err3
-
-    const roomList = rooms || []
     const mInvoices = monthInvoices || []
     const dInvoices = debtInvoices || []
 

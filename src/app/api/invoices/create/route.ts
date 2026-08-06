@@ -3,7 +3,6 @@ import { createInvoice } from '@/app/(admin)/invoices/actions'
 import { NextResponse, type NextRequest } from 'next/server'
 import {
   getBranchPricing,
-  getRoomBranchId,
   calcElectricCost,
   calcWaterCost,
   calcTotalServiceCost,
@@ -44,17 +43,22 @@ export async function POST(request: NextRequest) {
 
     const supabase = auth.supabase!
 
-    // ── 1. Branch pricing ────────────────────────────────────────────────────
-    const branchId = await getRoomBranchId(supabase, Number(roomId))
-    const pricing  = branchId ? await getBranchPricing(supabase, branchId) : null
+    // ── 1. Lấy branchId, vehicleCount, tenantCount song song ─────────────────
+    const [branchIdResult, roomDataResult, tenantCountResult] = await Promise.all([
+      supabase.from('rooms').select('branch_id').eq('id', Number(roomId)).single(),
+      supabase.from('rooms').select('vehicle_count').eq('id', Number(roomId)).single(),
+      supabase
+        .from('tenants')
+        .select('id', { count: 'exact', head: true })
+        .eq('room_id', Number(roomId))
+        .is('move_out_date', null),
+    ])
 
-    // ── 1b. Số xe trong phòng (dùng cho per_unit services) ──────────────────
-    const { data: roomData } = await supabase
-      .from('rooms')
-      .select('vehicle_count')
-      .eq('id', Number(roomId))
-      .single()
-    const vehicleCount = (roomData?.vehicle_count as number | null) ?? 0
+    const branchId = branchIdResult.data?.branch_id ?? null
+    const vehicleCount = (roomDataResult.data?.vehicle_count as number | null) ?? 0
+    const tenantCount = tenantCountResult.count ?? 1
+
+    const pricing = branchId ? await getBranchPricing(supabase, branchId) : null
 
     // ── 2. Tiền điện ─────────────────────────────────────────────────────────
     let finalElectricCost: number
@@ -88,7 +92,7 @@ export async function POST(request: NextRequest) {
     const finalServiceCost = serviceCost !== undefined
       ? Number(serviceCost)
       : pricing
-        ? calcTotalServiceCost(pricing, vehicleCount)
+        ? calcTotalServiceCost(pricing, vehicleCount, tenantCount)
         : 0
 
     // ── 5. Chi phí sửa chữa ──────────────────────────────────────────────────

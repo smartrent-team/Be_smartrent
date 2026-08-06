@@ -153,7 +153,7 @@ export async function GET(request: NextRequest) {
       createdAt:   fix.created_at,
     }))
 
-    // ── 7. ★ Giá dịch vụ từ branch_services ────────────────────────────────
+    // ── 7. ★ Giá dịch vụ từ branch_services (song song với các bước trên) ───
     const branchId: number | null = room.branch_id ?? null
     const pricing = branchId ? await getBranchPricing(supabase, branchId) : null
 

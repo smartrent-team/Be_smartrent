@@ -29,7 +29,7 @@ export async function GET() {
     const supabase = auth.supabase!
     const branchId = auth.branchId ?? null
 
-    // ── 1. Rooms ──────────────────────────────────────────────────────────
+    // ── Xây query rooms trước để lấy roomIds cho các query sau ──────────────
     let roomQuery = supabase
       .from('rooms')
       .select('id, room_code, floor, status, branch_id')
@@ -40,8 +40,9 @@ export async function GET() {
     if (roomErr) throw roomErr
 
     const roomIds = (rooms || []).map((r) => r.id)
+    const emptyRoomFilter = auth.role === 'manager' && roomIds.length === 0
 
-    // ── 2. Tenants ────────────────────────────────────────────────────────
+    // ── Chạy 4 query còn lại song song ──────────────────────────────────────
     let tenantQuery = supabase
       .from('tenants')
       .select(`
@@ -53,14 +54,10 @@ export async function GET() {
       `)
       .is('move_out_date', null)
       .eq('user.status', 'active')
-
     if (auth.role === 'manager' && branchId) {
       tenantQuery = tenantQuery.eq('rooms.branch_id', branchId)
     }
-    const { data: tenantsRaw, error: tenantErr } = await tenantQuery
-    if (tenantErr) throw tenantErr
 
-    // ── 3. Invoices (chỉ lấy cột cần thiết, không phân trang) ────────────
     let invoiceQuery = supabase
       .from('invoices')
       .select(
@@ -69,17 +66,12 @@ export async function GET() {
       )
       .order('issued_at', { ascending: false })
       .limit(200)
-
-    if (auth.role === 'manager' && roomIds.length > 0) {
-      invoiceQuery = invoiceQuery.in('room_id', roomIds)
-    } else if (auth.role === 'manager' && roomIds.length === 0) {
-      // Manager chưa có phòng nào
-      invoiceQuery = invoiceQuery.eq('room_id', -1)
+    if (auth.role === 'manager') {
+      invoiceQuery = emptyRoomFilter
+        ? invoiceQuery.eq('room_id', -1)
+        : invoiceQuery.in('room_id', roomIds)
     }
-    const { data: invoices, error: invoiceErr } = await invoiceQuery
-    if (invoiceErr) throw invoiceErr
 
-    // ── 4. Tickets ────────────────────────────────────────────────────────
     let ticketQuery = supabase
       .from('maintenance_tickets')
       .select(
@@ -88,48 +80,32 @@ export async function GET() {
       )
       .order('created_at', { ascending: false })
       .limit(50)
-
-    if (auth.role === 'manager' && roomIds.length > 0) {
-      ticketQuery = ticketQuery.in('room_id', roomIds)
-    } else if (auth.role === 'manager' && roomIds.length === 0) {
-      ticketQuery = ticketQuery.eq('room_id', -1)
+    if (auth.role === 'manager') {
+      ticketQuery = emptyRoomFilter
+        ? ticketQuery.eq('room_id', -1)
+        : ticketQuery.in('room_id', roomIds)
     }
-    const { data: tickets, error: ticketErr } = await ticketQuery
+
+    const utilityPromise = roomIds.length > 0
+      ? supabase
+          .from('utility_logs')
+          .select('room_id, month, year, electric_old, electric_new, water_old, water_new')
+          .in('room_id', roomIds)
+          .order('year', { ascending: false })
+          .order('month', { ascending: false })
+      : Promise.resolve({ data: [], error: null })
+
+    const [
+      { data: tenantsRaw, error: tenantErr },
+      { data: invoices,   error: invoiceErr },
+      { data: tickets,    error: ticketErr },
+      { data: logs,       error: logErr },
+    ] = await Promise.all([tenantQuery, invoiceQuery, ticketQuery, utilityPromise])
+
+    if (tenantErr) throw tenantErr
+    if (invoiceErr) throw invoiceErr
     if (ticketErr) throw ticketErr
-
-    // ── 5. Utility logs (latest per room) ─────────────────────────────────
-    let utilityDocs: {
-      roomId: number
-      roomName: string
-      lastMonth: number | null
-      lastYear: number | null
-    }[] = []
-
-    if (roomIds.length > 0) {
-      const { data: logs, error: logErr } = await supabase
-        .from('utility_logs')
-        .select('room_id, month, year, electric_old, electric_new, water_old, water_new')
-        .in('room_id', roomIds)
-        .order('year', { ascending: false })
-        .order('month', { ascending: false })
-
-      if (logErr) throw logErr
-
-      const latestMap: Record<number, typeof logs[0]> = {}
-      for (const log of logs ?? []) {
-        if (!latestMap[log.room_id]) latestMap[log.room_id] = log
-      }
-
-      utilityDocs = (rooms || []).map((room) => {
-        const log = latestMap[room.id]
-        return {
-          roomId: room.id,
-          roomName: `Phòng ${room.room_code}`,
-          lastMonth: log?.month ?? null,
-          lastYear: log?.year ?? null,
-        }
-      })
-    }
+    if (logErr) throw logErr
 
     // ── Transform rooms ───────────────────────────────────────────────────
     const roomDocs = (rooms || []).map((r) => ({
@@ -139,6 +115,21 @@ export async function GET() {
       status: r.status,
       branch: r.branch_id,
     }))
+
+    // ── Build utility docs ────────────────────────────────────────────────
+    const latestMap: Record<number, (typeof logs)[0]> = {}
+    for (const log of logs ?? []) {
+      if (!latestMap[log.room_id]) latestMap[log.room_id] = log
+    }
+    const utilityDocs = (rooms || []).map((room) => {
+      const log = latestMap[room.id]
+      return {
+        roomId:    room.id,
+        roomName:  `Phòng ${room.room_code}`,
+        lastMonth: log?.month ?? null,
+        lastYear:  log?.year  ?? null,
+      }
+    })
 
     // ── Transform tenants ─────────────────────────────────────────────────
     interface TenantRaw {
