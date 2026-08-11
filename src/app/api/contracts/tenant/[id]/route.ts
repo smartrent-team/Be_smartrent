@@ -2,6 +2,7 @@ import { NextResponse, type NextRequest } from 'next/server'
 import { verifyRole } from '@/lib/rbac'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { getContractImagesById } from '@/lib/contracts'
+import { buildCancellationPayload } from '@/lib/contract-cancellation'
 
 type TenantRow = {
   id: number
@@ -17,13 +18,18 @@ type TenantRow = {
       name: string
     } | null
   } | null
-  contracts?: Array<{
-    id: number
-    status: string
-    deposit_amount: number | null
-    start_date: string
-    end_date: string | null
-  }> | null
+}
+
+type ContractRow = {
+  id: number
+  status: string
+  deposit_amount: number | null
+  start_date: string
+  end_date: string | null
+  cancel_request_status?: string | null
+  cancel_requested_by?: string | null
+  cancel_reason?: string | null
+  cancel_requested_at?: string | null
 }
 
 function formatRemainingDays(endDate: string | null): number {
@@ -35,6 +41,42 @@ function formatRemainingDays(endDate: string | null): number {
   const diffMs = parsed.getTime() - Date.now()
   if (diffMs <= 0) return 0
   return Math.ceil(diffMs / (1000 * 60 * 60 * 24))
+}
+
+async function loadContractsForTenant(
+  supabase: ReturnType<typeof createAdminClient>,
+  tenantId: number
+): Promise<ContractRow[]> {
+  const withCancellation = await supabase
+    .from('contracts')
+    .select(
+      'id, status, deposit_amount, start_date, end_date, cancel_request_status, cancel_requested_by, cancel_reason, cancel_requested_at'
+    )
+    .eq('tenant_id', tenantId)
+    .order('id', { ascending: false })
+
+  if (!withCancellation.error) {
+    return (withCancellation.data ?? []) as ContractRow[]
+  }
+
+  const message = withCancellation.error.message ?? ''
+  if (!message.includes('cancel_')) {
+    console.error('[contracts/tenant] contracts query failed:', withCancellation.error)
+    return []
+  }
+
+  const basic = await supabase
+    .from('contracts')
+    .select('id, status, deposit_amount, start_date, end_date')
+    .eq('tenant_id', tenantId)
+    .order('id', { ascending: false })
+
+  if (basic.error) {
+    console.error('[contracts/tenant] basic contracts query failed:', basic.error)
+    return []
+  }
+
+  return (basic.data ?? []) as ContractRow[]
 }
 
 export async function GET(
@@ -68,20 +110,24 @@ export async function GET(
           room_code,
           branch_id,
           branch:branches(name)
-        ),
-        contracts(
-          id,
-          status,
-          deposit_amount,
-          start_date,
-          end_date
         )
       `)
       .eq('id', tenantId)
       .single()
 
-    if (error || !tenant) {
-      return NextResponse.json({ error: 'Không tìm thấy hợp đồng của cư dân này' }, { status: 404 })
+    if (error) {
+      if (error.code === 'PGRST116') {
+        return NextResponse.json({ error: 'Không tìm thấy cư dân' }, { status: 404 })
+      }
+      console.error('[contracts/tenant] tenant query failed:', error)
+      return NextResponse.json(
+        { error: 'Không thể tải hợp đồng của cư dân này', details: error.message },
+        { status: 400 }
+      )
+    }
+
+    if (!tenant) {
+      return NextResponse.json({ error: 'Không tìm thấy cư dân' }, { status: 404 })
     }
 
     const tenantRow = tenant as unknown as TenantRow
@@ -97,17 +143,24 @@ export async function GET(
       }
     }
 
-    const contracts = tenantRow.contracts ?? []
-    const activeContract = contracts.find((contract) => contract.status === 'active') ?? contracts[0] ?? null
+    const contracts = await loadContractsForTenant(supabase, tenantId)
+    const activeContract =
+      contracts.find((contract) => contract.status === 'active') ?? contracts[0] ?? null
 
     if (!activeContract) {
-      return NextResponse.json({ error: 'Không tìm thấy hợp đồng hiện tại của cư dân này' }, { status: 404 })
+      return NextResponse.json(
+        { error: 'Không tìm thấy hợp đồng hiện tại của cư dân này' },
+        { status: 404 }
+      )
     }
 
     const room = tenantRow.room
     const branchName = room?.branch?.name || 'Chưa phân chi nhánh'
     const roomCode = room?.room_code || 'N/A'
     const contractImages = await getContractImagesById(activeContract.id)
+    const cancellationRequest = buildCancellationPayload(
+      activeContract as Parameters<typeof buildCancellationPayload>[0]
+    )
 
     return NextResponse.json({
       success: true,
@@ -121,6 +174,7 @@ export async function GET(
         endDate: activeContract.end_date,
         remainingDays: formatRemainingDays(activeContract.end_date),
         contractImages,
+        cancellationRequest,
       },
     })
   } catch (error: unknown) {

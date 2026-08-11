@@ -99,7 +99,7 @@ export interface Database {
           deposit_confidence: number | null
           contract_text: string | null
           contract_images: string[] | null
-          status: 'active' | 'expired' | 'terminated'
+          status: 'active' | 'expired' | 'terminated' | 'cancelled'
         }
         Insert: Omit<Database['public']['Tables']['contracts']['Row'], 'id' | 'created_at'>
         Update: Partial<Database['public']['Tables']['contracts']['Insert']>
