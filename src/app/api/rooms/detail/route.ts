@@ -100,7 +100,21 @@ export async function GET(request: NextRequest) {
       checkInDate: t.move_in_date,
       checkOutDate: t.move_out_date,
     }))
-    const tenantInfo = tenantsListInfo.length > 0 ? tenantsListInfo[0] : null
+
+    const myActiveTenant =
+      auth.role === 'tenant'
+        ? activeTenants.find(t => t.user?.id === auth.dbUserId) ?? null
+        : null
+    const primaryTenant = myActiveTenant ?? activeTenants[0] ?? null
+    const tenantInfo = primaryTenant
+      ? {
+          id:          primaryTenant.id,
+          name:        primaryTenant.user?.full_name ?? 'Khách chưa có tên',
+          phone:       primaryTenant.user?.phone     ?? 'Chưa cập nhật',
+          checkInDate: primaryTenant.move_in_date,
+          checkOutDate: primaryTenant.move_out_date,
+        }
+      : null
 
     // ── 4. Invoices ─────────────────────────────────────────────────────────
     interface RoomInvoice {
