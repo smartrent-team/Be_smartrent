@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { verifyRole } from '@/lib/rbac'
+import { toVietnamDateKey } from '@/lib/date-utils'
 
 export async function GET() {
   try {
@@ -109,7 +110,10 @@ export async function GET() {
     const contractsData = tenant.contracts as unknown as ContractData[] | null;
 
     // Lọc lại các hợp đồng active
-    const activeContract = contractsData?.find(c => c.status === 'active') || null;
+    const activeContract = contractsData?.find(c => c.status === 'active') || null
+
+    const effectiveMoveInDate =
+      tenant.move_in_date || activeContract?.start_date || null
 
     // 3. Chuẩn bị response JSON gọn gàng cho app Flutter
     const responseData = {
@@ -118,8 +122,10 @@ export async function GET() {
       full_name: userData?.full_name || 'Chưa cập nhật',
       phone: userData?.phone || 'Chưa cập nhật',
       email: auth.user.email,
-      move_in_date: tenant.move_in_date,
-      move_out_date: tenant.move_out_date,
+      move_in_date: toVietnamDateKey(effectiveMoveInDate) ?? effectiveMoveInDate,
+      move_out_date: tenant.move_out_date
+        ? toVietnamDateKey(tenant.move_out_date) ?? tenant.move_out_date
+        : null,
       status: tenant.move_out_date ? 'past' : 'active',
       room: roomData ? {
         id: roomData.id,
@@ -132,18 +138,27 @@ export async function GET() {
       active_contract: activeContract ? {
         id: activeContract.id,
         deposit_amount: activeContract.deposit_amount,
-        start_date: activeContract.start_date,
+        start_date: toVietnamDateKey(activeContract.start_date) ?? activeContract.start_date,
         end_date: activeContract.end_date
+          ? toVietnamDateKey(activeContract.end_date) ?? activeContract.end_date
+          : null,
       } : null,
       contracts: contractsData || [],
       recent_invoices: tenant.invoices || [],
       maintenance_tickets: tenant.maintenance_tickets || [],
     }
 
-    return NextResponse.json({
-      success: true,
-      data: responseData
-    })
+    return NextResponse.json(
+      {
+        success: true,
+        data: responseData,
+      },
+      {
+        headers: {
+          'Cache-Control': 'no-store, no-cache, must-revalidate',
+        },
+      }
+    )
 
   } catch (error: unknown) {
     console.error('Error fetching tenant profile:', error)

@@ -96,16 +96,6 @@ export async function POST(
     if (activeContractId) {
       const updated = await updateContractImagesDirectly(activeContractId, contractImages)
 
-      if (!updated) {
-        return NextResponse.json(
-          {
-            error: 'Không lưu được ảnh hợp đồng',
-            details: 'Không tìm thấy hợp đồng đang hoạt động',
-          },
-          { status: 500 }
-        )
-      }
-
       return NextResponse.json({
         success: true,
         contractId: updated.id,

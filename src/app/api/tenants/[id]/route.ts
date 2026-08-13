@@ -1,5 +1,6 @@
 import { NextResponse, type NextRequest } from 'next/server'
 import { getContractImagesById, updateContractImagesDirectly } from '@/lib/contracts'
+import { formatVietnamDateDisplay, normalizeCalendarDateToUtcIso } from '@/lib/date-utils'
 import { verifyRole } from '@/lib/rbac'
 
 export async function GET(
@@ -122,45 +123,47 @@ export async function GET(
       roomLabel = floor != null ? `Phòng ${roomCode} · Tầng ${floor}` : `Phòng ${roomCode}`
     }
 
-    const formatDate = (iso: string | null | undefined) => {
-      if (!iso) return null
-      try {
-        return new Date(iso).toLocaleDateString('vi-VN')
-      } catch {
-        return null
-      }
-    }
+    const moveInDisplay =
+      formatVietnamDateDisplay(tenantRow.move_in_date) ||
+      formatVietnamDateDisplay(activeContract?.start_date) ||
+      'Chưa cập nhật'
 
-    return NextResponse.json({
-      success: true,
-      data: {
-        id: tenantRow.id,
-        name: fullName,
-        phone: userRow.phone || 'Chưa cập nhật',
-        email: userRow.email || null,
-        checkInDate: formatDate(tenantRow.move_in_date) || 'Chưa cập nhật',
-        moveOutDate: formatDate(tenantRow.move_out_date),
-        contractSignDate:
-          formatDate(activeContract?.start_date) || formatDate(tenantRow.move_in_date),
-        isRoomHead: userRow.role === 'owner',
-        initial,
-        roomId: room?.id ?? tenantRow.room_id,
-        roomCode: roomCode || null,
-        floor: floor ?? null,
-        roomLabel,
-        isActive,
-        statusLabel: isActive ? 'Đang thuê' : 'Đã trả phòng',
-        depositAmount: activeContract?.deposit_amount ?? null,
-        contractImages,
-        userId: userRow.id,
-        activeContractId: activeContract?.id ?? null,
-        identityNumber: (() => {
-          const raw = tenantRow.identity_number as string | null
-          if (!raw || raw === '000000000000') return null
-          return raw
-        })(),
+    return NextResponse.json(
+      {
+        success: true,
+        data: {
+          id: tenantRow.id,
+          name: fullName,
+          phone: userRow.phone || 'Chưa cập nhật',
+          email: userRow.email || null,
+          checkInDate: moveInDisplay,
+          moveOutDate: formatVietnamDateDisplay(tenantRow.move_out_date),
+          contractSignDate: moveInDisplay,
+          isRoomHead: userRow.role === 'owner',
+          initial,
+          roomId: room?.id ?? tenantRow.room_id,
+          roomCode: roomCode || null,
+          floor: floor ?? null,
+          roomLabel,
+          isActive,
+          statusLabel: isActive ? 'Đang thuê' : 'Đã trả phòng',
+          depositAmount: activeContract?.deposit_amount ?? null,
+          contractImages,
+          userId: userRow.id,
+          activeContractId: activeContract?.id ?? null,
+          identityNumber: (() => {
+            const raw = tenantRow.identity_number as string | null
+            if (!raw || raw === '000000000000') return null
+            return raw
+          })(),
+        },
       },
-    })
+      {
+        headers: {
+          'Cache-Control': 'no-store, no-cache, must-revalidate',
+        },
+      }
+    )
   } catch (error: unknown) {
     console.error('Error fetching tenant detail:', error)
     const errorMessage = error instanceof Error ? error.message : String(error)
@@ -172,33 +175,7 @@ export async function GET(
 }
 
 function parseMoveInDate(input: string): string | null {
-  const trimmed = input.trim()
-  if (!trimmed) return null
-
-  const slashParts = trimmed.split('/')
-  if (slashParts.length === 3) {
-    const day = parseInt(slashParts[0], 10)
-    const month = parseInt(slashParts[1], 10)
-    const year = parseInt(slashParts[2], 10)
-    if (
-      Number.isFinite(day) &&
-      Number.isFinite(month) &&
-      Number.isFinite(year) &&
-      month >= 1 &&
-      month <= 12 &&
-      day >= 1 &&
-      day <= 31
-    ) {
-      return new Date(year, month - 1, day).toISOString()
-    }
-  }
-
-  const parsed = new Date(trimmed)
-  if (!Number.isNaN(parsed.getTime())) {
-    return parsed.toISOString()
-  }
-
-  return null
+  return normalizeCalendarDateToUtcIso(input)
 }
 
 export async function PATCH(

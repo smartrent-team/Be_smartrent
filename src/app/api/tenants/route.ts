@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { verifyRole } from '@/lib/rbac'
+import { formatVietnamDateDisplay } from '@/lib/date-utils'
 
 export async function GET() {
   try {
@@ -73,7 +74,7 @@ export async function GET() {
           id: t.id,
           name: fullName,
           phone: t.user?.phone || 'Chưa cập nhật',
-          checkInDate: t.move_in_date ? new Date(t.move_in_date).toLocaleDateString('vi-VN') : 'Chưa cập nhật',
+          checkInDate: formatVietnamDateDisplay(t.move_in_date) ?? 'Chưa cập nhật',
           isRoomHead: t.user?.role === 'owner',
           initial: initial,
         }

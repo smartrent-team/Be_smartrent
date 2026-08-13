@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { verifyRole } from '@/lib/rbac'
+import { formatVietnamDateDisplay } from '@/lib/date-utils'
 
 /**
  * GET /api/dashboard/summary
@@ -148,16 +149,14 @@ export async function GET() {
           id: t.id,
           name: fullName,
           phone: t.user?.phone || 'Chưa cập nhật',
-          checkInDate: t.move_in_date
-            ? new Date(t.move_in_date).toLocaleDateString('vi-VN')
-            : 'Chưa cập nhật',
+          checkInDate: formatVietnamDateDisplay(t.move_in_date) ?? 'Chưa cập nhật',
           isRoomHead: t.user?.role === 'owner',
           initial,
         }
       })
 
     // ── Transform invoices ────────────────────────────────────────────────
-    const invoiceDocs = (invoices || []).map((inv) => ({
+    const invoiceDocs = ((invoices as any[]) || []).map((inv) => ({
       id: inv.id,
       roomId: inv.room_id,
       totalAmount: inv.total_amount,

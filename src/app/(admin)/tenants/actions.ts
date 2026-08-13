@@ -4,6 +4,9 @@ import { verifySuperAdmin } from '@/lib/rbac'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { revalidatePath } from 'next/cache'
 import { dispatchNotification } from '@/lib/notification_dispatch'
+import { getContractImagesById } from '@/lib/contracts'
+import { normalizeCalendarDateToUtcIso } from '@/lib/date-utils'
+import { changeTenantRoom, releaseRoomIfEmpty } from '@/lib/tenant-room-operations'
 
 export async function checkTenantPhoneAction(phone: string) {
   await verifySuperAdmin()
@@ -276,10 +279,8 @@ export async function editTenantAction(
     .single()
 
   if (roomError || !room) throw new Error('Không tìm thấy phòng được chọn')
-  if (oldRoomId !== newRoomId && room.status !== 'available') {
-    throw new Error('Phòng mới được chọn không khả dụng hoặc đã có người ở')
-  }
   const newBranchId = room.branch_id
+  const isRoomChange = oldRoomId != null && oldRoomId !== newRoomId
 
   // Cập nhật Auth User (tìm theo phone cũ)
   if (currentProfile?.phone) {
@@ -361,16 +362,58 @@ export async function editTenantAction(
     throw new Error('Lỗi cập nhật Profile: ' + profileError.message)
   }
 
-  // 5. Cập nhật thông tin trong public.tenants
-  const { error: tenantError } = await adminSupabase.from('tenants').update({
-    room_id: newRoomId,
-    move_in_date: new Date(data.moveInDate).toISOString(),
-    move_out_date: data.moveOutDate ? new Date(data.moveOutDate).toISOString() : null
-  }).eq('id', id)
+  // 5. Cập nhật hồ sơ thuê phòng
+  if (isRoomChange) {
+    const { data: activeContractForImages } = await adminSupabase
+      .from('contracts')
+      .select('id')
+      .eq('tenant_id', id)
+      .eq('status', 'active')
+      .maybeSingle()
 
-  if (tenantError) throw new Error('Lỗi cập nhật hồ sơ thuê phòng: ' + tenantError.message)
+    let appendixImages: string[] = []
+    if (activeContractForImages?.id) {
+      appendixImages = await getContractImagesById(activeContractForImages.id)
+    }
+    if (appendixImages.length === 0) {
+      throw new Error('Không thể đổi phòng: hợp đồng chưa có ảnh. Vui lòng dùng app Manager để upload phụ lục.')
+    }
 
-  // Cập nhật hoặc thêm tiền cọc vào bảng contracts
+    const roomChangeResult = await changeTenantRoom(
+      adminSupabase,
+      id,
+      newRoomId,
+      appendixImages,
+      { role: 'super_admin', branchId: null },
+      data.moveInDate,
+      data.moveOutDate ?? null
+    )
+    if ('error' in roomChangeResult) {
+      throw new Error(roomChangeResult.error)
+    }
+
+    if (data.moveOutDate) {
+      const moveOutIso = normalizeCalendarDateToUtcIso(data.moveOutDate)
+      if (moveOutIso) {
+        await adminSupabase.from('tenants').update({ move_out_date: moveOutIso }).eq('id', id)
+      }
+    }
+  } else {
+    const moveInIso = normalizeCalendarDateToUtcIso(data.moveInDate)
+    if (!moveInIso) throw new Error('Ngày dọn vào không hợp lệ')
+
+    const moveOutIso = data.moveOutDate ? normalizeCalendarDateToUtcIso(data.moveOutDate) : null
+
+    const { error: tenantError } = await adminSupabase.from('tenants').update({
+      room_id: newRoomId,
+      move_in_date: moveInIso,
+      move_out_date: moveOutIso,
+    }).eq('id', id)
+
+    if (tenantError) throw new Error('Lỗi cập nhật hồ sơ thuê phòng: ' + tenantError.message)
+  }
+
+  // Cập nhật tiền cọc / ngày HĐ (khi không đổi phòng hoặc bổ sung sau đổi phòng)
   const { data: activeContract } = await adminSupabase
     .from('contracts')
     .select('id')
@@ -379,25 +422,37 @@ export async function editTenantAction(
     .single()
 
   if (activeContract) {
-    await adminSupabase
-      .from('contracts')
-      .update({
-        room_id: newRoomId,
-        deposit_amount: data.depositAmount,
-        start_date: new Date(data.moveInDate).toISOString(),
-        end_date: data.moveOutDate ? new Date(data.moveOutDate).toISOString() : null,
-        ...(oldRoomId !== newRoomId ? { monthly_price: room.base_price || 0 } : {})
-      })
-      .eq('id', activeContract.id)
-  } else {
+    if (!isRoomChange) {
+      const moveInIso = normalizeCalendarDateToUtcIso(data.moveInDate)
+      const moveOutIso = data.moveOutDate ? normalizeCalendarDateToUtcIso(data.moveOutDate) : null
+      await adminSupabase
+        .from('contracts')
+        .update({
+          room_id: newRoomId,
+          deposit_amount: data.depositAmount,
+          start_date: moveInIso,
+          end_date: moveOutIso,
+          monthly_price: room.base_price || 0,
+        })
+        .eq('id', activeContract.id)
+    } else {
+      await adminSupabase
+        .from('contracts')
+        .update({ deposit_amount: data.depositAmount })
+        .eq('id', activeContract.id)
+    }
+  } else if (!isRoomChange) {
     const contractCode = `HD-${newRoomId}-${id}-${Date.now().toString().slice(-4)}`
     
+    const moveInIso = normalizeCalendarDateToUtcIso(data.moveInDate)
+    const moveOutIso = data.moveOutDate ? normalizeCalendarDateToUtcIso(data.moveOutDate) : null
+
     await adminSupabase.from('contracts').insert({
       contract_code: contractCode,
       tenant_id: id,
       room_id: newRoomId,
-      start_date: new Date(data.moveInDate).toISOString(),
-      end_date: data.moveOutDate ? new Date(data.moveOutDate).toISOString() : null,
+      start_date: moveInIso,
+      end_date: moveOutIso,
       deposit_amount: data.depositAmount,
       monthly_price: room.base_price || 0,
       status: 'active'
@@ -427,17 +482,16 @@ export async function editTenantAction(
     }
   }
 
-  // 6. Cập nhật trạng thái phòng cũ và mới nếu đổi phòng
-  if (oldRoomId !== newRoomId) {
-    if (oldRoomId) {
-      await adminSupabase.from('rooms').update({ status: 'available' }).eq('id', oldRoomId)
+  // Trả phòng: giải phóng phòng nếu không còn ai (changeTenantRoom đã xử lý khi đổi phòng)
+  if (data.moveOutDate && !isRoomChange) {
+    const { count } = await adminSupabase
+      .from('tenants')
+      .select('*', { count: 'exact', head: true })
+      .eq('room_id', newRoomId)
+      .is('move_out_date', null)
+    if (count === 0) {
+      await adminSupabase.from('rooms').update({ status: 'available' }).eq('id', newRoomId)
     }
-    await adminSupabase.from('rooms').update({ status: 'occupied' }).eq('id', newRoomId)
-  }
-
-  // 7. Nếu khách hàng trả phòng (có ngày dời ra), giải phóng phòng thành 'available'
-  if (data.moveOutDate) {
-    await adminSupabase.from('rooms').update({ status: 'available' }).eq('id', newRoomId)
   }
 
   revalidatePath('/tenants')
@@ -449,18 +503,18 @@ export async function deleteTenantAction(id: number, userIntId: number) {
 
   const adminSupabase = createAdminClient()
 
-  // 1. Giải phóng phòng trống nếu đang thuê
+  // 1. Giải phóng phòng nếu không còn ai ở (sau khi xóa cư dân)
   const { data: tenant } = await adminSupabase.from('tenants').select('room_id').eq('id', id).single()
-  if (tenant?.room_id) {
-    await adminSupabase.from('rooms').update({ status: 'available' }).eq('id', tenant.room_id)
-  }
-
-  // 2. Cập nhật ngày chuyển đi (move_out_date) cho hồ sơ thuê
+  const roomIdToRelease = tenant?.room_id
   const { error: tenantError } = await adminSupabase
     .from('tenants')
     .update({ move_out_date: new Date().toISOString() })
     .eq('id', id)
   if (tenantError) throw new Error('Lỗi cập nhật hồ sơ khách thuê: ' + tenantError.message)
+
+  if (roomIdToRelease) {
+    await releaseRoomIfEmpty(adminSupabase, roomIdToRelease)
+  }
 
   // 3. Cập nhật hợp đồng thành trạng thái kết thúc (expired/cancelled)
   await adminSupabase

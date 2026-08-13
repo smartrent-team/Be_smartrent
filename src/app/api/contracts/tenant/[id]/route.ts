@@ -3,6 +3,7 @@ import { verifyRole } from '@/lib/rbac'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { getContractImagesById } from '@/lib/contracts'
 import { buildCancellationPayload } from '@/lib/contract-cancellation'
+import { toVietnamDateKey } from '@/lib/date-utils'
 
 type TenantRow = {
   id: number
@@ -22,6 +23,8 @@ type TenantRow = {
 
 type ContractRow = {
   id: number
+  tenant_id: number
+  room_id: number
   status: string
   deposit_amount: number | null
   start_date: string
@@ -35,12 +38,18 @@ type ContractRow = {
 function formatRemainingDays(endDate: string | null): number {
   if (!endDate) return 0
 
-  const parsed = new Date(endDate)
-  if (Number.isNaN(parsed.getTime())) return 0
+  const endKey = toVietnamDateKey(endDate)
+  if (!endKey) return 0
 
-  const diffMs = parsed.getTime() - Date.now()
-  if (diffMs <= 0) return 0
-  return Math.ceil(diffMs / (1000 * 60 * 60 * 24))
+  const todayKey = toVietnamDateKey(new Date().toISOString())
+  if (!todayKey) return 0
+
+  const [ey, em, ed] = endKey.split('-').map(Number)
+  const [ty, tm, td] = todayKey.split('-').map(Number)
+  const endMs = Date.UTC(ey, em - 1, ed)
+  const todayMs = Date.UTC(ty, tm - 1, td)
+  const diffDays = Math.ceil((endMs - todayMs) / (1000 * 60 * 60 * 24))
+  return diffDays > 0 ? diffDays : 0
 }
 
 async function loadContractsForTenant(
@@ -50,7 +59,7 @@ async function loadContractsForTenant(
   const withCancellation = await supabase
     .from('contracts')
     .select(
-      'id, status, deposit_amount, start_date, end_date, cancel_request_status, cancel_requested_by, cancel_reason, cancel_requested_at'
+      'id, tenant_id, room_id, status, deposit_amount, start_date, end_date, cancel_request_status, cancel_requested_by, cancel_reason, cancel_requested_at'
     )
     .eq('tenant_id', tenantId)
     .order('id', { ascending: false })
@@ -162,21 +171,32 @@ export async function GET(
       activeContract as Parameters<typeof buildCancellationPayload>[0]
     )
 
-    return NextResponse.json({
-      success: true,
-      data: {
-        contractId: activeContract.id.toString(),
-        roomName: roomCode,
-        building: branchName,
-        status: activeContract.status,
-        deposit: Number(activeContract.deposit_amount ?? 0),
-        startDate: activeContract.start_date,
-        endDate: activeContract.end_date,
-        remainingDays: formatRemainingDays(activeContract.end_date),
-        contractImages,
-        cancellationRequest,
+    const effectiveStartDate = tenantRow.move_in_date || activeContract.start_date
+
+    return NextResponse.json(
+      {
+        success: true,
+        data: {
+          contractId: activeContract.id.toString(),
+          roomName: roomCode,
+          building: branchName,
+          status: activeContract.status,
+          deposit: Number(activeContract.deposit_amount ?? 0),
+          startDate: toVietnamDateKey(effectiveStartDate) ?? effectiveStartDate,
+          endDate: activeContract.end_date
+            ? toVietnamDateKey(activeContract.end_date)
+            : null,
+          remainingDays: formatRemainingDays(activeContract.end_date),
+          contractImages,
+          cancellationRequest,
+        },
       },
-    })
+      {
+        headers: {
+          'Cache-Control': 'no-store, no-cache, must-revalidate',
+        },
+      }
+    )
   } catch (error: unknown) {
     const errorMessage = error instanceof Error ? error.message : String(error)
     return NextResponse.json(
