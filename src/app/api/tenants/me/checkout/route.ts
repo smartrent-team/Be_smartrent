@@ -70,6 +70,30 @@ export async function POST() {
       return NextResponse.json({ error: 'Không thể ghi nhận yêu cầu trả phòng. Vui lòng thử lại.' }, { status: 500 })
     }
 
+    // 4. Tạo record checkout_request
+    let isEarly = false;
+    const { data: contractData } = await supabase.from('contracts').select('end_date').eq('id', activeContract.id).single();
+    if (contractData && contractData.end_date) {
+        isEarly = new Date() < new Date(contractData.end_date);
+    }
+    
+    const { data: checkoutRequest, error: reqError } = await supabase
+      .from('checkout_requests')
+      .insert({
+        contract_id: activeContract.id,
+        tenant_id: tenant.id,
+        room_id: tenant.room_id,
+        is_early: isEarly,
+        status: 'requested',
+      })
+      .select('id')
+      .single()
+
+    if (reqError) {
+      console.error('[checkout] Lỗi tạo checkout_request:', reqError)
+      // Không return error để không block flow, manager vẫn có thể inspection thông qua contract status
+    }
+
     // 4. Nếu là người cuối trong phòng, chuyển phòng sang pending_checkout
     const { count } = await supabase
       .from('contracts')
@@ -119,6 +143,7 @@ export async function POST() {
 
     return NextResponse.json({
       success: true,
+      checkoutRequestId: checkoutRequest?.id,
       message: 'Yêu cầu trả phòng đã được ghi nhận. Quản lý sẽ sớm đến kiểm tra phòng và hoàn tất thủ tục cho bạn.',
     })
   } catch (error: unknown) {

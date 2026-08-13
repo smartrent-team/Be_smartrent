@@ -60,28 +60,35 @@ export async function POST(request: Request) {
         .from('contracts')
         .select('id')
         .eq('tenant_id', Number(tenantId))
-        .in('status', ['active', 'pending_checkout'])
+        .in('status', ['active', 'pending_checkout', 'pending_liquidation'])
         .maybeSingle()
 
       if (activeContract) {
         await supabase
           .from('contracts')
-          .update({ status: 'pending_liquidation' })
+          .update({ status: 'inspection' })
           .eq('id', activeContract.id)
 
-        // 3. Kiểm tra xem phòng còn hợp đồng active/pending_checkout nào khác không
+        // Cập nhật checkout_request sang inspecting
+        await supabase
+          .from('checkout_requests')
+          .update({ status: 'inspecting', inspected_at: new Date().toISOString() })
+          .eq('contract_id', activeContract.id)
+          .eq('status', 'requested')
+
+        // 3. Kiểm tra xem phòng còn hợp đồng active/pending_checkout/inspection nào khác không
         const { count, error: countErr } = await supabase
           .from('contracts')
           .select('id', { count: 'exact', head: true })
           .eq('room_id', Number(roomId))
-          .in('status', ['active', 'pending_checkout'])
+          .in('status', ['active', 'pending_checkout', 'inspection'])
           .neq('id', activeContract.id)
 
-        // Nếu không còn ai ở, chuyển phòng sang 'cleaning' thay vì 'available' ngay lập tức
+        // Nếu không còn ai ở, chuyển phòng sang 'pending_checkout' thay vì 'cleaning' ngay lập tức
         if (!countErr && count === 0) {
           await supabase
             .from('rooms')
-            .update({ status: 'cleaning' })
+            .update({ status: 'pending_checkout' })
             .eq('id', Number(roomId))
         }
       }

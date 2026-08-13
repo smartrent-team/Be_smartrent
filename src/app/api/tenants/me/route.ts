@@ -116,6 +116,20 @@ export async function GET() {
     const effectiveMoveInDate =
       tenant.move_in_date || activeContract?.start_date || null
 
+    // Fetch checkout_request data if there's an active checkout process
+    let checkoutRequestData = null;
+    if (activeContract && ['pending_checkout', 'inspection', 'pending_settlement'].includes(activeContract.status)) {
+        const { data: requestRec } = await supabase
+            .from('checkout_requests')
+            .select('*')
+            .eq('contract_id', activeContract.id)
+            .order('created_at', { ascending: false })
+            .limit(1)
+            .maybeSingle();
+            
+        checkoutRequestData = requestRec;
+    }
+
     // 3. Chuẩn bị response JSON gọn gàng cho app Flutter
     const responseData = {
       tenant_id: tenant.id,
@@ -132,9 +146,13 @@ export async function GET() {
         ? 'past'
         : activeContract?.status === 'pending_liquidation'
           ? 'pending_liquidation'
-          : activeContract?.status === 'pending_checkout'
-            ? 'pending_checkout'
-            : 'active',
+          : activeContract?.status === 'inspection'
+            ? 'inspection'
+            : activeContract?.status === 'pending_settlement'
+              ? 'pending_settlement'
+              : activeContract?.status === 'pending_checkout'
+                ? 'pending_checkout'
+                : 'active',
       room: roomData ? {
         id: roomData.id,
         room_code: roomData.room_code,
@@ -151,6 +169,7 @@ export async function GET() {
           ? toVietnamDateKey(activeContract.end_date) ?? activeContract.end_date
           : null,
       } : null,
+      checkout_request: checkoutRequestData,
       contracts: contractsData || [],
       recent_invoices: tenant.invoices || [],
       maintenance_tickets: tenant.maintenance_tickets || [],
