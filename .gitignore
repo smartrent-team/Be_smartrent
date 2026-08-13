@@ -50,5 +50,5 @@ next-env.d.ts
 
 # AGENTS
 /.agents/
-/supabase/migrations
+/supabase/migrations/00_init_schema.sql
 /.gemini

@@ -12,7 +12,7 @@ import { Card, CardContent } from '@/components/ui/card'
 import { CreateBranchDialog } from './_components/CreateBranchDialog'
 import { DeleteBranchButton } from './_components/DeleteBranchButton'
 import { EditBranchDialog } from './_components/EditBranchDialog'
-import { Building2, ShieldAlert, Home, UserCheck, Percent, Phone, MapPin } from 'lucide-react'
+import { Building2, ShieldAlert, Home, UserCheck, Percent, Phone, MapPin, Users } from 'lucide-react'
 
 export default async function BranchesPage() {
   // Verify auth
@@ -114,11 +114,13 @@ export default async function BranchesPage() {
         <Card className="border-gray-100 bg-white shadow-sm hover:shadow-md transition-shadow duration-300">
           <CardContent className="flex items-center gap-4 p-6">
             <div className="rounded-xl bg-amber-50 p-3 text-amber-600">
-              <Percent className="h-6 w-6" />
+              <Users className="h-6 w-6" />
             </div>
             <div>
-              <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Tỷ lệ lấp đầy TB</p>
-              <h3 className="text-2xl font-bold text-gray-800 mt-1">{averageOccupancy}%</h3>
+              <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Phòng đã có người ở</p>
+              <h3 className="text-2xl font-bold text-gray-800 mt-1">
+                {totalOccupiedCount}/{totalRoomsCount}
+              </h3>
             </div>
           </CardContent>
         </Card>
