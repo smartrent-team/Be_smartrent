@@ -180,6 +180,8 @@ export default function RoomListClient({ initialRooms }: { initialRooms: RoomRow
       case 'available':   return <Badge variant="outline" className="text-green-600">Trống</Badge>
       case 'occupied':    return <Badge variant="default" className="bg-blue-600">Đã thuê</Badge>
       case 'maintenance': return <Badge variant="destructive">Bảo trì</Badge>
+      case 'pending_checkout': return <Badge variant="outline" className="text-orange-600 border-orange-600">Chờ trả phòng</Badge>
+      case 'cleaning': return <Badge variant="outline" className="text-cyan-600 border-cyan-600">Đang dọn dẹp</Badge>
       default:            return <Badge variant="secondary">{status}</Badge>
     }
   }

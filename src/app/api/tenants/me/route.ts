@@ -109,8 +109,9 @@ export async function GET() {
     const roomData = tenant.room as unknown as RoomData | null;
     const contractsData = tenant.contracts as unknown as ContractData[] | null;
 
-    // Lọc lại các hợp đồng active
-    const activeContract = contractsData?.find(c => c.status === 'active') || null
+    // Lọc hợp đồng đang hoạt động (bao gồm cả các trạng thái trả phòng đang chờ xử lý)
+    const ACTIVE_STATUSES = ['active', 'pending_checkout', 'pending_liquidation']
+    const activeContract = contractsData?.find(c => ACTIVE_STATUSES.includes(c.status)) || null
 
     const effectiveMoveInDate =
       tenant.move_in_date || activeContract?.start_date || null
@@ -126,7 +127,14 @@ export async function GET() {
       move_out_date: tenant.move_out_date
         ? toVietnamDateKey(tenant.move_out_date) ?? tenant.move_out_date
         : null,
-      status: tenant.move_out_date ? 'past' : 'active',
+      // Trạng thái tổng hợp: phản ánh trạng thái hợp đồng hiện tại
+      status: tenant.move_out_date
+        ? 'past'
+        : activeContract?.status === 'pending_liquidation'
+          ? 'pending_liquidation'
+          : activeContract?.status === 'pending_checkout'
+            ? 'pending_checkout'
+            : 'active',
       room: roomData ? {
         id: roomData.id,
         room_code: roomData.room_code,
