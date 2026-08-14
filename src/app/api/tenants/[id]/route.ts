@@ -48,7 +48,7 @@ export async function GET(
 
     const { data: userRow, error: userError } = await supabase
       .from('users')
-      .select('id, full_name, phone, role, email')
+      .select('id, full_name, phone, role, email, status')
       .eq('id', tenantRow.user_id)
       .single()
 
@@ -109,12 +109,35 @@ export async function GET(
       }
     }
 
+    // Lấy trạng thái yêu cầu trả phòng mới nhất
+    let checkoutRequestStatus: string | null = null
+    let remainingContractDays: number | null = null
+    if (activeContract?.id) {
+      const { data: checkoutReq } = await supabase
+        .from('checkout_requests')
+        .select('status')
+        .eq('tenant_id', tenantId)
+        .eq('contract_id', activeContract.id)
+        .not('status', 'in', '("completed","cancelled")')
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle()
+      checkoutRequestStatus = checkoutReq?.status ?? null
+
+      if (activeContract.end_date) {
+        const endDate = new Date(activeContract.end_date)
+        const diffMs = endDate.getTime() - Date.now()
+        remainingContractDays = Math.ceil(diffMs / (1000 * 60 * 60 * 24))
+      }
+    }
+
     const fullName = userRow.full_name || 'Không tên'
     const nameParts = fullName.trim().split(' ')
     const initial =
       nameParts.length > 0 ? nameParts[nameParts.length - 1][0].toUpperCase() : 'C'
 
-    const isActive = !tenantRow.move_out_date
+    const isLocked = userRow.status === 'locked' || userRow.status === 'blocked'
+    const isActive = !isLocked
     const roomCode = room?.room_code
     const floor = room?.floor
 
@@ -146,11 +169,14 @@ export async function GET(
           floor: floor ?? null,
           roomLabel,
           isActive,
-          statusLabel: isActive ? 'Đang thuê' : 'Đã trả phòng',
+          statusLabel: isLocked ? 'Khóa' : 'Đang ở',
           depositAmount: activeContract?.deposit_amount ?? null,
           contractImages,
           userId: userRow.id,
           activeContractId: activeContract?.id ?? null,
+          contractEndDate: activeContract?.end_date ?? null,
+          checkoutRequestStatus,
+          remainingContractDays,
           identityNumber: (() => {
             const raw = tenantRow.identity_number as string | null
             if (!raw || raw === '000000000000') return null

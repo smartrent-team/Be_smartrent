@@ -28,10 +28,10 @@ export async function GET() {
           full_name,
           phone,
           role,
-          branch_id
+          branch_id,
+          status
         )
       `)
-      .eq('user.status', 'active')
 
     // 3. Phân quyền: Chặn Khách thuê xem danh sách toàn bộ cư dân
     if (auth.role === 'tenant') {
@@ -58,25 +58,30 @@ export async function GET() {
       move_in_date: string;
       move_out_date: string | null;
       rooms: { id: number; room_code: string; branch_id: number } | null;
-      user: { id: number; full_name: string; phone: string; role: string; email: string } | null;
+      user: { id: number; full_name: string; phone: string; role: string; email: string; status: string } | null;
     }
 
     // 4. Trả về định dạng JSON docs tương thích với ứng dụng di động Flutter
     const docs = ((tenantsData || []) as unknown as TenantRecord[])
-      .filter(t => t.user !== null) // Loại bỏ các bản ghi không có user hợp lệ
+      .filter(t => t.user !== null && !['locked', 'blocked', 'deleted'].includes(t.user.status)) // Loại bỏ các bản ghi không có user hợp lệ hoặc bị khóa/xóa mềm
       .map(t => {
         const fullName = t.user?.full_name || 'Không tên';
         // Lấy chữ cái đầu tiên của Tên cuối cùng làm initial đại diện
         const nameParts = fullName.trim().split(' ');
         const initial = nameParts.length > 0 ? nameParts[nameParts.length - 1][0].toUpperCase() : 'C';
+        const userStatus = t.user?.status ?? 'active';
+        const isActive = !t.move_out_date;
         
         return {
           id: t.id,
+          userId: t.user?.id,
           name: fullName,
           phone: t.user?.phone || 'Chưa cập nhật',
           checkInDate: formatVietnamDateDisplay(t.move_in_date) ?? 'Chưa cập nhật',
           isRoomHead: t.user?.role === 'owner',
           initial: initial,
+          isActive,
+          userStatus,
         }
       })
 

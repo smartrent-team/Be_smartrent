@@ -37,7 +37,6 @@ export default async function TicketsPage() {
   }))
 
   const tickets = allTickets.filter((t) => t.issueType !== 'checkout_damage')
-  const checkoutTickets = allTickets.filter((t) => t.issueType === 'checkout_damage')
   return (
     <div className="flex flex-col gap-6 p-6">
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
@@ -46,7 +45,7 @@ export default async function TicketsPage() {
           <p className="text-muted-foreground mt-2">Theo dõi và xử lý các sự cố kỹ thuật từ khách thuê (Tự động cập nhật).</p>
         </div>
       </div>
-      <TicketListClient initialTickets={tickets} checkoutTickets={checkoutTickets} />
+      <TicketListClient initialTickets={tickets} />
     </div>
   )
 }

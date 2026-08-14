@@ -34,7 +34,7 @@ export async function verifyRole() {
     return { error: 'Không tìm thấy hồ sơ', status: 403 }
   }
 
-  if (userProfile.status === 'locked') {
+  if (userProfile.status === 'locked' || userProfile.status === 'blocked') {
     return { error: 'Tài khoản của bạn đã bị khóa. Vui lòng liên hệ quản lý.', status: 403 }
   }
 

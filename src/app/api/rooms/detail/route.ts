@@ -30,7 +30,8 @@ export async function GET(request: NextRequest) {
           user:users (
             id,
             full_name,
-            phone
+            phone,
+            status
           ),
           contracts (
             id,
@@ -77,7 +78,7 @@ export async function GET(request: NextRequest) {
     }
 
     interface RoomTenant {
-      user?: { id: number; full_name: string; phone: string } | null
+      user?: { id: number; full_name: string; phone: string; status: string } | null
       move_out_date: string | null
       move_in_date:  string
       id: number
@@ -97,7 +98,7 @@ export async function GET(request: NextRequest) {
     }
 
     // ── 3. Active tenants ───────────────────────────────────────────────────
-    const activeTenants = roomTenants?.filter(t => !t.move_out_date) ?? []
+    const activeTenants = roomTenants?.filter(t => !t.move_out_date && !['locked', 'blocked', 'deleted'].includes(t.user?.status ?? '')) ?? []
     const tenantsListInfo = activeTenants.map(t => {
       const activeContract = t.contracts?.find(c => ['active', 'pending_checkout', 'pending_liquidation'].includes(c.status))
       return {
