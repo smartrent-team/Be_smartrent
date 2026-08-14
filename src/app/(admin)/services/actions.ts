@@ -100,18 +100,42 @@ export async function upsertBranchService(data: {
 }) {
   const supabase = await verifySuperAdmin()
 
-  const { error } = await supabase
+  // First, check if the record exists to avoid relying on ON CONFLICT constraint
+  const { data: existing } = await supabase
     .from('branch_services')
-    .upsert(
-      {
+    .select('id')
+    .eq('service_id', data.serviceId)
+    .eq('branch_id', data.branchId)
+    .maybeSingle()
+
+  let error
+
+  if (existing) {
+    // Update existing record
+    const { error: updateError } = await supabase
+      .from('branch_services')
+      .update({
+        price: data.price,
+        unit: data.unit,
+        is_active: data.isActive,
+      })
+      .eq('id', existing.id)
+    
+    error = updateError
+  } else {
+    // Insert new record
+    const { error: insertError } = await supabase
+      .from('branch_services')
+      .insert({
         service_id: data.serviceId,
         branch_id: data.branchId,
         price: data.price,
         unit: data.unit,
         is_active: data.isActive,
-      },
-      { onConflict: 'service_id,branch_id' }
-    )
+      })
+    
+    error = insertError
+  }
 
   if (error) {
     console.error('Lỗi khi cập nhật giá chi nhánh:', error)

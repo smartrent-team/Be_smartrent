@@ -18,7 +18,7 @@ export interface Database {
           floor: number
           area: number
           base_price: number
-          status: 'available' | 'occupied' | 'maintenance'
+          status: 'available' | 'occupied' | 'maintenance' | 'pending_checkout' | 'cleaning'
           electric_price: number | null
           water_price: number | null
           images: string[] | null
@@ -99,7 +99,7 @@ export interface Database {
           deposit_confidence: number | null
           contract_text: string | null
           contract_images: string[] | null
-          status: 'active' | 'expired' | 'terminated' | 'cancelled'
+          status: 'active' | 'expired' | 'terminated' | 'cancelled' | 'pending_checkout' | 'pending_liquidation'
         }
         Insert: Omit<Database['public']['Tables']['contracts']['Row'], 'id' | 'created_at'>
         Update: Partial<Database['public']['Tables']['contracts']['Insert']>
@@ -160,6 +160,10 @@ export interface Database {
           priority: 'low' | 'medium' | 'high'
           status: 'pending' | 'in-progress' | 'resolved'
           repair_cost: number | null
+          issue_type: 'general' | 'checkout_damage'
+          images: string[] | null
+          approval_status: 'pending' | 'approved' | 'rejected' | null
+          reported_by_id: string | null
         }
         Insert: Omit<Database['public']['Tables']['maintenance_tickets']['Row'], 'id' | 'created_at'>
         Update: Partial<Database['public']['Tables']['maintenance_tickets']['Insert']>

@@ -9,7 +9,7 @@ export default async function TicketsPage() {
   const adminSupabase = createAdminClient()
   const { data: rawTickets } = await adminSupabase
     .from('maintenance_tickets')
-    .select('id, title, priority, status, created_at, room_id, repair_cost, room:rooms(room_code)')
+    .select('id, title, priority, status, created_at, room_id, repair_cost, issue_type, room:rooms(room_code)')
     .order('created_at', { ascending: false })
   
   interface TicketData {
@@ -20,10 +20,11 @@ export default async function TicketsPage() {
     created_at?: string;
     room_id?: number;
     repair_cost?: number | null;
+    issue_type?: string | null;
     room?: { room_code: string };
   }
 
-  const tickets = ((rawTickets as unknown as TicketData[]) || []).map((ticket) => ({
+  const allTickets = ((rawTickets as unknown as TicketData[]) || []).map((ticket) => ({
     id: ticket.id,
     roomId: ticket.room_id,
     room: ticket.room?.room_code || 'Chung',
@@ -32,7 +33,11 @@ export default async function TicketsPage() {
     priority: ticket.priority || 'medium',
     status: ticket.status || 'pending',
     repairCost: ticket.repair_cost ?? undefined,
+    issueType: ticket.issue_type ?? 'general',
   }))
+
+  const tickets = allTickets.filter((t) => t.issueType !== 'checkout_damage')
+  const checkoutTickets = allTickets.filter((t) => t.issueType === 'checkout_damage')
   return (
     <div className="flex flex-col gap-6 p-6">
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
@@ -41,7 +46,7 @@ export default async function TicketsPage() {
           <p className="text-muted-foreground mt-2">Theo dõi và xử lý các sự cố kỹ thuật từ khách thuê (Tự động cập nhật).</p>
         </div>
       </div>
-      <TicketListClient initialTickets={tickets} />
+      <TicketListClient initialTickets={tickets} checkoutTickets={checkoutTickets} />
     </div>
   )
 }

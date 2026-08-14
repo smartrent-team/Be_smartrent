@@ -8,6 +8,7 @@ import { ArrowLeft, User, MapPin, FileText, Car } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { ContractImages } from '@/components/shared/ContractImages'
 import { getContractImagesById } from '@/lib/contracts'
+import { SettlementButton } from './SettlementButton'
 
 export default async function TenantDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
@@ -38,7 +39,20 @@ export default async function TenantDetailPage({ params }: { params: Promise<{ i
     end_date?: string | null;
   }
 
-  const activeContract = (tenant?.contracts as unknown as ContractData[])?.find((c) => c.status === 'active')
+  const activeContract = (tenant?.contracts as unknown as ContractData[])?.find((c) => ['active', 'pending_checkout', 'inspection', 'pending_settlement'].includes(c.status))
+
+  let pendingCheckoutRequest = null
+  if (activeContract?.id) {
+    const { data: requestData } = await adminSupabase
+      .from('checkout_requests')
+      .select('*')
+      .eq('contract_id', activeContract.id)
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .maybeSingle()
+    
+    pendingCheckoutRequest = requestData
+  }
 
   if (error || !tenant) {
     console.error('Tenant fetch error for id', id, ':', error);
@@ -88,9 +102,27 @@ export default async function TenantDetailPage({ params }: { params: Promise<{ i
               </div>
               <div>
                 <p className="text-sm text-muted-foreground">Trạng thái</p>
-                <Badge variant={tenant.move_out_date ? 'secondary' : 'default'} className={!tenant.move_out_date ? 'bg-green-600' : ''}>
-                  {tenant.move_out_date ? 'Đã trả phòng' : 'Đang thuê'}
-                </Badge>
+                <div className="flex flex-col gap-2">
+                  <Badge variant={tenant.move_out_date ? 'secondary' : 'default'} className={!tenant.move_out_date ? 'bg-green-600 w-fit' : 'w-fit'}>
+                    {tenant.move_out_date ? 'Đã trả phòng' : 'Đang thuê'}
+                  </Badge>
+                  {pendingCheckoutRequest && (
+                    <Badge variant="outline" className="w-fit text-orange-600 border-orange-200 bg-orange-50">
+                      Tiến trình trả phòng: {
+                        pendingCheckoutRequest.status === 'requested' ? 'Chờ kiểm tra' :
+                        pendingCheckoutRequest.status === 'inspecting' ? 'Đã KT - Chờ Quyết Toán' :
+                        pendingCheckoutRequest.status === 'pending_tenant_confirmation' ? 'Chờ KH xác nhận' :
+                        pendingCheckoutRequest.status === 'completed' ? 'Đã hoàn tất' :
+                        pendingCheckoutRequest.status === 'disputed' ? 'KH khiếu nại' : pendingCheckoutRequest.status
+                      }
+                    </Badge>
+                  )}
+                  {pendingCheckoutRequest?.status === 'inspecting' && (
+                    <div className="mt-1">
+                      <SettlementButton checkoutRequestId={pendingCheckoutRequest.id} />
+                    </div>
+                  )}
+                </div>
               </div>
               <div>
                 <p className="text-sm text-muted-foreground">CCCD / CMND</p>

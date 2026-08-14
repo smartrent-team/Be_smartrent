@@ -31,6 +31,10 @@ export async function GET(request: NextRequest) {
             id,
             full_name,
             phone
+          ),
+          contracts (
+            id,
+            status
           )
         ),
         invoices (
@@ -77,6 +81,7 @@ export async function GET(request: NextRequest) {
       move_out_date: string | null
       move_in_date:  string
       id: number
+      contracts?: Array<{ id: number; status: string }> | null
     }
 
     const roomTenants = room.tenants as unknown as RoomTenant[] | undefined
@@ -93,13 +98,17 @@ export async function GET(request: NextRequest) {
 
     // ── 3. Active tenants ───────────────────────────────────────────────────
     const activeTenants = roomTenants?.filter(t => !t.move_out_date) ?? []
-    const tenantsListInfo = activeTenants.map(t => ({
-      id:          t.id,
-      name:        t.user?.full_name ?? 'Khách chưa có tên',
-      phone:       t.user?.phone     ?? 'Chưa cập nhật',
-      checkInDate: t.move_in_date,
-      checkOutDate: t.move_out_date,
-    }))
+    const tenantsListInfo = activeTenants.map(t => {
+      const activeContract = t.contracts?.find(c => ['active', 'pending_checkout', 'pending_liquidation'].includes(c.status))
+      return {
+        id:          t.id,
+        name:        t.user?.full_name ?? 'Khách chưa có tên',
+        phone:       t.user?.phone     ?? 'Chưa cập nhật',
+        checkInDate: t.move_in_date,
+        checkOutDate: t.move_out_date,
+        contractStatus: activeContract?.status ?? 'none',
+      }
+    })
 
     const myActiveTenant =
       auth.role === 'tenant'

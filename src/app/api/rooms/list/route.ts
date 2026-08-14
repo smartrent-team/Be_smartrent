@@ -64,8 +64,10 @@ export async function GET(request: NextRequest) {
 
     // Apply Filters
     if (includePartial) {
-      // Khi include_partial: lấy cả available + occupied, sau đó lọc phòng còn chỗ
-      query = query.in('status', ['available', 'occupied'])
+      // Khi include_partial: lấy tất cả phòng không phải maintenance/cleaning,
+      // sau đó filter phía JS để lấy phòng còn chỗ trống.
+      // Không dùng .in('status', [...]) để tránh lỗi enum type mismatch với DB.
+      query = query.not('status', 'eq', 'maintenance')
     } else if (statusParam) {
       query = query.eq('status', statusParam)
     }
