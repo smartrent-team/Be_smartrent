@@ -11,6 +11,8 @@ interface ChainStats {
   avgOccupancyRate: number
   totalDebt: number
   totalBranches: number
+  occupiedRooms?: number
+  totalRooms?: number
 }
 
 function formatMoney(v: number) {
@@ -41,10 +43,14 @@ export default function ChainOverviewStats({ stats }: { stats: ChainStats }) {
       iconColor: 'text-emerald-600',
     },
     {
-      title: 'Tỷ lệ lấp đầy TB',
-      value: `${stats.avgOccupancyRate}%`,
+      title: 'Số phòng lấp đầy',
+      value: stats.occupiedRooms !== undefined && stats.totalRooms !== undefined ? (
+        <span className="flex items-baseline gap-1">
+          {stats.occupiedRooms} <span className="text-base text-gray-500 font-medium">/ {stats.totalRooms}</span>
+        </span>
+      ) : `${stats.avgOccupancyRate}%`,
       icon: Percent,
-      description: 'Trung bình toàn chuỗi',
+      description: 'Phòng đã thuê / Tổng phòng',
       gradient: 'from-indigo-500 to-violet-500',
       iconBg: 'bg-indigo-50',
       iconColor: 'text-indigo-600',

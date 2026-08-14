@@ -52,3 +52,4 @@ next-env.d.ts
 /.agents/
 /supabase/migrations/00_init_schema.sql
 /.gemini
+/.pnpm-lock.yaml

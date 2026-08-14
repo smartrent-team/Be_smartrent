@@ -189,6 +189,8 @@ async function ChainAnalytics() {
     avgOccupancyRate: avgOccupancy,
     totalDebt,
     totalBranches: branchList.length,
+    occupiedRooms,
+    totalRooms,
   }
 
   // ─── Per-branch KPIs ────────────────────────────────────────
