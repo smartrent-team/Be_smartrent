@@ -372,6 +372,7 @@ export type LeaveRoomReason =
   | 'contract_expired'
   | 'tenant_request'
   | 'early_checkout'
+  | 'abandon_room'
   | 'other'
 
 export async function leaveTenantRoom(
@@ -452,6 +453,7 @@ export async function leaveTenantRoom(
 
   let isEarly = false
   let depositAmount = 0
+  const isAbandon = options?.reason === 'abandon_room'
 
   if (activeContract?.id) {
     depositAmount = activeContract.deposit_amount || 0
@@ -467,7 +469,7 @@ export async function leaveTenantRoom(
       .from('contracts')
       .update({
         end_date: moveOutIso,
-        status: isEarly ? 'terminated' : 'expired',
+        status: isEarly || isAbandon ? 'terminated' : 'expired',
       })
       .eq('id', activeContract.id)
   }
@@ -489,10 +491,12 @@ export async function leaveTenantRoom(
           supabase,
           { userId: sa.id },
           {
-            title: isEarly ? 'Thanh lý trước hạn — Tịch thu cọc' : 'Trả phòng đúng hạn',
-            body: isEarly
-              ? `${tenantUserName} (${roomCode}) đã trả phòng trước hạn. Tiền cọc ${depositAmount.toLocaleString('vi-VN')}đ bị tịch thu.`
-              : `${tenantUserName} (${roomCode}) đã hoàn tất trả phòng đúng hạn hợp đồng.`,
+            title: isAbandon ? 'Cư dân bỏ phòng — Tịch thu cọc' : (isEarly ? 'Thanh lý trước hạn — Tịch thu cọc' : 'Trả phòng đúng hạn'),
+            body: isAbandon
+              ? `${tenantUserName} (${roomCode}) đã bỏ phòng. Tiền cọc ${depositAmount.toLocaleString('vi-VN')}đ bị tịch thu.`
+              : (isEarly
+                  ? `${tenantUserName} (${roomCode}) đã trả phòng trước hạn. Tiền cọc ${depositAmount.toLocaleString('vi-VN')}đ bị tịch thu.`
+                  : `${tenantUserName} (${roomCode}) đã hoàn tất trả phòng đúng hạn hợp đồng.`),
             type: 'contract',
             relatedId: String(tenantId),
           }
@@ -500,20 +504,22 @@ export async function leaveTenantRoom(
       }
     }
 
-    // Manager: Báo lên kiểm tra phòng & lập Form báo cáo hư hỏng
-    const { data: managers } = await supabase.from('users').select('id').eq('role', 'manager')
-    if (managers) {
-      for (const mgr of managers) {
-        await dispatchNotification(
-          supabase,
-          { userId: mgr.id },
-          {
-            title: 'Yêu cầu kiểm tra bàn giao phòng',
-            body: `${tenantUserName} (${roomCode}) đã trả phòng. Vui lòng tiến hành kiểm tra thiết bị & lập Form báo cáo hư hỏng.`,
-            type: 'ticket',
-            relatedId: String(tenantId),
-          }
-        )
+    // Manager: Báo lên kiểm tra phòng & lập Form báo cáo hư hỏng (bỏ qua nếu là Bỏ phòng)
+    if (!isAbandon) {
+      const { data: managers } = await supabase.from('users').select('id').eq('role', 'manager')
+      if (managers) {
+        for (const mgr of managers) {
+          await dispatchNotification(
+            supabase,
+            { userId: mgr.id },
+            {
+              title: 'Yêu cầu kiểm tra bàn giao phòng',
+              body: `${tenantUserName} (${roomCode}) đã trả phòng. Vui lòng tiến hành kiểm tra thiết bị & lập Form báo cáo hư hỏng.`,
+              type: 'ticket',
+              relatedId: String(tenantId),
+            }
+          )
+        }
       }
     }
   } catch (notifErr) {
