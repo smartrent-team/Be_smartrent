@@ -60,16 +60,35 @@ function toJsonb(images: string[]) {
 }
 
 // ---------------------------------------------------------------------------
-// Raw pg client — chỉ dùng khi DATABASE_URL hợp lệ. Nếu kết nối thất bại một
-// lần (sai mật khẩu, v.v.) thì bỏ qua PG cho các request sau trong process.
+// Raw pg client — chỉ dùng khi DATABASE_URL hợp lệ. Trạng thái lưu trên
+// globalThis để không bị reset khi Next.js hot-reload và tránh race khi nhiều
+// API gọi song song (tenants + contracts cùng lúc).
 // ---------------------------------------------------------------------------
 
-let pgConnectionState: 'unknown' | 'ok' | 'unavailable' = 'unknown'
-let pgUnavailableWarned = false
+type PgConnectionState = 'unknown' | 'checking' | 'ok' | 'unavailable'
+
+type PgRuntime = {
+  state: PgConnectionState
+  warned: boolean
+  probePromise?: Promise<boolean>
+}
+
+const PG_RUNTIME_KEY = '__smartrent_pg_runtime__'
+
+function getPgRuntime(): PgRuntime {
+  const globalStore = globalThis as typeof globalThis & {
+    [PG_RUNTIME_KEY]?: PgRuntime
+  }
+  if (!globalStore[PG_RUNTIME_KEY]) {
+    globalStore[PG_RUNTIME_KEY] = { state: 'unknown', warned: false }
+  }
+  return globalStore[PG_RUNTIME_KEY]!
+}
 
 function logPgUnavailableOnce(detail: string): void {
-  if (pgUnavailableWarned) return
-  pgUnavailableWarned = true
+  const runtime = getPgRuntime()
+  if (runtime.warned) return
+  runtime.warned = true
   console.warn(
     `[contracts] DATABASE_URL không kết nối được PostgreSQL (${detail}). ` +
       'Chuyển sang Supabase. Sửa hoặc xóa DATABASE_URL trong .env.local.'
@@ -94,15 +113,44 @@ export function isPgUnavailableError(error: unknown): boolean {
   )
 }
 
-/** Có DATABASE_URL và PG chưa bị đánh dấu unavailable trong process hiện tại. */
+/** PG đã xác nhận kết nối OK trong process hiện tại. */
 export function isPgEnabled(): boolean {
   if (!process.env.DATABASE_URL?.trim()) return false
-  return pgConnectionState !== 'unavailable'
+  return getPgRuntime().state === 'ok'
+}
+
+/**
+ * Kiểm tra PG một lần (dedupe request song song). Trả về true nếu dùng được PG.
+ */
+export async function ensurePgAvailable(): Promise<boolean> {
+  if (!process.env.DATABASE_URL?.trim()) return false
+
+  const runtime = getPgRuntime()
+  if (runtime.state === 'ok') return true
+  if (runtime.state === 'unavailable') return false
+  if (runtime.probePromise) return runtime.probePromise
+
+  runtime.state = 'checking'
+  runtime.probePromise = (async () => {
+    try {
+      await withPgClient((client) => client.query('SELECT 1'))
+      runtime.state = 'ok'
+      return true
+    } catch (error) {
+      notePgFailure(error)
+      runtime.state = 'unavailable'
+      return false
+    } finally {
+      runtime.probePromise = undefined
+    }
+  })()
+
+  return runtime.probePromise
 }
 
 function notePgFailure(error: unknown): void {
   if (!isPgUnavailableError(error)) return
-  pgConnectionState = 'unavailable'
+  getPgRuntime().state = 'unavailable'
   const detail = error instanceof Error ? error.message : String(error)
   logPgUnavailableOnce(detail)
 }
@@ -136,7 +184,7 @@ async function withPgClient<T>(executor: (client: Client) => Promise<T>): Promis
   try {
     await client.connect()
     const result = await executor(client)
-    pgConnectionState = 'ok'
+    getPgRuntime().state = 'ok'
     return result
   } catch (error) {
     notePgFailure(error)
@@ -175,7 +223,7 @@ export async function getContractImagesByIdDirect(contractId: number): Promise<s
  * Ưu tiên raw pg; fallback Supabase admin nếu chưa cấu hình DATABASE_URL.
  */
 export async function getContractImagesById(contractId: number): Promise<string[]> {
-  if (isPgEnabled()) {
+  if (await ensurePgAvailable()) {
     try {
       return await getContractImagesByIdDirect(contractId)
     } catch (pgError) {

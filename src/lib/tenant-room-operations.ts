@@ -2,9 +2,9 @@ import type { SupabaseClient } from '@supabase/supabase-js'
 import { normalizeCalendarDateToUtcIso, todayVietnamCalendarUtcIso } from './date-utils'
 import {
   applyRoomChangeTransaction,
+  ensurePgAvailable,
   getContractImagesById,
   isContractImagesSchemaCacheError,
-  isPgEnabled,
   isPgUnavailableError,
   mergeContractImages,
 } from './contracts'
@@ -278,7 +278,7 @@ export async function changeTenantRoom(
     contractImages,
   }
 
-  if (isPgEnabled()) {
+  if (await ensurePgAvailable()) {
     try {
       await applyRoomChangeTransaction(roomChangeInput)
     } catch (error) {
