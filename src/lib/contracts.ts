@@ -60,9 +60,100 @@ function toJsonb(images: string[]) {
 }
 
 // ---------------------------------------------------------------------------
-// Raw pg client — chỉ dùng cho INSERT vì Supabase client bị schema-cache
-// lỗi với cột jsonb mới thêm.
+// Raw pg client — chỉ dùng khi DATABASE_URL hợp lệ. Trạng thái lưu trên
+// globalThis để không bị reset khi Next.js hot-reload và tránh race khi nhiều
+// API gọi song song (tenants + contracts cùng lúc).
 // ---------------------------------------------------------------------------
+
+type PgConnectionState = 'unknown' | 'checking' | 'ok' | 'unavailable'
+
+type PgRuntime = {
+  state: PgConnectionState
+  warned: boolean
+  probePromise?: Promise<boolean>
+}
+
+const PG_RUNTIME_KEY = '__smartrent_pg_runtime__'
+
+function getPgRuntime(): PgRuntime {
+  const globalStore = globalThis as typeof globalThis & {
+    [PG_RUNTIME_KEY]?: PgRuntime
+  }
+  if (!globalStore[PG_RUNTIME_KEY]) {
+    globalStore[PG_RUNTIME_KEY] = { state: 'unknown', warned: false }
+  }
+  return globalStore[PG_RUNTIME_KEY]!
+}
+
+function logPgUnavailableOnce(detail: string): void {
+  const runtime = getPgRuntime()
+  if (runtime.warned) return
+  runtime.warned = true
+  console.warn(
+    `[contracts] DATABASE_URL không kết nối được PostgreSQL (${detail}). ` +
+      'Chuyển sang Supabase. Sửa hoặc xóa DATABASE_URL trong .env.local.'
+  )
+}
+
+/** PG không dùng được — thiếu/sai DATABASE_URL, sai mật khẩu, hoặc không kết nối được. */
+export function isPgUnavailableError(error: unknown): boolean {
+  const message = error instanceof Error ? error.message : String(error)
+  const code = (error as { code?: string })?.code
+  return (
+    code === '28P01' ||
+    code === 'ECONNREFUSED' ||
+    code === 'ENOTFOUND' ||
+    message.includes('password authentication failed') ||
+    message.includes('Chưa cấu hình DATABASE_URL') ||
+    message.includes('DATABASE_URL sai định dạng') ||
+    message.includes('DATABASE_URL không hợp lệ') ||
+    message.includes('connection timeout') ||
+    message.includes('ECONNREFUSED') ||
+    message.includes('ENOTFOUND')
+  )
+}
+
+/** PG đã xác nhận kết nối OK trong process hiện tại. */
+export function isPgEnabled(): boolean {
+  if (!process.env.DATABASE_URL?.trim()) return false
+  return getPgRuntime().state === 'ok'
+}
+
+/**
+ * Kiểm tra PG một lần (dedupe request song song). Trả về true nếu dùng được PG.
+ */
+export async function ensurePgAvailable(): Promise<boolean> {
+  if (!process.env.DATABASE_URL?.trim()) return false
+
+  const runtime = getPgRuntime()
+  if (runtime.state === 'ok') return true
+  if (runtime.state === 'unavailable') return false
+  if (runtime.probePromise) return runtime.probePromise
+
+  runtime.state = 'checking'
+  runtime.probePromise = (async () => {
+    try {
+      await withPgClient((client) => client.query('SELECT 1'))
+      runtime.state = 'ok'
+      return true
+    } catch (error) {
+      notePgFailure(error)
+      runtime.state = 'unavailable'
+      return false
+    } finally {
+      runtime.probePromise = undefined
+    }
+  })()
+
+  return runtime.probePromise
+}
+
+function notePgFailure(error: unknown): void {
+  if (!isPgUnavailableError(error)) return
+  getPgRuntime().state = 'unavailable'
+  const detail = error instanceof Error ? error.message : String(error)
+  logPgUnavailableOnce(detail)
+}
 
 function assertValidDatabaseUrl(connectionString: string): void {
   try {
@@ -92,7 +183,12 @@ async function withPgClient<T>(executor: (client: Client) => Promise<T>): Promis
 
   try {
     await client.connect()
-    return await executor(client)
+    const result = await executor(client)
+    getPgRuntime().state = 'ok'
+    return result
+  } catch (error) {
+    notePgFailure(error)
+    throw error
   } finally {
     await client.end().catch(() => {})
   }
@@ -127,11 +223,13 @@ export async function getContractImagesByIdDirect(contractId: number): Promise<s
  * Ưu tiên raw pg; fallback Supabase admin nếu chưa cấu hình DATABASE_URL.
  */
 export async function getContractImagesById(contractId: number): Promise<string[]> {
-  if (process.env.DATABASE_URL) {
+  if (await ensurePgAvailable()) {
     try {
       return await getContractImagesByIdDirect(contractId)
     } catch (pgError) {
-      console.error('getContractImagesById – pg fallback to supabase:', pgError)
+      if (!isPgUnavailableError(pgError)) {
+        console.error('getContractImagesById – pg error:', pgError)
+      }
     }
   }
 
