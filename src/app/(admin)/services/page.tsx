@@ -162,7 +162,7 @@ function ServiceGroup({
                           id: service.id as number,
                           name: service.name as string,
                           description: (service.description as string | null) ?? null,
-                          service_type: (service.service_type as 'fixed' | 'variable') ?? 'fixed',
+                          service_type: (service.service_type as 'fixed' | 'metered') ?? 'fixed',
                           billing_type: (service.billing_type as 'per_room' | 'per_person' | 'per_unit') ?? 'per_room',
                         }}
                       />
