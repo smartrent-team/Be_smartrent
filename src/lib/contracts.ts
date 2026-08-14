@@ -60,9 +60,52 @@ function toJsonb(images: string[]) {
 }
 
 // ---------------------------------------------------------------------------
-// Raw pg client — chỉ dùng cho INSERT vì Supabase client bị schema-cache
-// lỗi với cột jsonb mới thêm.
+// Raw pg client — chỉ dùng khi DATABASE_URL hợp lệ. Nếu kết nối thất bại một
+// lần (sai mật khẩu, v.v.) thì bỏ qua PG cho các request sau trong process.
 // ---------------------------------------------------------------------------
+
+let pgConnectionState: 'unknown' | 'ok' | 'unavailable' = 'unknown'
+let pgUnavailableWarned = false
+
+function logPgUnavailableOnce(detail: string): void {
+  if (pgUnavailableWarned) return
+  pgUnavailableWarned = true
+  console.warn(
+    `[contracts] DATABASE_URL không kết nối được PostgreSQL (${detail}). ` +
+      'Chuyển sang Supabase. Sửa hoặc xóa DATABASE_URL trong .env.local.'
+  )
+}
+
+/** PG không dùng được — thiếu/sai DATABASE_URL, sai mật khẩu, hoặc không kết nối được. */
+export function isPgUnavailableError(error: unknown): boolean {
+  const message = error instanceof Error ? error.message : String(error)
+  const code = (error as { code?: string })?.code
+  return (
+    code === '28P01' ||
+    code === 'ECONNREFUSED' ||
+    code === 'ENOTFOUND' ||
+    message.includes('password authentication failed') ||
+    message.includes('Chưa cấu hình DATABASE_URL') ||
+    message.includes('DATABASE_URL sai định dạng') ||
+    message.includes('DATABASE_URL không hợp lệ') ||
+    message.includes('connection timeout') ||
+    message.includes('ECONNREFUSED') ||
+    message.includes('ENOTFOUND')
+  )
+}
+
+/** Có DATABASE_URL và PG chưa bị đánh dấu unavailable trong process hiện tại. */
+export function isPgEnabled(): boolean {
+  if (!process.env.DATABASE_URL?.trim()) return false
+  return pgConnectionState !== 'unavailable'
+}
+
+function notePgFailure(error: unknown): void {
+  if (!isPgUnavailableError(error)) return
+  pgConnectionState = 'unavailable'
+  const detail = error instanceof Error ? error.message : String(error)
+  logPgUnavailableOnce(detail)
+}
 
 function assertValidDatabaseUrl(connectionString: string): void {
   try {
@@ -92,7 +135,12 @@ async function withPgClient<T>(executor: (client: Client) => Promise<T>): Promis
 
   try {
     await client.connect()
-    return await executor(client)
+    const result = await executor(client)
+    pgConnectionState = 'ok'
+    return result
+  } catch (error) {
+    notePgFailure(error)
+    throw error
   } finally {
     await client.end().catch(() => {})
   }
@@ -105,24 +153,6 @@ async function withPgClient<T>(executor: (client: Client) => Promise<T>): Promis
 export function isContractImagesSchemaCacheError(error: unknown) {
   const message = error instanceof Error ? error.message : String(error)
   return message.includes('schema cache') && message.includes('contract_images')
-}
-
-/** PG không dùng được — thiếu/sai DATABASE_URL, sai mật khẩu, hoặc không kết nối được. */
-export function isPgUnavailableError(error: unknown): boolean {
-  const message = error instanceof Error ? error.message : String(error)
-  const code = (error as { code?: string })?.code
-  return (
-    code === '28P01' ||
-    code === 'ECONNREFUSED' ||
-    code === 'ENOTFOUND' ||
-    message.includes('password authentication failed') ||
-    message.includes('Chưa cấu hình DATABASE_URL') ||
-    message.includes('DATABASE_URL sai định dạng') ||
-    message.includes('DATABASE_URL không hợp lệ') ||
-    message.includes('connection timeout') ||
-    message.includes('ECONNREFUSED') ||
-    message.includes('ENOTFOUND')
-  )
 }
 
 /**
@@ -145,11 +175,13 @@ export async function getContractImagesByIdDirect(contractId: number): Promise<s
  * Ưu tiên raw pg; fallback Supabase admin nếu chưa cấu hình DATABASE_URL.
  */
 export async function getContractImagesById(contractId: number): Promise<string[]> {
-  if (process.env.DATABASE_URL) {
+  if (isPgEnabled()) {
     try {
       return await getContractImagesByIdDirect(contractId)
     } catch (pgError) {
-      console.error('getContractImagesById – pg fallback to supabase:', pgError)
+      if (!isPgUnavailableError(pgError)) {
+        console.error('getContractImagesById – pg error:', pgError)
+      }
     }
   }
 

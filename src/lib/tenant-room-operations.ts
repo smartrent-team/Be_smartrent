@@ -4,6 +4,7 @@ import {
   applyRoomChangeTransaction,
   getContractImagesById,
   isContractImagesSchemaCacheError,
+  isPgEnabled,
   isPgUnavailableError,
   mergeContractImages,
 } from './contracts'
@@ -277,23 +278,28 @@ export async function changeTenantRoom(
     contractImages,
   }
 
-  try {
-    await applyRoomChangeTransaction(roomChangeInput)
-  } catch (error) {
-    console.error('changeTenantRoom – transaction:', error)
-
-    if (isPgUnavailableError(error)) {
-      console.warn('changeTenantRoom – PG unavailable, falling back to Supabase')
-      const fallback = await applyRoomChangeViaSupabase(supabase, roomChangeInput)
-      if (fallback.error) {
-        return { error: fallback.error, status: 400 }
+  if (isPgEnabled()) {
+    try {
+      await applyRoomChangeTransaction(roomChangeInput)
+    } catch (error) {
+      if (isPgUnavailableError(error)) {
+        const fallback = await applyRoomChangeViaSupabase(supabase, roomChangeInput)
+        if (fallback.error) {
+          return { error: fallback.error, status: 400 }
+        }
+      } else {
+        console.error('changeTenantRoom – transaction:', error)
+        const message = error instanceof Error ? error.message : String(error)
+        if (message.includes('ảnh')) {
+          return { error: message, status: 400 }
+        }
+        return { error: 'Không thể cập nhật thông tin đổi phòng', status: 400 }
       }
-    } else {
-      const message = error instanceof Error ? error.message : String(error)
-      if (message.includes('ảnh')) {
-        return { error: message, status: 400 }
-      }
-      return { error: 'Không thể cập nhật thông tin đổi phòng', status: 400 }
+    }
+  } else {
+    const fallback = await applyRoomChangeViaSupabase(supabase, roomChangeInput)
+    if (fallback.error) {
+      return { error: fallback.error, status: 400 }
     }
   }
 
