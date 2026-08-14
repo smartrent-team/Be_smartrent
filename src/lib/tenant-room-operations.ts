@@ -1,6 +1,12 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { normalizeCalendarDateToUtcIso, todayVietnamCalendarUtcIso } from './date-utils'
-import { applyRoomChangeTransaction } from './contracts'
+import {
+  applyRoomChangeTransaction,
+  getContractImagesById,
+  isContractImagesSchemaCacheError,
+  isPgUnavailableError,
+  mergeContractImages,
+} from './contracts'
 
 type AuthContext = {
   role: 'super_admin' | 'manager' | 'tenant'
@@ -88,6 +94,68 @@ async function assertManagerAccessToRoom(
   if (roomRow.branch_id !== auth.branchId) {
     return { error: 'Phòng không thuộc chi nhánh của bạn', status: 403 }
   }
+
+  return {}
+}
+
+type RoomChangeTxInput = {
+  tenantId: number
+  contractId: number
+  oldRoomId: number
+  newRoomId: number
+  moveInIso: string
+  endIso: string | null
+  monthlyPrice: number
+  contractImages: string[]
+}
+
+/** Fallback khi chưa cấu hình DATABASE_URL — dùng Supabase client (không atomic như PG transaction). */
+async function applyRoomChangeViaSupabase(
+  supabase: SupabaseClient,
+  input: RoomChangeTxInput
+): Promise<{ error?: string }> {
+  const existingImages = await getContractImagesById(input.contractId)
+  const mergedImages = mergeContractImages(existingImages, input.contractImages)
+  if (mergedImages.length === 0) {
+    return { error: 'Bắt buộc phải có ít nhất một ảnh hợp đồng' }
+  }
+
+  const contractPayload: Record<string, unknown> = {
+    room_id: input.newRoomId,
+    monthly_price: input.monthlyPrice,
+    start_date: input.moveInIso,
+    contract_images: mergedImages,
+  }
+  if (input.endIso) contractPayload.end_date = input.endIso
+
+  const { error: contractError } = await supabase
+    .from('contracts')
+    .update(contractPayload)
+    .eq('id', input.contractId)
+
+  if (contractError) {
+    console.error('applyRoomChangeViaSupabase – contract:', contractError)
+    if (isContractImagesSchemaCacheError(contractError)) {
+      return {
+        error:
+          'Không thể lưu ảnh hợp đồng. Thêm DATABASE_URL vào .env.local (Supabase → Settings → Database → Connection string, Session pooler).',
+      }
+    }
+    return { error: 'Không thể cập nhật hợp đồng' }
+  }
+
+  const { error: tenantError } = await supabase
+    .from('tenants')
+    .update({ room_id: input.newRoomId, move_in_date: input.moveInIso })
+    .eq('id', input.tenantId)
+
+  if (tenantError) {
+    console.error('applyRoomChangeViaSupabase – tenant:', tenantError)
+    return { error: 'Không thể cập nhật hồ sơ cư dân' }
+  }
+
+  await releaseRoomIfEmpty(supabase, input.oldRoomId)
+  await supabase.from('rooms').update({ status: 'occupied' }).eq('id', input.newRoomId)
 
   return {}
 }
@@ -198,27 +266,35 @@ export async function changeTenantRoom(
     return { error: 'Không tìm thấy hợp đồng đang hiệu lực để cập nhật', status: 400 }
   }
 
+  const roomChangeInput: RoomChangeTxInput = {
+    tenantId,
+    contractId: activeContract.id,
+    oldRoomId,
+    newRoomId,
+    moveInIso,
+    endIso,
+    monthlyPrice: newRoom.base_price || 0,
+    contractImages,
+  }
+
   try {
-    await applyRoomChangeTransaction({
-      tenantId,
-      contractId: activeContract.id,
-      oldRoomId,
-      newRoomId,
-      moveInIso,
-      endIso,
-      monthlyPrice: newRoom.base_price || 0,
-      contractImages,
-    })
+    await applyRoomChangeTransaction(roomChangeInput)
   } catch (error) {
     console.error('changeTenantRoom – transaction:', error)
-    const message = error instanceof Error ? error.message : String(error)
-    if (message.includes('DATABASE_URL') || message.includes('Chưa cấu hình')) {
-      return { error: 'Không thể lưu hợp đồng. Kiểm tra cấu hình DATABASE_URL.', status: 400 }
+
+    if (isPgUnavailableError(error)) {
+      console.warn('changeTenantRoom – PG unavailable, falling back to Supabase')
+      const fallback = await applyRoomChangeViaSupabase(supabase, roomChangeInput)
+      if (fallback.error) {
+        return { error: fallback.error, status: 400 }
+      }
+    } else {
+      const message = error instanceof Error ? error.message : String(error)
+      if (message.includes('ảnh')) {
+        return { error: message, status: 400 }
+      }
+      return { error: 'Không thể cập nhật thông tin đổi phòng', status: 400 }
     }
-    if (message.includes('ảnh')) {
-      return { error: message, status: 400 }
-    }
-    return { error: 'Không thể cập nhật thông tin đổi phòng', status: 400 }
   }
 
   // Gửi thông báo đổi phòng

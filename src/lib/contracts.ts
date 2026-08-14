@@ -107,6 +107,24 @@ export function isContractImagesSchemaCacheError(error: unknown) {
   return message.includes('schema cache') && message.includes('contract_images')
 }
 
+/** PG không dùng được — thiếu/sai DATABASE_URL, sai mật khẩu, hoặc không kết nối được. */
+export function isPgUnavailableError(error: unknown): boolean {
+  const message = error instanceof Error ? error.message : String(error)
+  const code = (error as { code?: string })?.code
+  return (
+    code === '28P01' ||
+    code === 'ECONNREFUSED' ||
+    code === 'ENOTFOUND' ||
+    message.includes('password authentication failed') ||
+    message.includes('Chưa cấu hình DATABASE_URL') ||
+    message.includes('DATABASE_URL sai định dạng') ||
+    message.includes('DATABASE_URL không hợp lệ') ||
+    message.includes('connection timeout') ||
+    message.includes('ECONNREFUSED') ||
+    message.includes('ENOTFOUND')
+  )
+}
+
 /**
  * Đọc ảnh hợp đồng qua raw pg — đáng tin cậy hơn Supabase (tránh schema-cache jsonb).
  */
