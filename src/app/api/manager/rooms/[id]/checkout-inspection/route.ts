@@ -3,15 +3,20 @@ import { verifyRole } from '@/lib/rbac'
 
 export async function POST(
   request: Request,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const auth = await verifyRole(['manager', 'super_admin'])
+    const auth = await verifyRole()
     if (auth.error || !auth.user || !auth.dbUserId) {
       return NextResponse.json({ error: auth.error || 'Chưa xác thực' }, { status: auth.status || 401 })
     }
 
-    const roomId = Number(params.id)
+    if (auth.role !== 'manager' && auth.role !== 'super_admin') {
+      return NextResponse.json({ error: 'Không có quyền thực hiện' }, { status: 403 })
+    }
+
+    const { id } = await params
+    const roomId = Number(id)
     if (isNaN(roomId)) {
       return NextResponse.json({ error: 'ID phòng không hợp lệ' }, { status: 400 })
     }

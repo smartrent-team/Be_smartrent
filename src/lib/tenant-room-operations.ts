@@ -115,34 +115,50 @@ async function applyRoomChangeViaSupabase(
   supabase: SupabaseClient,
   input: RoomChangeTxInput
 ): Promise<{ error?: string }> {
-  const existingImages = await getContractImagesById(input.contractId)
-  const mergedImages = mergeContractImages(existingImages, input.contractImages)
-  if (mergedImages.length === 0) {
+  const { data: oldContract } = await supabase
+    .from('contracts')
+    .select('deposit_amount, contract_images')
+    .eq('id', input.contractId)
+    .single()
+
+  const finalImages = input.contractImages && input.contractImages.length > 0
+    ? input.contractImages
+    : (oldContract?.contract_images || [])
+  if (finalImages.length === 0) {
     return { error: 'Bắt buộc phải có ít nhất một ảnh hợp đồng' }
   }
 
-  const contractPayload: Record<string, unknown> = {
-    room_id: input.newRoomId,
-    monthly_price: input.monthlyPrice,
-    start_date: input.moveInIso,
-    contract_images: mergedImages,
-  }
-  if (input.endIso) contractPayload.end_date = input.endIso
-
-  const { error: contractError } = await supabase
+  // 1. Kết thúc hợp đồng cũ tại ngày chuyển phòng
+  await supabase
     .from('contracts')
-    .update(contractPayload)
+    .update({ status: 'terminated', end_date: input.moveInIso })
     .eq('id', input.contractId)
 
-  if (contractError) {
-    console.error('applyRoomChangeViaSupabase – contract:', contractError)
-    if (isContractImagesSchemaCacheError(contractError)) {
+  // 2. Tạo hợp đồng mới cho phòng mới
+  const contractCode = `HD-${input.newRoomId}-${input.tenantId}-${Date.now().toString().slice(-4)}`
+  const { error: newContractError } = await supabase
+    .from('contracts')
+    .insert({
+      contract_code: contractCode,
+      tenant_id: input.tenantId,
+      room_id: input.newRoomId,
+      monthly_price: input.monthlyPrice,
+      start_date: input.moveInIso,
+      end_date: input.endIso || null,
+      deposit_amount: oldContract?.deposit_amount ?? 0,
+      status: 'active',
+      contract_images: finalImages,
+    })
+
+  if (newContractError) {
+    console.error('applyRoomChangeViaSupabase – new contract:', newContractError)
+    if (isContractImagesSchemaCacheError(newContractError)) {
       return {
         error:
           'Không thể lưu ảnh hợp đồng. Thêm DATABASE_URL vào .env.local (Supabase → Settings → Database → Connection string, Session pooler).',
       }
     }
-    return { error: 'Không thể cập nhật hợp đồng' }
+    return { error: 'Không thể tạo hợp đồng mới cho phòng mới' }
   }
 
   const { error: tenantError } = await supabase

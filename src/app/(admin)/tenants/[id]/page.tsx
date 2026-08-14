@@ -6,7 +6,7 @@ import { Badge } from '@/components/ui/badge'
 import Link from 'next/link'
 import { ArrowLeft, User, MapPin, FileText, Car } from 'lucide-react'
 import { Button } from '@/components/ui/button'
-import { ContractImages } from '@/components/shared/ContractImages'
+import { ContractImages, type ContractInfo } from '@/components/shared/ContractImages'
 import { getContractImagesById } from '@/lib/contracts'
 import { SettlementButton } from './SettlementButton'
 
@@ -24,29 +24,53 @@ export default async function TenantDetailPage({ params }: { params: Promise<{ i
     .select(`
       *,
       user:users(*),
-      room:rooms(id, room_code, base_price, vehicle_count),
+      room:rooms(id, room_code, floor, base_price, vehicle_count),
       invoices(id, invoice_code, total_amount, payment_status, issued_at),
-      contracts(id, status, deposit_amount, end_date)
+      contracts(
+        id,
+        status,
+        deposit_amount,
+        start_date,
+        end_date,
+        room_id,
+        contract_images,
+        room:rooms(id, room_code, floor)
+      )
     `)
     .eq('id', id)
     .single()
 
-  interface ContractData {
-    id: string;
-    status: string;
-    contract_images?: string[];
-    deposit_amount?: number;
-    end_date?: string | null;
+  if (error || !tenant) {
+    console.error('Tenant fetch error for id', id, ':', error);
+    notFound()
   }
 
-  const activeContract = (tenant?.contracts as unknown as ContractData[])?.find((c) => ['active', 'pending_checkout', 'inspection', 'pending_settlement'].includes(c.status))
+  interface ContractData {
+    id: number | string
+    status: string
+    contract_images?: string[]
+    deposit_amount?: number | null
+    start_date?: string | null
+    end_date?: string | null
+    room_id?: number | null
+    room?: { id?: number; room_code?: string; floor?: number | string } | null
+  }
+
+  const allContracts = ((tenant.contracts as unknown as ContractData[]) || []).sort(
+    (a, b) => Number(b.id) - Number(a.id)
+  )
+
+  const activeContractRaw =
+    allContracts.find((c) =>
+      ['active', 'pending_checkout', 'inspection', 'pending_settlement'].includes(c.status)
+    ) ?? allContracts[0] ?? null
 
   let pendingCheckoutRequest = null
-  if (activeContract?.id) {
+  if (activeContractRaw?.id) {
     const { data: requestData } = await adminSupabase
       .from('checkout_requests')
       .select('*')
-      .eq('contract_id', activeContract.id)
+      .eq('contract_id', activeContractRaw.id)
       .order('created_at', { ascending: false })
       .limit(1)
       .maybeSingle()
@@ -54,19 +78,54 @@ export default async function TenantDetailPage({ params }: { params: Promise<{ i
     pendingCheckoutRequest = requestData
   }
 
-  if (error || !tenant) {
-    console.error('Tenant fetch error for id', id, ':', error);
-    notFound()
-  }
-
-  let initialImages: string[] = []
-  if (activeContract?.id) {
+  let activeImages: string[] = []
+  if (activeContractRaw?.id) {
     try {
-      initialImages = await getContractImagesById(Number(activeContract.id))
+      activeImages = await getContractImagesById(Number(activeContractRaw.id))
     } catch (contractError) {
       console.error('Tenant detail contract images fetch error for id', id, ':', contractError)
+      activeImages = Array.isArray(activeContractRaw.contract_images)
+        ? activeContractRaw.contract_images
+        : []
     }
   }
+
+  const activeContractFormatted: ContractInfo | null = activeContractRaw
+    ? {
+        contractId: Number(activeContractRaw.id),
+        roomId: activeContractRaw.room_id ?? tenant.room?.id,
+        roomCode: activeContractRaw.room?.room_code ?? tenant.room?.room_code,
+        floor: activeContractRaw.room?.floor ?? tenant.room?.floor,
+        startDate: activeContractRaw.start_date ?? tenant.move_in_date,
+        endDate: activeContractRaw.end_date,
+        status: activeContractRaw.status,
+        images: activeImages,
+      }
+    : null
+
+  // Hợp đồng cũ (các hợp đồng trước đó của khách thuê)
+  const oldContractsFormatted: ContractInfo[] = await Promise.all(
+    allContracts
+      .filter((c) => String(c.id) !== String(activeContractRaw?.id))
+      .map(async (c) => {
+        let oldImages: string[] = []
+        try {
+          oldImages = await getContractImagesById(Number(c.id))
+        } catch {
+          oldImages = Array.isArray(c.contract_images) ? c.contract_images : []
+        }
+        return {
+          contractId: Number(c.id),
+          roomId: c.room_id ?? undefined,
+          roomCode: c.room?.room_code,
+          floor: c.room?.floor,
+          startDate: c.start_date,
+          endDate: c.end_date,
+          status: c.status,
+          images: oldImages,
+        }
+      })
+  )
 
   return (
     <div className="flex flex-col gap-6 p-6">
@@ -153,7 +212,7 @@ export default async function TenantDetailPage({ params }: { params: Promise<{ i
               </div>
               <div>
                 <p className="text-sm text-muted-foreground">Tiền cọc</p>
-                <p className="font-medium">{activeContract?.deposit_amount?.toLocaleString('vi-VN') || '0'} đ</p>
+                <p className="font-medium">{activeContractRaw?.deposit_amount?.toLocaleString('vi-VN') || '0'} đ</p>
               </div>
               <div>
                 <p className="text-sm text-muted-foreground">Ngày chuyển vào</p>
@@ -162,8 +221,8 @@ export default async function TenantDetailPage({ params }: { params: Promise<{ i
               <div>
                 <p className="text-sm text-muted-foreground">Ngày hết hạn hợp đồng</p>
                 <p className="font-medium">
-                  {activeContract?.end_date
-                    ? new Date(activeContract.end_date).toLocaleDateString('vi-VN')
+                  {activeContractRaw?.end_date
+                    ? new Date(activeContractRaw.end_date).toLocaleDateString('vi-VN')
                     : '---'}
                 </p>
               </div>
@@ -228,12 +287,15 @@ export default async function TenantDetailPage({ params }: { params: Promise<{ i
           </CardContent>
         </Card>
 
-        {/* Component Quản lý Ảnh Hợp đồng */}
+        {/* Component Quản lý Ảnh Hợp đồng: 2 Cột (Mới / Cũ) */}
         {tenant.room?.id && (
           <ContractImages 
             tenantId={tenant.id} 
-            roomId={tenant.room.id} 
-            initialImages={initialImages} 
+            currentRoomId={tenant.room.id}
+            currentRoomCode={tenant.room.room_code}
+            currentRoomFloor={tenant.room.floor}
+            activeContract={activeContractFormatted}
+            oldContracts={oldContractsFormatted}
           />
         )}
       </div>
