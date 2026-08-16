@@ -12,7 +12,7 @@ import {
 } from '@/components/ui/table'
 import { Badge } from '@/components/ui/badge'
 import { Button, buttonVariants } from '@/components/ui/button'
-import { Check, Eye, DollarSign, CheckCircle2, Wrench, AlertCircle, LogOut } from 'lucide-react'
+import { Check, Eye, DollarSign, CheckCircle2, Wrench, AlertCircle } from 'lucide-react'
 import { toast } from 'sonner'
 import { createClient } from '@/lib/supabase/client'
 import { resolveTicket } from './actions'
@@ -30,7 +30,7 @@ type Ticket = {
   issueType?: string
 }
 
-export default function TicketListClient({ initialTickets, checkoutTickets }: { initialTickets: Ticket[], checkoutTickets: Ticket[] }) {
+export default function TicketListClient({ initialTickets }: { initialTickets: Ticket[] }) {
   const [tickets, setTickets] = useState<Ticket[]>(initialTickets)
   const supabase = createClient()
   const audioRef = useRef<HTMLAudioElement | null>(null)
@@ -178,66 +178,6 @@ export default function TicketListClient({ initialTickets, checkoutTickets }: { 
             )}
           </TableBody>
         </Table>
-      </div>
-
-      {/* ── Bảng sự cố bàn giao trả phòng ───────────────────────── */}
-      <div className="border-t pt-6">
-        <div className="flex items-center gap-3 mb-4">
-          <div className="p-2 rounded-lg bg-orange-100 text-orange-600">
-            <LogOut className="h-5 w-5" />
-          </div>
-          <div>
-            <h2 className="text-xl font-bold tracking-tight">Yêu cầu bảo trì sau khi trả phòng</h2>
-            <p className="text-sm text-muted-foreground">Các sự cố hư hỏng do Manager báo cáo khi bàn giao phòng — cần Admin duyệt chi phí</p>
-          </div>
-        </div>
-        <div className="rounded-md border bg-orange-50/40 shadow-sm">
-          <Table>
-            <TableHeader>
-              <TableRow className="bg-orange-50/60">
-                <TableHead className="w-[100px]">Phòng</TableHead>
-                <TableHead>Vấn đề</TableHead>
-                <TableHead>Ngày báo</TableHead>
-                <TableHead>Trạng thái</TableHead>
-                <TableHead>Chi phí dự kiến</TableHead>
-                <TableHead className="text-right">Thao tác</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {checkoutTickets.length > 0 ? (
-                checkoutTickets.map((ticket) => (
-                  <TableRow key={ticket.id}>
-                    <TableCell className="font-medium">
-                      {ticket.room && ticket.room !== 'Chung' && ticket.room !== '...' ? `P.${ticket.room}` : ticket.room}
-                      {ticket.roomId && <span className="text-xs text-muted-foreground ml-2">(ID: {ticket.roomId})</span>}
-                    </TableCell>
-                    <TableCell className="max-w-[300px] truncate" title={ticket.title}>{ticket.title}</TableCell>
-                    <TableCell>{ticket.date}</TableCell>
-                    <TableCell>{getStatusBadge(ticket.status)}</TableCell>
-                    <TableCell className="font-semibold text-orange-600">
-                      {ticket.repairCost !== undefined && ticket.repairCost !== null
-                        ? `${ticket.repairCost.toLocaleString('vi-VN')} đ`
-                        : '—'}
-                    </TableCell>
-                    <TableCell className="text-right">
-                      <div className="flex items-center justify-end gap-2">
-                        <Link href={`/tickets/${ticket.id}`} className={buttonVariants({ variant: 'outline', size: 'sm', className: 'gap-2' })}>
-                          <Eye className="h-4 w-4" /> Xem & Duyệt
-                        </Link>
-                      </div>
-                    </TableCell>
-                  </TableRow>
-                ))
-              ) : (
-                <TableRow>
-                  <TableCell colSpan={6} className="text-center h-20 text-muted-foreground">
-                    Không có sự cố bàn giao nào cần xử lý.
-                  </TableCell>
-                </TableRow>
-              )}
-            </TableBody>
-          </Table>
-        </div>
       </div>
 
       {/* ── Thống kê ─────────────────────────────────────────────── */}

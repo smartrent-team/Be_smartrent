@@ -1,5 +1,6 @@
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
+import { getLatestEffectiveContract } from '@/lib/contract-selection'
 import {
   Table,
   TableBody,
@@ -39,7 +40,7 @@ export default async function TenantsPage({ searchParams }: { searchParams: Prom
   ] = await Promise.all([
     adminSupabase
       .from('tenants')
-      .select('id, move_in_date, move_out_date, room_id, user_id, room:rooms(room_code, branch:branches(name)), user:users!inner(full_name, email, phone, status), contracts(deposit_amount, status)', { count: 'exact' })
+      .select('id, move_in_date, move_out_date, room_id, user_id, room:rooms(room_code, branch:branches(name)), user:users!inner(full_name, email, phone, status), contracts(id, deposit_amount, status, start_date, end_date)', { count: 'exact' })
       .order('created_at', { ascending: false })
       .range(from, to),
     adminSupabase
@@ -60,30 +61,13 @@ export default async function TenantsPage({ searchParams }: { searchParams: Prom
     move_out_date: string | null;
     room?: { room_code: string; branch?: { name: string } | null };
     user?: { full_name: string; email: string; phone: string; status: string | null };
-    contracts?: { deposit_amount: number | null; status: string }[];
+    contracts?: { id?: number | null; deposit_amount: number | null; status: string; start_date?: string | null; end_date?: string | null }[];
   }
 
   const tenants = ((rawTenants as unknown as TenantData[]) || []).map((t) => {
-    const activeContract = t.contracts?.find((c) => c.status === 'active') || t.contracts?.[0]
-    // Xác định trạng thái hiển thị:
-    // - 'locked': tài khoản bị khóa (đã hoàn tất trả phòng hoặc bị khóa thủ công)
-    // - 'pending_checkout': đang chờ quản lý kiểm tra
-    // - 'past': đã trả phòng nhưng chưa khóa
-    // - 'active': đang ở
+    const activeContract = getLatestEffectiveContract(t.contracts || [])
     const userStatus = t.user?.status
-    const contractStatus = t.contracts?.find(c => c.status === 'pending_checkout' || c.status === 'pending_liquidation')?.status
-    let displayStatus: 'active' | 'pending_checkout' | 'pending_liquidation' | 'locked' | 'past'
-    if (userStatus === 'locked') {
-      displayStatus = 'locked'
-    } else if (contractStatus === 'pending_liquidation') {
-      displayStatus = 'pending_liquidation'
-    } else if (contractStatus === 'pending_checkout') {
-      displayStatus = 'pending_checkout'
-    } else if (t.move_out_date) {
-      displayStatus = 'past'
-    } else {
-      displayStatus = 'active'
-    }
+    const displayStatus: 'active' | 'locked' = userStatus === 'locked' || userStatus === 'blocked' ? 'locked' : 'active'
     return {
       id: t.id,
       userId: t.user_id,
@@ -143,17 +127,8 @@ export default async function TenantsPage({ searchParams }: { searchParams: Prom
                     {tenant.status === 'active' && (
                       <Badge className="bg-green-100 text-green-800 hover:bg-green-200">Đang ở</Badge>
                     )}
-                    {tenant.status === 'pending_checkout' && (
-                      <Badge className="bg-orange-100 text-orange-700 hover:bg-orange-200">Chờ kiểm tra phòng</Badge>
-                    )}
-                    {tenant.status === 'pending_liquidation' && (
-                      <Badge className="bg-yellow-100 text-yellow-700 hover:bg-yellow-200">Chờ thanh lý</Badge>
-                    )}
-                    {tenant.status === 'past' && (
-                      <Badge variant="secondary">Đã trả phòng</Badge>
-                    )}
                     {tenant.status === 'locked' && (
-                      <Badge className="bg-red-100 text-red-700 hover:bg-red-200">Đã khóa</Badge>
+                      <Badge className="bg-red-100 text-red-700 hover:bg-red-200">Khóa</Badge>
                     )}
                   </TableCell>
                   <TableCell className="text-right">

@@ -361,6 +361,7 @@ export function CreateTenantDialog({ rooms }: { rooms: Room[] }) {
                       src={contractPreview}
                       alt="Ảnh hợp đồng"
                       fill
+                      sizes="(max-width: 768px) 100vw, 50vw"
                       className="object-contain"
                       unoptimized
                     />

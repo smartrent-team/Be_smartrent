@@ -33,6 +33,12 @@ const loginSchema = z.object({
   password: z.string().min(6, 'Mật khẩu phải có ít nhất 6 ký tự')
 })
 
+const LOCKED_ACCOUNT_MESSAGE = 'Tài khoản này đã bị khóa.'
+
+function isLockedAccountStatus(status?: string | null): boolean {
+  return status === 'locked' || status === 'blocked'
+}
+
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json()
@@ -47,9 +53,18 @@ export async function POST(request: NextRequest) {
     const adminSupabase = await import('@/lib/supabase/admin').then(m => m.createAdminClient())
     
     let targetEmail: string
+    let userRecordByIdentity: { email: string | null; status: string | null } | null = null
     if (phone.includes('@')) {
       // Đăng nhập bằng Email trực tiếp
       targetEmail = phone
+
+      const { data: userRecord } = await adminSupabase
+        .from('users')
+        .select('email, status')
+        .eq('email', targetEmail)
+        .maybeSingle()
+
+      userRecordByIdentity = userRecord
     } else {
       // Đăng nhập bằng số điện thoại
       // Do Supabase không cho phép đăng nhập trực tiếp bằng SĐT, ta cần lấy email tương ứng từ DB
@@ -57,7 +72,13 @@ export async function POST(request: NextRequest) {
       if (phone.startsWith('0')) localPhone = `+84${phone.slice(1)}`
       else if (!phone.startsWith('+')) localPhone = `+84${phone}`
 
-      const { data: userRecord } = await adminSupabase.from('users').select('email').eq('phone', localPhone).single()
+      const { data: userRecord } = await adminSupabase
+        .from('users')
+        .select('email, status')
+        .eq('phone', localPhone)
+        .maybeSingle()
+
+      userRecordByIdentity = userRecord
       
       if (userRecord && userRecord.email) {
         targetEmail = userRecord.email
@@ -65,6 +86,10 @@ export async function POST(request: NextRequest) {
         // Fallback email cho các tài khoản cũ chưa có email thật
         targetEmail = `${localPhone.replace('+', '')}@user.local`
       }
+    }
+
+    if (isLockedAccountStatus(userRecordByIdentity?.status)) {
+      return NextResponse.json({ error: LOCKED_ACCOUNT_MESSAGE }, { status: 403 })
     }
 
     const { data, error } = await supabase.auth.signInWithPassword({
@@ -83,6 +108,11 @@ export async function POST(request: NextRequest) {
       .select('*')
       .eq('email', targetEmail)
       .single()
+
+    if (isLockedAccountStatus(profile?.status)) {
+      await supabase.auth.signOut()
+      return NextResponse.json({ error: LOCKED_ACCOUNT_MESSAGE }, { status: 403 })
+    }
 
     return NextResponse.json({
       success: true,

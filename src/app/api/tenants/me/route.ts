@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server'
+import { getLatestEffectiveContract } from '@/lib/contract-selection'
 import { verifyRole } from '@/lib/rbac'
 import { toVietnamDateKey } from '@/lib/date-utils'
 
@@ -110,8 +111,7 @@ export async function GET() {
     const contractsData = tenant.contracts as unknown as ContractData[] | null;
 
     // Lọc hợp đồng đang hoạt động (bao gồm cả các trạng thái trả phòng đang chờ xử lý)
-    const ACTIVE_STATUSES = ['active', 'pending_checkout', 'pending_liquidation']
-    const activeContract = contractsData?.find(c => ACTIVE_STATUSES.includes(c.status)) || null
+    const activeContract = getLatestEffectiveContract(contractsData || [])
 
     const effectiveMoveInDate =
       tenant.move_in_date || activeContract?.start_date || null

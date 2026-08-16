@@ -1,5 +1,6 @@
 import { NextResponse, type NextRequest } from 'next/server'
 import { getContractImagesById } from '@/lib/contracts'
+import { getLatestEffectiveContract } from '@/lib/contract-selection'
 import { verifyRole } from '@/lib/rbac'
 import { changeTenantRoom } from '@/lib/tenant-room-operations'
 import { formatVietnamDateDisplay } from '@/lib/date-utils'
@@ -71,8 +72,7 @@ export async function POST(
       .eq('tenant_id', tenantId)
       .order('id', { ascending: false })
 
-    const activeContract =
-      contractsRows?.find((c) => c.status === 'active') ?? contractsRows?.[0] ?? null
+    const activeContract = getLatestEffectiveContract(contractsRows || [])
 
     let savedContractImages: string[] = []
     if (activeContract?.id) {

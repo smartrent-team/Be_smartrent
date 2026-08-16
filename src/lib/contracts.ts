@@ -339,33 +339,69 @@ export async function applyRoomChangeTransaction(
         throw new Error(`Không tìm thấy hợp đồng id=${input.contractId}`)
       }
 
-      const finalImages = input.contractImages && input.contractImages.length > 0
-        ? input.contractImages
-        : normalizeContractImages(existingRow.contract_images)
+      const { buildExpiredHistoricalContractUpdate, buildRoomChangeHistoryPayload, replaceContractImagesForRoomChange } = await import('./contract-images')
+      const finalImages = replaceContractImagesForRoomChange(
+        normalizeContractImages(existingRow.contract_images),
+        input.contractImages
+      )
       if (finalImages.length === 0) {
         throw new Error('Bắt buộc phải có ít nhất một ảnh hợp đồng')
       }
 
-      // 1. Lưu trữ hợp đồng cũ (kết thúc tại ngày dọn sang phòng mới)
-      await client.query(
-        `UPDATE contracts SET status = 'terminated', end_date = $2 WHERE id = $1`,
-        [input.contractId, input.moveInIso]
+      const currentContract = await client.query<{
+        id: number
+        deposit_amount: number | null
+        contract_code: string | null
+        room_id: number
+      }>(
+        `SELECT id, deposit_amount, contract_code, room_id FROM contracts WHERE id = $1 FOR UPDATE`,
+        [input.contractId]
       )
 
-      // 2. Tạo hợp đồng mới cho phòng mới
-      const contractCode = `HD-${input.newRoomId}-${input.tenantId}-${Date.now().toString().slice(-4)}`
+      const current = currentContract.rows[0]
+      if (!current) {
+        throw new Error(`Không tìm thấy hợp đồng id=${input.contractId}`)
+      }
+
+      const expiredUpdate = buildExpiredHistoricalContractUpdate({
+        moveInIso: input.moveInIso,
+        endIso: input.moveInIso,
+      })
+
+      await client.query(
+        `UPDATE contracts SET status = $2, end_date = $3 WHERE id = $1`,
+        [input.contractId, expiredUpdate.status, expiredUpdate.end_date]
+      )
+
+      const newContractCode = `HD-${input.newRoomId}-${input.tenantId}-${Date.now().toString().slice(-4)}`
+
+      const insertPayload = buildRoomChangeHistoryPayload({
+        contractCode: newContractCode,
+        tenantId: input.tenantId,
+        newRoomId: input.newRoomId,
+        moveInIso: input.moveInIso,
+        endIso: input.endIso ?? null,
+        monthlyPrice: input.monthlyPrice,
+        depositAmount: current.deposit_amount ?? 0,
+        previousImages: normalizeContractImages(existingRow.contract_images),
+        newImages: input.contractImages,
+      })
+
       const contractInsert = await client.query<{ id: number; contract_images: ContractImagesDbValue }>(
-        `INSERT INTO contracts (contract_code, tenant_id, room_id, monthly_price, start_date, end_date, deposit_amount, status, contract_images)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, 'active', $8::jsonb)
-         RETURNING id, contract_images`,
+        `INSERT INTO contracts (
+          contract_code, tenant_id, room_id, start_date, end_date, status,
+          deposit_amount, monthly_price, contract_images
+        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9::jsonb)
+        RETURNING id, contract_images`,
         [
-          contractCode,
+          insertPayload.contract_code,
           input.tenantId,
           input.newRoomId,
-          input.monthlyPrice,
           input.moveInIso,
-          input.endIso || null,
-          existingRow.deposit_amount || 0,
+          input.endIso ?? null,
+          'active',
+          insertPayload.deposit_amount,
+          input.monthlyPrice,
           toJsonb(finalImages),
         ]
       )

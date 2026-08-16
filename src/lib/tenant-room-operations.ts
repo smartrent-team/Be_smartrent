@@ -1,4 +1,5 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
+import { getLatestEffectiveContract } from './contract-selection'
 import { normalizeCalendarDateToUtcIso, todayVietnamCalendarUtcIso } from './date-utils'
 import {
   applyRoomChangeTransaction,
@@ -6,8 +7,12 @@ import {
   getContractImagesById,
   isContractImagesSchemaCacheError,
   isPgUnavailableError,
-  mergeContractImages,
 } from './contracts'
+import {
+  buildExpiredHistoricalContractUpdate,
+  buildRoomChangeHistoryPayload,
+  replaceContractImagesForRoomChange,
+} from './contract-images'
 
 type AuthContext = {
   role: 'super_admin' | 'manager' | 'tenant'
@@ -115,44 +120,61 @@ async function applyRoomChangeViaSupabase(
   supabase: SupabaseClient,
   input: RoomChangeTxInput
 ): Promise<{ error?: string }> {
-  const { data: oldContract } = await supabase
-    .from('contracts')
-    .select('deposit_amount, contract_images')
-    .eq('id', input.contractId)
-    .single()
-
-  const finalImages = input.contractImages && input.contractImages.length > 0
-    ? input.contractImages
-    : (oldContract?.contract_images || [])
+  const existingImages = await getContractImagesById(input.contractId)
+  const finalImages = replaceContractImagesForRoomChange(existingImages, input.contractImages)
   if (finalImages.length === 0) {
     return { error: 'Bắt buộc phải có ít nhất một ảnh hợp đồng' }
   }
 
-  // 1. Kết thúc hợp đồng cũ tại ngày chuyển phòng
-  await supabase
+  const { data: currentContract, error: currentContractError } = await supabase
     .from('contracts')
-    .update({ status: 'terminated', end_date: input.moveInIso })
+    .select('id, deposit_amount, room_id, contract_code')
+    .eq('id', input.contractId)
+    .single()
+
+  if (currentContractError || !currentContract) {
+    return { error: 'Không tìm thấy hợp đồng hiện tại để đổi phòng' }
+  }
+
+  const historicalUpdate = buildExpiredHistoricalContractUpdate({
+    moveInIso: input.moveInIso,
+    endIso: input.moveInIso,
+  })
+
+  const { error: closeError } = await supabase
+    .from('contracts')
+    .update({
+      ...historicalUpdate,
+      room_id: currentContract.room_id,
+    })
     .eq('id', input.contractId)
 
-  // 2. Tạo hợp đồng mới cho phòng mới
-  const contractCode = `HD-${input.newRoomId}-${input.tenantId}-${Date.now().toString().slice(-4)}`
-  const { error: newContractError } = await supabase
-    .from('contracts')
-    .insert({
-      contract_code: contractCode,
-      tenant_id: input.tenantId,
-      room_id: input.newRoomId,
-      monthly_price: input.monthlyPrice,
-      start_date: input.moveInIso,
-      end_date: input.endIso || null,
-      deposit_amount: oldContract?.deposit_amount ?? 0,
-      status: 'active',
-      contract_images: finalImages,
-    })
+  if (closeError) {
+    console.error('applyRoomChangeViaSupabase – close old contract:', closeError)
+    return { error: 'Không thể đóng hợp đồng phòng cũ' }
+  }
 
-  if (newContractError) {
-    console.error('applyRoomChangeViaSupabase – new contract:', newContractError)
-    if (isContractImagesSchemaCacheError(newContractError)) {
+  const newContractCode = `HD-${input.newRoomId}-${input.tenantId}-${Date.now().toString().slice(-4)}`
+
+  const newContractPayload = buildRoomChangeHistoryPayload({
+    contractCode: newContractCode,
+    tenantId: input.tenantId,
+    newRoomId: input.newRoomId,
+    moveInIso: input.moveInIso,
+    endIso: input.endIso,
+    monthlyPrice: input.monthlyPrice,
+    depositAmount: currentContract.deposit_amount ?? 0,
+    previousImages: existingImages,
+    newImages: input.contractImages,
+  })
+
+  const { error: createError } = await supabase
+    .from('contracts')
+    .insert(newContractPayload)
+
+  if (createError) {
+    console.error('applyRoomChangeViaSupabase – create new contract:', createError)
+    if (isContractImagesSchemaCacheError(createError)) {
       return {
         error:
           'Không thể lưu ảnh hợp đồng. Thêm DATABASE_URL vào .env.local (Supabase → Settings → Database → Connection string, Session pooler).',
@@ -276,8 +298,7 @@ export async function changeTenantRoom(
     return { error: 'Không thể tải hợp đồng của cư dân', status: 400 }
   }
 
-  const activeContract =
-    contractsRows?.find((c) => c.status === 'active') ?? contractsRows?.[0] ?? null
+  const activeContract = getLatestEffectiveContract(contractsRows || [])
 
   if (!activeContract?.id) {
     return { error: 'Không tìm thấy hợp đồng đang hiệu lực để cập nhật', status: 400 }
@@ -388,6 +409,7 @@ export type LeaveRoomReason =
   | 'contract_expired'
   | 'tenant_request'
   | 'early_checkout'
+  | 'abandon_room'
   | 'other'
 
 export async function leaveTenantRoom(
@@ -468,6 +490,7 @@ export async function leaveTenantRoom(
 
   let isEarly = false
   let depositAmount = 0
+  const isAbandon = options?.reason === 'abandon_room'
 
   if (activeContract?.id) {
     depositAmount = activeContract.deposit_amount || 0
@@ -483,7 +506,7 @@ export async function leaveTenantRoom(
       .from('contracts')
       .update({
         end_date: moveOutIso,
-        status: isEarly ? 'terminated' : 'expired',
+        status: isEarly || isAbandon ? 'terminated' : 'expired',
       })
       .eq('id', activeContract.id)
   }
@@ -505,10 +528,12 @@ export async function leaveTenantRoom(
           supabase,
           { userId: sa.id },
           {
-            title: isEarly ? 'Thanh lý trước hạn — Tịch thu cọc' : 'Trả phòng đúng hạn',
-            body: isEarly
-              ? `${tenantUserName} (${roomCode}) đã trả phòng trước hạn. Tiền cọc ${depositAmount.toLocaleString('vi-VN')}đ bị tịch thu.`
-              : `${tenantUserName} (${roomCode}) đã hoàn tất trả phòng đúng hạn hợp đồng.`,
+            title: isAbandon ? 'Cư dân bỏ phòng — Tịch thu cọc' : (isEarly ? 'Thanh lý trước hạn — Tịch thu cọc' : 'Trả phòng đúng hạn'),
+            body: isAbandon
+              ? `${tenantUserName} (${roomCode}) đã bỏ phòng. Tiền cọc ${depositAmount.toLocaleString('vi-VN')}đ bị tịch thu.`
+              : (isEarly
+                  ? `${tenantUserName} (${roomCode}) đã trả phòng trước hạn. Tiền cọc ${depositAmount.toLocaleString('vi-VN')}đ bị tịch thu.`
+                  : `${tenantUserName} (${roomCode}) đã hoàn tất trả phòng đúng hạn hợp đồng.`),
             type: 'contract',
             relatedId: String(tenantId),
           }
@@ -516,20 +541,22 @@ export async function leaveTenantRoom(
       }
     }
 
-    // Manager: Báo lên kiểm tra phòng & lập Form báo cáo hư hỏng
-    const { data: managers } = await supabase.from('users').select('id').eq('role', 'manager')
-    if (managers) {
-      for (const mgr of managers) {
-        await dispatchNotification(
-          supabase,
-          { userId: mgr.id },
-          {
-            title: 'Yêu cầu kiểm tra bàn giao phòng',
-            body: `${tenantUserName} (${roomCode}) đã trả phòng. Vui lòng tiến hành kiểm tra thiết bị & lập Form báo cáo hư hỏng.`,
-            type: 'ticket',
-            relatedId: String(tenantId),
-          }
-        )
+    // Manager: Báo lên kiểm tra phòng & lập Form báo cáo hư hỏng (bỏ qua nếu là Bỏ phòng)
+    if (!isAbandon) {
+      const { data: managers } = await supabase.from('users').select('id').eq('role', 'manager')
+      if (managers) {
+        for (const mgr of managers) {
+          await dispatchNotification(
+            supabase,
+            { userId: mgr.id },
+            {
+              title: 'Yêu cầu kiểm tra bàn giao phòng',
+              body: `${tenantUserName} (${roomCode}) đã trả phòng. Vui lòng tiến hành kiểm tra thiết bị & lập Form báo cáo hư hỏng.`,
+              type: 'ticket',
+              relatedId: String(tenantId),
+            }
+          )
+        }
       }
     }
   } catch (notifErr) {

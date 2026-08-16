@@ -201,7 +201,6 @@ export function ContractImages({
           </div>
         </div>
       </CardHeader>
-
       <CardContent className="p-6">
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           {/* CỘT 1: HỢP ĐỒNG HIỆN TẠI (MỚI) */}

@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server'
+import { getLatestEffectiveContract } from '@/lib/contract-selection'
 import { verifyRole } from '@/lib/rbac'
 
 export async function POST() {
@@ -38,8 +39,8 @@ export async function POST() {
     }
 
     // 2. Tìm hợp đồng active
-    const contracts = (tenant.contracts ?? []) as Array<{ id: number; status: string }>
-    const activeContract = contracts.find(c => c.status === 'active')
+    const contracts = (tenant.contracts ?? []) as Array<{ id: number; status: string; start_date?: string | null; end_date?: string | null }>
+    const activeContract = getLatestEffectiveContract(contracts)
 
     if (!activeContract) {
       // Kiểm tra xem đã có yêu cầu trả phòng chưa
@@ -129,9 +130,9 @@ export async function POST() {
             supabase,
             { userId: mgr.id },
             {
-              title: 'Yêu cầu kiểm tra trả phòng',
-              body: `${tenantUserName} (${roomCode}) vừa gửi yêu cầu trả phòng. Vui lòng tiến hành kiểm tra & lập báo cáo.`,
-              type: 'ticket',
+              title: 'Yêu cầu trả phòng mới',
+              body: `${tenantUserName} (${roomCode}) vừa gửi yêu cầu trả phòng. Vui lòng xác nhận yêu cầu để hệ thống xử lý khi hợp đồng hết hạn.`,
+              type: 'contract',
               relatedId: String(tenant.id),
             }
           )
@@ -144,7 +145,7 @@ export async function POST() {
     return NextResponse.json({
       success: true,
       checkoutRequestId: checkoutRequest?.id,
-      message: 'Yêu cầu trả phòng đã được ghi nhận. Quản lý sẽ sớm đến kiểm tra phòng và hoàn tất thủ tục cho bạn.',
+      message: 'Yêu cầu trả phòng đã được ghi nhận. Quản lý sẽ xác nhận yêu cầu và hệ thống sẽ xử lý khi hợp đồng hết hạn.',
     })
   } catch (error: unknown) {
     const msg = error instanceof Error ? error.message : String(error)

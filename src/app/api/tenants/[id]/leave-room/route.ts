@@ -2,7 +2,7 @@ import { NextResponse, type NextRequest } from 'next/server'
 import { verifyRole } from '@/lib/rbac'
 import { leaveTenantRoom, type LeaveRoomReason } from '@/lib/tenant-room-operations'
 
-const VALID_REASONS: LeaveRoomReason[] = ['contract_expired', 'tenant_request', 'other']
+const VALID_REASONS: LeaveRoomReason[] = ['contract_expired', 'tenant_request', 'abandon_room', 'other']
 
 export async function POST(
   request: NextRequest,

@@ -8,7 +8,6 @@ import { ArrowLeft, User, MapPin, FileText, Car } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { ContractImages, type ContractInfo } from '@/components/shared/ContractImages'
 import { getContractImagesById } from '@/lib/contracts'
-import { SettlementButton } from './SettlementButton'
 
 export default async function TenantDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
@@ -41,7 +40,7 @@ export default async function TenantDetailPage({ params }: { params: Promise<{ i
     .single()
 
   if (error || !tenant) {
-    console.error('Tenant fetch error for id', id, ':', error);
+    console.error('Tenant fetch error for id', id, ':', error)
     notFound()
   }
 
@@ -64,19 +63,6 @@ export default async function TenantDetailPage({ params }: { params: Promise<{ i
     allContracts.find((c) =>
       ['active', 'pending_checkout', 'inspection', 'pending_settlement'].includes(c.status)
     ) ?? allContracts[0] ?? null
-
-  let pendingCheckoutRequest = null
-  if (activeContractRaw?.id) {
-    const { data: requestData } = await adminSupabase
-      .from('checkout_requests')
-      .select('*')
-      .eq('contract_id', activeContractRaw.id)
-      .order('created_at', { ascending: false })
-      .limit(1)
-      .maybeSingle()
-    
-    pendingCheckoutRequest = requestData
-  }
 
   let activeImages: string[] = []
   if (activeContractRaw?.id) {
@@ -162,25 +148,12 @@ export default async function TenantDetailPage({ params }: { params: Promise<{ i
               <div>
                 <p className="text-sm text-muted-foreground">Trạng thái</p>
                 <div className="flex flex-col gap-2">
-                  <Badge variant={tenant.move_out_date ? 'secondary' : 'default'} className={!tenant.move_out_date ? 'bg-green-600 w-fit' : 'w-fit'}>
-                    {tenant.move_out_date ? 'Đã trả phòng' : 'Đang thuê'}
+                  <Badge
+                    variant={tenant.user?.status === 'locked' || tenant.user?.status === 'blocked' ? 'secondary' : 'default'}
+                    className={tenant.user?.status === 'locked' || tenant.user?.status === 'blocked' ? 'w-fit' : 'bg-green-600 w-fit'}
+                  >
+                    {tenant.user?.status === 'locked' || tenant.user?.status === 'blocked' ? 'Khóa' : 'Đang ở'}
                   </Badge>
-                  {pendingCheckoutRequest && (
-                    <Badge variant="outline" className="w-fit text-orange-600 border-orange-200 bg-orange-50">
-                      Tiến trình trả phòng: {
-                        pendingCheckoutRequest.status === 'requested' ? 'Chờ kiểm tra' :
-                        pendingCheckoutRequest.status === 'inspecting' ? 'Đã KT - Chờ Quyết Toán' :
-                        pendingCheckoutRequest.status === 'pending_tenant_confirmation' ? 'Chờ KH xác nhận' :
-                        pendingCheckoutRequest.status === 'completed' ? 'Đã hoàn tất' :
-                        pendingCheckoutRequest.status === 'disputed' ? 'KH khiếu nại' : pendingCheckoutRequest.status
-                      }
-                    </Badge>
-                  )}
-                  {pendingCheckoutRequest?.status === 'inspecting' && (
-                    <div className="mt-1">
-                      <SettlementButton checkoutRequestId={pendingCheckoutRequest.id} />
-                    </div>
-                  )}
                 </div>
               </div>
               <div>
@@ -225,6 +198,28 @@ export default async function TenantDetailPage({ params }: { params: Promise<{ i
                     ? new Date(activeContractRaw.end_date).toLocaleDateString('vi-VN')
                     : '---'}
                 </p>
+              </div>
+              <div className="col-span-2 pt-2 border-t">
+                <div className="flex items-center justify-between mb-2">
+                  <p className="text-sm text-muted-foreground">Hợp đồng hiện hành</p>
+                  <span className="rounded-full bg-emerald-100 px-2 py-1 text-[10px] font-medium text-emerald-700">
+                    Mới nhất
+                  </span>
+                </div>
+                <div className="rounded-md border bg-emerald-50/50 p-3 text-sm">
+                  <div className="flex justify-between gap-3">
+                    <span className="text-muted-foreground">Mã HĐ</span>
+                    <span className="font-medium">#{activeContractRaw?.id || '---'}</span>
+                  </div>
+                  <div className="mt-1 flex justify-between gap-3">
+                    <span className="text-muted-foreground">Phòng</span>
+                    <span className="font-medium">{activeContractRaw?.room_id ? `Phòng ${activeContractRaw.room?.room_code || activeContractRaw.room_id}` : '---'}</span>
+                  </div>
+                  <div className="mt-1 flex justify-between gap-3">
+                    <span className="text-muted-foreground">Trạng thái</span>
+                    <span className="font-medium capitalize">{activeContractRaw?.status || '---'}</span>
+                  </div>
+                </div>
               </div>
               <div className="col-span-2 flex items-center gap-2 pt-1 border-t">
                 <Car className="h-4 w-4 text-muted-foreground shrink-0" />
