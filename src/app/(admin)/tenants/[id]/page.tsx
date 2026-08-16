@@ -6,10 +6,8 @@ import { Badge } from '@/components/ui/badge'
 import Link from 'next/link'
 import { ArrowLeft, User, MapPin, FileText, Car } from 'lucide-react'
 import { Button } from '@/components/ui/button'
-import { ContractImages } from '@/components/shared/ContractImages'
-import { HistoricalContractGallery } from '@/components/shared/HistoricalContractGallery'
+import { ContractImages, type ContractInfo } from '@/components/shared/ContractImages'
 import { getContractImagesById } from '@/lib/contracts'
-import { getLatestEffectiveContract } from '@/lib/contract-selection'
 
 export default async function TenantDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
@@ -25,7 +23,7 @@ export default async function TenantDetailPage({ params }: { params: Promise<{ i
     .select(`
       *,
       user:users(*),
-      room:rooms(id, room_code, base_price, vehicle_count),
+      room:rooms(id, room_code, floor, base_price, vehicle_count),
       invoices(id, invoice_code, total_amount, payment_status, issued_at),
       contracts(
         id,
@@ -34,71 +32,85 @@ export default async function TenantDetailPage({ params }: { params: Promise<{ i
         start_date,
         end_date,
         room_id,
-        room:rooms(room_code)
+        contract_images,
+        room:rooms(id, room_code, floor)
       )
     `)
     .eq('id', id)
     .single()
 
-  interface ContractData {
-    id: string;
-    status: string;
-    contract_images?: string[];
-    deposit_amount?: number;
-    start_date?: string | null;
-    end_date?: string | null;
-    room_id?: number | null;
-    room?: {
-      room_code?: string | null;
-    } | null;
-  }
-
-  const allContracts = (tenant?.contracts as unknown as ContractData[]) || []
-  const sortedContracts = [...allContracts].sort((a, b) => {
-    const dateA = a.start_date ? new Date(a.start_date).getTime() : 0
-    const dateB = b.start_date ? new Date(b.start_date).getTime() : 0
-    return dateB - dateA
-  })
-  const activeContract = getLatestEffectiveContract(sortedContracts)
-  const historicalContracts = activeContract
-    ? sortedContracts.filter((contract) => String(contract.id) !== String(activeContract.id))
-    : sortedContracts
-
   if (error || !tenant) {
-    console.error('Tenant fetch error for id', id, ':', error);
+    console.error('Tenant fetch error for id', id, ':', error)
     notFound()
   }
 
-  let initialImages: string[] = []
-  if (activeContract?.id) {
+  interface ContractData {
+    id: number | string
+    status: string
+    contract_images?: string[]
+    deposit_amount?: number | null
+    start_date?: string | null
+    end_date?: string | null
+    room_id?: number | null
+    room?: { id?: number; room_code?: string; floor?: number | string } | null
+  }
+
+  const allContracts = ((tenant.contracts as unknown as ContractData[]) || []).sort(
+    (a, b) => Number(b.id) - Number(a.id)
+  )
+
+  const activeContractRaw =
+    allContracts.find((c) =>
+      ['active', 'pending_checkout', 'inspection', 'pending_settlement'].includes(c.status)
+    ) ?? allContracts[0] ?? null
+
+  let activeImages: string[] = []
+  if (activeContractRaw?.id) {
     try {
-      initialImages = await getContractImagesById(Number(activeContract.id))
+      activeImages = await getContractImagesById(Number(activeContractRaw.id))
     } catch (contractError) {
       console.error('Tenant detail contract images fetch error for id', id, ':', contractError)
+      activeImages = Array.isArray(activeContractRaw.contract_images)
+        ? activeContractRaw.contract_images
+        : []
     }
   }
 
-  const historicalContractGallery = await Promise.all(
-    historicalContracts.map(async (contract) => {
-      try {
-        const images = Number(contract.id) ? await getContractImagesById(Number(contract.id)) : []
-        return {
-          id: contract.id,
-          roomCode: contract.room?.room_code ?? null,
-          startDate: contract.start_date ?? null,
-          endDate: contract.end_date ?? null,
-          images,
-        }
-      } catch {
-        return {
-          id: contract.id,
-          roomCode: contract.room?.room_code ?? null,
-          startDate: contract.start_date ?? null,
-          endDate: contract.end_date ?? null,
-          images: [],
-        }
+  const activeContractFormatted: ContractInfo | null = activeContractRaw
+    ? {
+        contractId: Number(activeContractRaw.id),
+        roomId: activeContractRaw.room_id ?? tenant.room?.id,
+        roomCode: activeContractRaw.room?.room_code ?? tenant.room?.room_code,
+        floor: activeContractRaw.room?.floor ?? tenant.room?.floor,
+        startDate: activeContractRaw.start_date ?? tenant.move_in_date,
+        endDate: activeContractRaw.end_date,
+        status: activeContractRaw.status,
+        images: activeImages,
       }
-    })
+    : null
+
+  // Hợp đồng cũ (các hợp đồng trước đó của khách thuê)
+  const oldContractsFormatted: ContractInfo[] = await Promise.all(
+    allContracts
+      .filter((c) => String(c.id) !== String(activeContractRaw?.id))
+      .map(async (c) => {
+        let oldImages: string[] = []
+        try {
+          oldImages = await getContractImagesById(Number(c.id))
+        } catch {
+          oldImages = Array.isArray(c.contract_images) ? c.contract_images : []
+        }
+        return {
+          contractId: Number(c.id),
+          roomId: c.room_id ?? undefined,
+          roomCode: c.room?.room_code,
+          floor: c.room?.floor,
+          startDate: c.start_date,
+          endDate: c.end_date,
+          status: c.status,
+          images: oldImages,
+        }
+      })
   )
 
   return (
@@ -173,7 +185,7 @@ export default async function TenantDetailPage({ params }: { params: Promise<{ i
               </div>
               <div>
                 <p className="text-sm text-muted-foreground">Tiền cọc</p>
-                <p className="font-medium">{activeContract?.deposit_amount?.toLocaleString('vi-VN') || '0'} đ</p>
+                <p className="font-medium">{activeContractRaw?.deposit_amount?.toLocaleString('vi-VN') || '0'} đ</p>
               </div>
               <div>
                 <p className="text-sm text-muted-foreground">Ngày chuyển vào</p>
@@ -182,8 +194,8 @@ export default async function TenantDetailPage({ params }: { params: Promise<{ i
               <div>
                 <p className="text-sm text-muted-foreground">Ngày hết hạn hợp đồng</p>
                 <p className="font-medium">
-                  {activeContract?.end_date
-                    ? new Date(activeContract.end_date).toLocaleDateString('vi-VN')
+                  {activeContractRaw?.end_date
+                    ? new Date(activeContractRaw.end_date).toLocaleDateString('vi-VN')
                     : '---'}
                 </p>
               </div>
@@ -197,29 +209,18 @@ export default async function TenantDetailPage({ params }: { params: Promise<{ i
                 <div className="rounded-md border bg-emerald-50/50 p-3 text-sm">
                   <div className="flex justify-between gap-3">
                     <span className="text-muted-foreground">Mã HĐ</span>
-                    <span className="font-medium">#{activeContract?.id || '---'}</span>
+                    <span className="font-medium">#{activeContractRaw?.id || '---'}</span>
                   </div>
                   <div className="mt-1 flex justify-between gap-3">
                     <span className="text-muted-foreground">Phòng</span>
-                    <span className="font-medium">{activeContract?.room_id ? `Phòng ${activeContract.room?.room_code || activeContract.room_id}` : '---'}</span>
+                    <span className="font-medium">{activeContractRaw?.room_id ? `Phòng ${activeContractRaw.room?.room_code || activeContractRaw.room_id}` : '---'}</span>
                   </div>
                   <div className="mt-1 flex justify-between gap-3">
                     <span className="text-muted-foreground">Trạng thái</span>
-                    <span className="font-medium capitalize">{activeContract?.status || '---'}</span>
+                    <span className="font-medium capitalize">{activeContractRaw?.status || '---'}</span>
                   </div>
                 </div>
               </div>
-              {historicalContracts.length > 0 && (
-                <div className="col-span-2 pt-2">
-                  <div className="flex items-center justify-between mb-2">
-                    <p className="text-sm text-muted-foreground">Lịch sử hợp đồng cũ</p>
-                    <span className="rounded-full bg-gray-100 px-2 py-1 text-[10px] font-medium text-gray-700">
-                      {historicalContracts.length} hợp đồng
-                    </span>
-                  </div>
-                  <HistoricalContractGallery contracts={historicalContractGallery} />
-                </div>
-              )}
               <div className="col-span-2 flex items-center gap-2 pt-1 border-t">
                 <Car className="h-4 w-4 text-muted-foreground shrink-0" />
                 <div>
@@ -281,12 +282,15 @@ export default async function TenantDetailPage({ params }: { params: Promise<{ i
           </CardContent>
         </Card>
 
-        {/* Component Quản lý Ảnh Hợp đồng */}
+        {/* Component Quản lý Ảnh Hợp đồng: 2 Cột (Mới / Cũ) */}
         {tenant.room?.id && (
           <ContractImages 
             tenantId={tenant.id} 
-            roomId={tenant.room.id} 
-            initialImages={initialImages} 
+            currentRoomId={tenant.room.id}
+            currentRoomCode={tenant.room.room_code}
+            currentRoomFloor={tenant.room.floor}
+            activeContract={activeContractFormatted}
+            oldContracts={oldContractsFormatted}
           />
         )}
       </div>

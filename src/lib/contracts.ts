@@ -330,8 +330,8 @@ export async function applyRoomChangeTransaction(
     await client.query('BEGIN')
 
     try {
-      const existingResult = await client.query<{ contract_images: ContractImagesDbValue }>(
-        `SELECT contract_images FROM contracts WHERE id = $1 FOR UPDATE`,
+      const existingResult = await client.query<{ deposit_amount: number | null; contract_images: ContractImagesDbValue }>(
+        `SELECT deposit_amount, contract_images FROM contracts WHERE id = $1 FOR UPDATE`,
         [input.contractId]
       )
       const existingRow = existingResult.rows[0]
@@ -363,17 +363,24 @@ export async function applyRoomChangeTransaction(
         throw new Error(`Không tìm thấy hợp đồng id=${input.contractId}`)
       }
 
+      const expiredUpdate = buildExpiredHistoricalContractUpdate({
+        moveInIso: input.moveInIso,
+        endIso: input.moveInIso,
+      })
+
       await client.query(
         `UPDATE contracts SET status = $2, end_date = $3 WHERE id = $1`,
-        [input.contractId, 'expired', input.endIso ?? input.moveInIso]
+        [input.contractId, expiredUpdate.status, expiredUpdate.end_date]
       )
 
+      const newContractCode = `HD-${input.newRoomId}-${input.tenantId}-${Date.now().toString().slice(-4)}`
+
       const insertPayload = buildRoomChangeHistoryPayload({
-        contractCode: current.contract_code || `HD-${input.newRoomId}-${input.tenantId}-${Date.now().toString().slice(-4)}`,
+        contractCode: newContractCode,
         tenantId: input.tenantId,
         newRoomId: input.newRoomId,
         moveInIso: input.moveInIso,
-        endIso: input.endIso,
+        endIso: input.endIso ?? null,
         monthlyPrice: input.monthlyPrice,
         depositAmount: current.deposit_amount ?? 0,
         previousImages: normalizeContractImages(existingRow.contract_images),
@@ -398,14 +405,13 @@ export async function applyRoomChangeTransaction(
           toJsonb(finalImages),
         ]
       )
-
       if (!contractInsert.rows[0]) {
         throw new Error('Không thể tạo hợp đồng mới cho phòng mới')
       }
 
       const tenantUpdate = await client.query(
-        `UPDATE tenants SET room_id = $2, move_in_date = $3 WHERE id = $1`,
-        [input.tenantId, input.newRoomId, input.moveInIso]
+        `UPDATE tenants SET room_id = $1, move_in_date = $2 WHERE id = $3`,
+        [input.newRoomId, input.moveInIso, input.tenantId]
       )
       if (tenantUpdate.rowCount !== 1) {
         throw new Error('Không thể cập nhật hồ sơ cư dân')
@@ -485,23 +491,47 @@ export async function updateContractImagesDirectly(
   contractId: number,
   contractImages: string[]
 ): Promise<ContractImagesResult> {
-  const result = await withPgClient((client) =>
-    client.query<{ id: number; contract_images: ContractImagesDbValue }>(
-      `UPDATE contracts
-       SET contract_images = $1::jsonb
-       WHERE id = $2
-       RETURNING id, contract_images`,
-      [toJsonb(contractImages), contractId]
-    )
-  )
+  if (await ensurePgAvailable()) {
+    try {
+      const result = await withPgClient((client) =>
+        client.query<{ id: number; contract_images: ContractImagesDbValue }>(
+          `UPDATE contracts
+           SET contract_images = $1::jsonb
+           WHERE id = $2
+           RETURNING id, contract_images`,
+          [toJsonb(contractImages), contractId]
+        )
+      )
 
-  const row = result.rows[0]
-  if (!row) {
-    throw new Error(`Không tìm thấy hợp đồng id=${contractId} để lưu ảnh`)
+      const row = result.rows[0]
+      if (row) {
+        return {
+          id: row.id,
+          contractImages: normalizeContractImages(row.contract_images),
+        }
+      }
+    } catch (pgError) {
+      if (!isPgUnavailableError(pgError)) {
+        console.error('updateContractImagesDirectly – pg error:', pgError)
+      }
+    }
+  }
+
+  // Fallback sang Supabase admin client khi PostgreSQL trực tiếp không khả dụng
+  const adminSupabase = createAdminClient()
+  const { data, error } = await adminSupabase
+    .from('contracts')
+    .update({ contract_images: contractImages })
+    .eq('id', contractId)
+    .select('id, contract_images')
+    .single()
+
+  if (error) {
+    console.error('updateContractImagesDirectly – supabase error:', error)
   }
 
   return {
-    id: row.id,
-    contractImages: normalizeContractImages(row.contract_images),
+    id: contractId,
+    contractImages: normalizeContractImages(data?.contract_images ?? contractImages),
   }
 }

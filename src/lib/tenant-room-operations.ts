@@ -138,7 +138,7 @@ async function applyRoomChangeViaSupabase(
 
   const historicalUpdate = buildExpiredHistoricalContractUpdate({
     moveInIso: input.moveInIso,
-    endIso: input.endIso,
+    endIso: input.moveInIso,
   })
 
   const { error: closeError } = await supabase
@@ -154,8 +154,10 @@ async function applyRoomChangeViaSupabase(
     return { error: 'Không thể đóng hợp đồng phòng cũ' }
   }
 
+  const newContractCode = `HD-${input.newRoomId}-${input.tenantId}-${Date.now().toString().slice(-4)}`
+
   const newContractPayload = buildRoomChangeHistoryPayload({
-    contractCode: currentContract.contract_code || `HD-${input.newRoomId}-${input.tenantId}-${Date.now().toString().slice(-4)}`,
+    contractCode: newContractCode,
     tenantId: input.tenantId,
     newRoomId: input.newRoomId,
     moveInIso: input.moveInIso,

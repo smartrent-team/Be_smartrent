@@ -3,9 +3,13 @@ import { verifyRole } from '@/lib/rbac'
 
 export async function POST(req: Request) {
   try {
-    const auth = await verifyRole(['super_admin'])
+    const auth = await verifyRole()
     if (auth.error || !auth.user || !auth.dbUserId) {
       return NextResponse.json({ error: auth.error || 'Chưa xác thực' }, { status: auth.status || 401 })
+    }
+
+    if (auth.role !== 'super_admin') {
+      return NextResponse.json({ error: 'Không có quyền thực hiện' }, { status: 403 })
     }
 
     const supabase = auth.supabase!
