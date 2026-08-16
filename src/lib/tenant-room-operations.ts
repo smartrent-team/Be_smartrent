@@ -1,4 +1,5 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
+import { getLatestEffectiveContract } from './contract-selection'
 import { normalizeCalendarDateToUtcIso, todayVietnamCalendarUtcIso } from './date-utils'
 import {
   applyRoomChangeTransaction,
@@ -6,8 +7,12 @@ import {
   getContractImagesById,
   isContractImagesSchemaCacheError,
   isPgUnavailableError,
-  mergeContractImages,
 } from './contracts'
+import {
+  buildExpiredHistoricalContractUpdate,
+  buildRoomChangeHistoryPayload,
+  replaceContractImagesForRoomChange,
+} from './contract-images'
 
 type AuthContext = {
   role: 'super_admin' | 'manager' | 'tenant'
@@ -116,33 +121,64 @@ async function applyRoomChangeViaSupabase(
   input: RoomChangeTxInput
 ): Promise<{ error?: string }> {
   const existingImages = await getContractImagesById(input.contractId)
-  const mergedImages = mergeContractImages(existingImages, input.contractImages)
-  if (mergedImages.length === 0) {
+  const finalImages = replaceContractImagesForRoomChange(existingImages, input.contractImages)
+  if (finalImages.length === 0) {
     return { error: 'Bắt buộc phải có ít nhất một ảnh hợp đồng' }
   }
 
-  const contractPayload: Record<string, unknown> = {
-    room_id: input.newRoomId,
-    monthly_price: input.monthlyPrice,
-    start_date: input.moveInIso,
-    contract_images: mergedImages,
-  }
-  if (input.endIso) contractPayload.end_date = input.endIso
-
-  const { error: contractError } = await supabase
+  const { data: currentContract, error: currentContractError } = await supabase
     .from('contracts')
-    .update(contractPayload)
+    .select('id, deposit_amount, room_id, contract_code')
+    .eq('id', input.contractId)
+    .single()
+
+  if (currentContractError || !currentContract) {
+    return { error: 'Không tìm thấy hợp đồng hiện tại để đổi phòng' }
+  }
+
+  const historicalUpdate = buildExpiredHistoricalContractUpdate({
+    moveInIso: input.moveInIso,
+    endIso: input.endIso,
+  })
+
+  const { error: closeError } = await supabase
+    .from('contracts')
+    .update({
+      ...historicalUpdate,
+      room_id: currentContract.room_id,
+    })
     .eq('id', input.contractId)
 
-  if (contractError) {
-    console.error('applyRoomChangeViaSupabase – contract:', contractError)
-    if (isContractImagesSchemaCacheError(contractError)) {
+  if (closeError) {
+    console.error('applyRoomChangeViaSupabase – close old contract:', closeError)
+    return { error: 'Không thể đóng hợp đồng phòng cũ' }
+  }
+
+  const newContractPayload = buildRoomChangeHistoryPayload({
+    contractCode: currentContract.contract_code || `HD-${input.newRoomId}-${input.tenantId}-${Date.now().toString().slice(-4)}`,
+    tenantId: input.tenantId,
+    newRoomId: input.newRoomId,
+    moveInIso: input.moveInIso,
+    endIso: input.endIso,
+    monthlyPrice: input.monthlyPrice,
+    depositAmount: currentContract.deposit_amount ?? 0,
+    previousImages: existingImages,
+    newImages: input.contractImages,
+  })
+
+  const { error: createError } = await supabase
+    .from('contracts')
+    .insert(newContractPayload)
+
+  if (createError) {
+    console.error('applyRoomChangeViaSupabase – create new contract:', createError)
+    if (isContractImagesSchemaCacheError(createError)) {
       return {
         error:
           'Không thể lưu ảnh hợp đồng. Thêm DATABASE_URL vào .env.local (Supabase → Settings → Database → Connection string, Session pooler).',
       }
     }
-    return { error: 'Không thể cập nhật hợp đồng' }
+    return { error: 'Không thể tạo hợp đồng mới cho phòng mới' }
   }
 
   const { error: tenantError } = await supabase
@@ -260,8 +296,7 @@ export async function changeTenantRoom(
     return { error: 'Không thể tải hợp đồng của cư dân', status: 400 }
   }
 
-  const activeContract =
-    contractsRows?.find((c) => c.status === 'active') ?? contractsRows?.[0] ?? null
+  const activeContract = getLatestEffectiveContract(contractsRows || [])
 
   if (!activeContract?.id) {
     return { error: 'Không tìm thấy hợp đồng đang hiệu lực để cập nhật', status: 400 }

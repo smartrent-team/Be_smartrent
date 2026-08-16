@@ -2,6 +2,7 @@ import { NextResponse, type NextRequest } from 'next/server'
 import { verifyRole } from '@/lib/rbac'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { getContractImagesById } from '@/lib/contracts'
+import { getLatestEffectiveContract } from '@/lib/contract-selection'
 import { buildCancellationPayload } from '@/lib/contract-cancellation'
 import { toVietnamDateKey } from '@/lib/date-utils'
 
@@ -140,8 +141,10 @@ export async function GET(
     }
 
     const tenantRow = tenant as unknown as TenantRow
+    const tenantUserId = tenantRow.user_id != null ? String(tenantRow.user_id) : null
+    const currentUserId = auth.dbUserId ? String(auth.dbUserId) : null
 
-    if (auth.role === 'tenant' && auth.dbUserId !== tenantRow.user_id) {
+    if (auth.role === 'tenant' && (!tenantUserId || currentUserId !== tenantUserId)) {
       return NextResponse.json({ error: 'Bạn không có quyền xem hợp đồng này' }, { status: 403 })
     }
 
@@ -153,8 +156,7 @@ export async function GET(
     }
 
     const contracts = await loadContractsForTenant(supabase, tenantId)
-    const activeContract =
-      contracts.find((contract) => contract.status === 'active') ?? contracts[0] ?? null
+    const activeContract = getLatestEffectiveContract(contracts)
 
     if (!activeContract) {
       return NextResponse.json(
@@ -166,10 +168,24 @@ export async function GET(
     const room = tenantRow.room
     const branchName = room?.branch?.name || 'Chưa phân chi nhánh'
     const roomCode = room?.room_code || 'N/A'
-    const contractImages = await getContractImagesById(activeContract.id)
-    const cancellationRequest = buildCancellationPayload(
-      activeContract as Parameters<typeof buildCancellationPayload>[0]
-    )
+
+    let contractImages: string[] = []
+    try {
+      contractImages = await getContractImagesById(activeContract.id)
+    } catch (imageError) {
+      console.error('[contracts/tenant] failed to load contract images:', imageError)
+      contractImages = []
+    }
+
+    let cancellationRequest = null
+    try {
+      cancellationRequest = buildCancellationPayload(
+        activeContract as Parameters<typeof buildCancellationPayload>[0]
+      )
+    } catch (payloadError) {
+      console.error('[contracts/tenant] failed to build cancellation payload:', payloadError)
+      cancellationRequest = null
+    }
 
     const effectiveStartDate = tenantRow.move_in_date || activeContract.start_date
 

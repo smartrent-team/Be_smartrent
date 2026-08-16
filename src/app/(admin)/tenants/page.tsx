@@ -1,5 +1,6 @@
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
+import { getLatestEffectiveContract } from '@/lib/contract-selection'
 import {
   Table,
   TableBody,
@@ -39,7 +40,7 @@ export default async function TenantsPage({ searchParams }: { searchParams: Prom
   ] = await Promise.all([
     adminSupabase
       .from('tenants')
-      .select('id, move_in_date, move_out_date, room_id, user_id, room:rooms(room_code, branch:branches(name)), user:users!inner(full_name, email, phone, status), contracts(deposit_amount, status)', { count: 'exact' })
+      .select('id, move_in_date, move_out_date, room_id, user_id, room:rooms(room_code, branch:branches(name)), user:users!inner(full_name, email, phone, status), contracts(id, deposit_amount, status, start_date, end_date)', { count: 'exact' })
       .order('created_at', { ascending: false })
       .range(from, to),
     adminSupabase
@@ -60,11 +61,11 @@ export default async function TenantsPage({ searchParams }: { searchParams: Prom
     move_out_date: string | null;
     room?: { room_code: string; branch?: { name: string } | null };
     user?: { full_name: string; email: string; phone: string; status: string | null };
-    contracts?: { deposit_amount: number | null; status: string }[];
+    contracts?: { id?: number | null; deposit_amount: number | null; status: string; start_date?: string | null; end_date?: string | null }[];
   }
 
   const tenants = ((rawTenants as unknown as TenantData[]) || []).map((t) => {
-    const activeContract = t.contracts?.find((c) => c.status === 'active') || t.contracts?.[0]
+    const activeContract = getLatestEffectiveContract(t.contracts || [])
     const userStatus = t.user?.status
     const displayStatus: 'active' | 'locked' = userStatus === 'locked' || userStatus === 'blocked' ? 'locked' : 'active'
     return {

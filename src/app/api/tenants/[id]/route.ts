@@ -1,6 +1,7 @@
 import { NextResponse, type NextRequest } from 'next/server'
 import { getContractImagesById, updateContractImagesDirectly } from '@/lib/contracts'
 import { formatVietnamDateDisplay, normalizeCalendarDateToUtcIso } from '@/lib/date-utils'
+import { getLatestEffectiveContract } from '@/lib/contract-selection'
 import { verifyRole } from '@/lib/rbac'
 
 export async function GET(
@@ -97,8 +98,7 @@ export async function GET(
       .order('id', { ascending: false })
 
     const contracts = contractsData || []
-    const activeContract =
-      contracts.find((c) => c.status === 'active') || contracts[0] || null
+    const activeContract = getLatestEffectiveContract(contracts)
 
     let contractImages: string[] = []
     if (activeContract?.id) {

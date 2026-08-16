@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server'
+import { getLatestEffectiveContract } from '@/lib/contract-selection'
 import { verifyRole } from '@/lib/rbac'
 
 export async function POST() {
@@ -38,8 +39,8 @@ export async function POST() {
     }
 
     // 2. Tìm hợp đồng active
-    const contracts = (tenant.contracts ?? []) as Array<{ id: number; status: string }>
-    const activeContract = contracts.find(c => c.status === 'active')
+    const contracts = (tenant.contracts ?? []) as Array<{ id: number; status: string; start_date?: string | null; end_date?: string | null }>
+    const activeContract = getLatestEffectiveContract(contracts)
 
     if (!activeContract) {
       // Kiểm tra xem đã có yêu cầu trả phòng chưa

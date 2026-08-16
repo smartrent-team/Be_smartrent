@@ -7,7 +7,9 @@ import Link from 'next/link'
 import { ArrowLeft, User, MapPin, FileText, Car } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { ContractImages } from '@/components/shared/ContractImages'
+import { HistoricalContractGallery } from '@/components/shared/HistoricalContractGallery'
 import { getContractImagesById } from '@/lib/contracts'
+import { getLatestEffectiveContract } from '@/lib/contract-selection'
 
 export default async function TenantDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
@@ -25,7 +27,15 @@ export default async function TenantDetailPage({ params }: { params: Promise<{ i
       user:users(*),
       room:rooms(id, room_code, base_price, vehicle_count),
       invoices(id, invoice_code, total_amount, payment_status, issued_at),
-      contracts(id, status, deposit_amount, end_date)
+      contracts(
+        id,
+        status,
+        deposit_amount,
+        start_date,
+        end_date,
+        room_id,
+        room:rooms(room_code)
+      )
     `)
     .eq('id', id)
     .single()
@@ -35,10 +45,24 @@ export default async function TenantDetailPage({ params }: { params: Promise<{ i
     status: string;
     contract_images?: string[];
     deposit_amount?: number;
+    start_date?: string | null;
     end_date?: string | null;
+    room_id?: number | null;
+    room?: {
+      room_code?: string | null;
+    } | null;
   }
 
-  const activeContract = (tenant?.contracts as unknown as ContractData[])?.find((c) => ['active', 'pending_checkout', 'inspection', 'pending_settlement'].includes(c.status))
+  const allContracts = (tenant?.contracts as unknown as ContractData[]) || []
+  const sortedContracts = [...allContracts].sort((a, b) => {
+    const dateA = a.start_date ? new Date(a.start_date).getTime() : 0
+    const dateB = b.start_date ? new Date(b.start_date).getTime() : 0
+    return dateB - dateA
+  })
+  const activeContract = getLatestEffectiveContract(sortedContracts)
+  const historicalContracts = activeContract
+    ? sortedContracts.filter((contract) => String(contract.id) !== String(activeContract.id))
+    : sortedContracts
 
   if (error || !tenant) {
     console.error('Tenant fetch error for id', id, ':', error);
@@ -53,6 +77,29 @@ export default async function TenantDetailPage({ params }: { params: Promise<{ i
       console.error('Tenant detail contract images fetch error for id', id, ':', contractError)
     }
   }
+
+  const historicalContractGallery = await Promise.all(
+    historicalContracts.map(async (contract) => {
+      try {
+        const images = Number(contract.id) ? await getContractImagesById(Number(contract.id)) : []
+        return {
+          id: contract.id,
+          roomCode: contract.room?.room_code ?? null,
+          startDate: contract.start_date ?? null,
+          endDate: contract.end_date ?? null,
+          images,
+        }
+      } catch {
+        return {
+          id: contract.id,
+          roomCode: contract.room?.room_code ?? null,
+          startDate: contract.start_date ?? null,
+          endDate: contract.end_date ?? null,
+          images: [],
+        }
+      }
+    })
+  )
 
   return (
     <div className="flex flex-col gap-6 p-6">
@@ -140,6 +187,39 @@ export default async function TenantDetailPage({ params }: { params: Promise<{ i
                     : '---'}
                 </p>
               </div>
+              <div className="col-span-2 pt-2 border-t">
+                <div className="flex items-center justify-between mb-2">
+                  <p className="text-sm text-muted-foreground">Hợp đồng hiện hành</p>
+                  <span className="rounded-full bg-emerald-100 px-2 py-1 text-[10px] font-medium text-emerald-700">
+                    Mới nhất
+                  </span>
+                </div>
+                <div className="rounded-md border bg-emerald-50/50 p-3 text-sm">
+                  <div className="flex justify-between gap-3">
+                    <span className="text-muted-foreground">Mã HĐ</span>
+                    <span className="font-medium">#{activeContract?.id || '---'}</span>
+                  </div>
+                  <div className="mt-1 flex justify-between gap-3">
+                    <span className="text-muted-foreground">Phòng</span>
+                    <span className="font-medium">{activeContract?.room_id ? `Phòng ${activeContract.room?.room_code || activeContract.room_id}` : '---'}</span>
+                  </div>
+                  <div className="mt-1 flex justify-between gap-3">
+                    <span className="text-muted-foreground">Trạng thái</span>
+                    <span className="font-medium capitalize">{activeContract?.status || '---'}</span>
+                  </div>
+                </div>
+              </div>
+              {historicalContracts.length > 0 && (
+                <div className="col-span-2 pt-2">
+                  <div className="flex items-center justify-between mb-2">
+                    <p className="text-sm text-muted-foreground">Lịch sử hợp đồng cũ</p>
+                    <span className="rounded-full bg-gray-100 px-2 py-1 text-[10px] font-medium text-gray-700">
+                      {historicalContracts.length} hợp đồng
+                    </span>
+                  </div>
+                  <HistoricalContractGallery contracts={historicalContractGallery} />
+                </div>
+              )}
               <div className="col-span-2 flex items-center gap-2 pt-1 border-t">
                 <Car className="h-4 w-4 text-muted-foreground shrink-0" />
                 <div>
