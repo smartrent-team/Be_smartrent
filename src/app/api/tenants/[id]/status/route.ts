@@ -85,6 +85,47 @@ export async function PATCH(request: NextRequest, { params }: { params: Params }
         )
       }
 
+      // Giải phóng phòng nếu không còn ai khác hoạt động
+      if (tenantRow.room_id) {
+        const { data: otherTenants } = await supabase
+          .from('tenants')
+          .select(`
+            id,
+            user_id,
+            user:users(status)
+          `)
+          .eq('room_id', tenantRow.room_id)
+          .is('move_out_date', null)
+          .neq('id', tenantId)
+
+        const activeOtherTenants = (otherTenants || []).filter(t => {
+          const userStatus = t.user ? (t.user as unknown as { status: string }).status : 'active';
+          return userStatus !== 'locked' && userStatus !== 'blocked';
+        })
+
+        if (activeOtherTenants.length === 0) {
+          // Đặt move_out_date cho tất cả cư dân hiện tại của phòng này (bao gồm cả cư dân vừa khóa)
+          await supabase
+            .from('tenants')
+            .update({ move_out_date: now })
+            .eq('room_id', tenantRow.room_id)
+            .is('move_out_date', null)
+
+          // Kết thúc các hợp đồng đang hoạt động trong phòng này
+          await supabase
+            .from('contracts')
+            .update({ status: 'ended', end_date: now })
+            .eq('room_id', tenantRow.room_id)
+            .eq('status', 'active')
+
+          // Đặt trạng thái phòng thành available (phòng trống)
+          await supabase
+            .from('rooms')
+            .update({ status: 'available' })
+            .eq('id', tenantRow.room_id)
+        }
+      }
+
       return NextResponse.json({ success: true, message: 'Đã khóa tài khoản cư dân' })
     }
 

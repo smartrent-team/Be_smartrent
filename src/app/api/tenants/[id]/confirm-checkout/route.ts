@@ -1,4 +1,5 @@
 import { NextResponse, type NextRequest } from 'next/server'
+import { getCheckoutPaymentBlock, sendCheckoutPaymentReminder } from '@/lib/checkout-payment-guard'
 import { verifyRole } from '@/lib/rbac'
 
 export async function POST(
@@ -68,6 +69,20 @@ export async function POST(
 
     if (!checkoutReq) {
       return NextResponse.json({ error: 'Không tìm thấy yêu cầu trả phòng đang chờ xác nhận.' }, { status: 404 })
+    }
+
+    if (tenantRow.room_id) {
+      const paymentBlock = await getCheckoutPaymentBlock(supabase, tenantId, tenantRow.room_id)
+      if (paymentBlock.isBlocked) {
+        await sendCheckoutPaymentReminder(supabase, tenantId, tenantRow.room_id, paymentBlock)
+        return NextResponse.json({
+          error: 'Phòng chỉ còn cư dân này nhưng vẫn còn hóa đơn chưa thanh toán. Vui lòng yêu cầu cư dân thanh toán trước khi xác nhận trả phòng.',
+          paymentBlocked: true,
+          unpaidInvoiceCount: paymentBlock.unpaidInvoiceCount,
+          unpaidInvoiceTotal: paymentBlock.unpaidInvoiceTotal,
+          latestInvoiceCode: paymentBlock.latestInvoiceCode,
+        }, { status: 409 })
+      }
     }
 
     // 4. Cập nhật checkout_request thành 'confirmed'

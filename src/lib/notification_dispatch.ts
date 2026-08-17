@@ -37,6 +37,16 @@ async function fetchRecipientTokens(
     .filter((token: string, index: number, tokens: string[]) => token && tokens.indexOf(token) === index)
 }
 
+async function removeStaleDeviceToken(
+  supabase: SupabaseClient,
+  token: string
+): Promise<void> {
+  const { error } = await supabase.from('device_tokens').delete().eq('token', token)
+  if (error) {
+    console.warn('[notification_dispatch] Không thể xóa token FCM hết hạn:', error.message)
+  }
+}
+
 /**
  * Map type tự do → giá trị an toàn để tránh lỗi enum trên DB cũ.
  * Sau khi chạy migration 16 (type thành TEXT), hàm này vẫn hoạt động bình thường.
@@ -164,11 +174,14 @@ export async function dispatchNotification(
 
   let delivered = 0
   for (const token of tokens) {
-    try {
-      await sendPushNotification(token, payload.title, payload.body, pushData)
+    const result = await sendPushNotification(token, payload.title, payload.body, pushData)
+    if (result.ok) {
       delivered += 1
-    } catch (error) {
-      console.error('Push notification failed for token:', token, error)
+      continue
+    }
+
+    if (result.staleToken) {
+      await removeStaleDeviceToken(supabase, token)
     }
   }
 

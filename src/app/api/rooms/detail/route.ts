@@ -108,6 +108,7 @@ export async function GET(request: NextRequest) {
         checkInDate: t.move_in_date,
         checkOutDate: t.move_out_date,
         contractStatus: activeContract?.status ?? 'none',
+        userStatus:  t.user?.status ?? 'active',
       }
     })
 
@@ -196,7 +197,7 @@ export async function GET(request: NextRequest) {
         fixedServiceCost: pricing?.fixedServiceCost ?? 0,
         fixedServices:    pricing?.fixedServices    ?? [],
         vehicleCount: room.vehicle_count ?? 0,
-        status:   room.status,
+        status:   activeTenants.length === 0 && ['occupied', 'pending_checkout'].includes(room.status) ? 'available' : room.status,
         tenant:   tenantInfo,
         tenants:  tenantsListInfo,
         invoices: invoicesList,

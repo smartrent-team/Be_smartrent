@@ -32,7 +32,7 @@ export async function GET(request: NextRequest) {
       .select(`
         *,
         tenants (
-          id, move_in_date, move_out_date, user:users(full_name, phone)
+          id, move_in_date, move_out_date, user:users(full_name, phone, status)
         )
       `, { count: 'exact' })
 
@@ -104,19 +104,20 @@ export async function GET(request: NextRequest) {
     }
 
     // Transform response to match legacy format if needed
-    interface TenantItem {
+     interface TenantItem {
       id: number
       move_in_date: string
       move_out_date: string | null
       user?: {
         full_name: string | null
         phone: string | null
+        status?: string | null
       } | null
     }
 
     const allDocs = (rooms ?? []).map(room => {
       const tenantsList = room.tenants as unknown as TenantItem[] | undefined
-      const activeTenants = tenantsList ? tenantsList.filter(t => !t.move_out_date) : []
+      const activeTenants = tenantsList ? tenantsList.filter(t => !t.move_out_date && !['locked', 'blocked', 'deleted'].includes(t.user?.status ?? '')) : []
       const activeTenant = activeTenants.length > 0 ? activeTenants[0] : null
 
       const tenant = activeTenant ? {
@@ -147,7 +148,7 @@ export async function GET(request: NextRequest) {
         basePrice: room.base_price,
         electricPrice: room.electric_price,
         waterPrice: room.water_price,
-        status: room.status,
+        status: activeTenants.length === 0 && ['occupied', 'pending_checkout'].includes(room.status) ? 'available' : room.status,
         branch: room.branch_id,
         tenant,
         tenants,

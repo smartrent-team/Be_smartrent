@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server'
+import { getCheckoutPaymentBlock, sendCheckoutPaymentReminder } from '@/lib/checkout-payment-guard'
 import { getLatestEffectiveContract } from '@/lib/contract-selection'
 import { verifyRole } from '@/lib/rbac'
 
@@ -72,19 +73,14 @@ export async function POST() {
     }
 
     // 4. Tạo record checkout_request
-    let isEarly = false;
-    const { data: contractData } = await supabase.from('contracts').select('end_date').eq('id', activeContract.id).single();
-    if (contractData && contractData.end_date) {
-        isEarly = new Date() < new Date(contractData.end_date);
-    }
-    
+    // Yêu cầu trả phòng qua app: cư dân ở đến khi hợp đồng hết hạn → không phải trả phòng trước hạn.
     const { data: checkoutRequest, error: reqError } = await supabase
       .from('checkout_requests')
       .insert({
         contract_id: activeContract.id,
         tenant_id: tenant.id,
         room_id: tenant.room_id,
-        is_early: isEarly,
+        is_early: false,
         status: 'requested',
       })
       .select('id')
@@ -93,6 +89,11 @@ export async function POST() {
     if (reqError) {
       console.error('[checkout] Lỗi tạo checkout_request:', reqError)
       // Không return error để không block flow, manager vẫn có thể inspection thông qua contract status
+    }
+
+    const paymentBlock = await getCheckoutPaymentBlock(supabase, tenant.id, tenant.room_id)
+    if (paymentBlock.isBlocked) {
+      await sendCheckoutPaymentReminder(supabase, tenant.id, tenant.room_id, paymentBlock)
     }
 
     // 4. Nếu là người cuối trong phòng, chuyển phòng sang pending_checkout
@@ -145,7 +146,12 @@ export async function POST() {
     return NextResponse.json({
       success: true,
       checkoutRequestId: checkoutRequest?.id,
-      message: 'Yêu cầu trả phòng đã được ghi nhận. Quản lý sẽ xác nhận yêu cầu và hệ thống sẽ xử lý khi hợp đồng hết hạn.',
+      paymentBlocked: paymentBlock.isBlocked,
+      unpaidInvoiceCount: paymentBlock.unpaidInvoiceCount,
+      unpaidInvoiceTotal: paymentBlock.unpaidInvoiceTotal,
+      message: paymentBlock.isBlocked
+        ? 'Yêu cầu trả phòng đã được ghi nhận, nhưng phòng còn hóa đơn chưa thanh toán. Vui lòng thanh toán để quản lý xác nhận trả phòng.'
+        : 'Yêu cầu trả phòng đã được ghi nhận. Quản lý sẽ xác nhận yêu cầu và hệ thống sẽ xử lý khi hợp đồng hết hạn.',
     })
   } catch (error: unknown) {
     const msg = error instanceof Error ? error.message : String(error)

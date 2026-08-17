@@ -1,4 +1,5 @@
 import { NextResponse, type NextRequest } from 'next/server'
+import { getCheckoutPaymentBlock } from '@/lib/checkout-payment-guard'
 import { getContractImagesById, updateContractImagesDirectly } from '@/lib/contracts'
 import { formatVietnamDateDisplay, normalizeCalendarDateToUtcIso } from '@/lib/date-utils'
 import { getLatestEffectiveContract } from '@/lib/contract-selection'
@@ -112,6 +113,10 @@ export async function GET(
     // Lấy trạng thái yêu cầu trả phòng mới nhất
     let checkoutRequestStatus: string | null = null
     let remainingContractDays: number | null = null
+    let checkoutPaymentBlocked = false
+    let checkoutUnpaidInvoiceCount = 0
+    let checkoutUnpaidInvoiceTotal = 0
+    let checkoutLatestUnpaidInvoiceCode: string | null = null
     if (activeContract?.id) {
       const { data: checkoutReq } = await supabase
         .from('checkout_requests')
@@ -128,6 +133,14 @@ export async function GET(
         const endDate = new Date(activeContract.end_date)
         const diffMs = endDate.getTime() - Date.now()
         remainingContractDays = Math.ceil(diffMs / (1000 * 60 * 60 * 24))
+      }
+
+      if (checkoutRequestStatus === 'requested' && tenantRow.room_id) {
+        const paymentBlock = await getCheckoutPaymentBlock(supabase, tenantId, tenantRow.room_id)
+        checkoutPaymentBlocked = paymentBlock.isBlocked
+        checkoutUnpaidInvoiceCount = paymentBlock.unpaidInvoiceCount
+        checkoutUnpaidInvoiceTotal = paymentBlock.unpaidInvoiceTotal
+        checkoutLatestUnpaidInvoiceCode = paymentBlock.latestInvoiceCode
       }
     }
 
@@ -176,6 +189,10 @@ export async function GET(
           activeContractId: activeContract?.id ?? null,
           contractEndDate: activeContract?.end_date ?? null,
           checkoutRequestStatus,
+          checkoutPaymentBlocked,
+          checkoutUnpaidInvoiceCount,
+          checkoutUnpaidInvoiceTotal,
+          checkoutLatestUnpaidInvoiceCode,
           remainingContractDays,
           identityNumber: (() => {
             const raw = tenantRow.identity_number as string | null
