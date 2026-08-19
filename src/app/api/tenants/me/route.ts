@@ -141,18 +141,8 @@ export async function GET() {
       move_out_date: tenant.move_out_date
         ? toVietnamDateKey(tenant.move_out_date) ?? tenant.move_out_date
         : null,
-      // Trạng thái tổng hợp: phản ánh trạng thái hợp đồng hiện tại
-      status: tenant.move_out_date
-        ? 'past'
-        : activeContract?.status === 'pending_liquidation'
-          ? 'pending_liquidation'
-          : activeContract?.status === 'inspection'
-            ? 'inspection'
-            : activeContract?.status === 'pending_settlement'
-              ? 'pending_settlement'
-              : activeContract?.status === 'pending_checkout'
-                ? 'pending_checkout'
-                : 'active',
+      // Trạng thái tổng hợp: chỉ 2 trạng thái — đang ở hoặc đã ra
+      status: tenant.move_out_date ? 'past' : 'active',
       room: roomData ? {
         id: roomData.id,
         room_code: roomData.room_code,

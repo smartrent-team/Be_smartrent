@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/admin'
-import { syncExpiredContractNotifications, syncExpiringContractWarnings } from '@/lib/contract-notification-sync'
+import { processExpiredCheckoutTenants } from '@/lib/auto-lock-expired'
+import { syncExpiredContractNotifications } from '@/lib/contract-notification-sync'
 import { syncOverdueInvoiceNotifications } from '@/lib/invoice-overdue-notification'
 import type { SupabaseClient } from '@supabase/supabase-js'
 
@@ -48,8 +49,8 @@ async function purgeOldNotifications(supabase: SupabaseClient): Promise<{ readDe
  *
  * Việc thực hiện:
  *  1. syncExpiredContractNotifications  — đánh dấu expired + notify
- *  2. syncExpiringContractWarnings      — cảnh báo sắp hết hạn 30d / 7d
- *  3. syncOverdueInvoiceNotifications   — nhắc hóa đơn quá hạn
+ *  2. syncOverdueInvoiceNotifications   — nhắc hóa đơn quá hạn
+ *  3. processExpiredCheckoutTenants     — khóa tài khoản cư dân đã hết hạn HĐ + checkout confirmed
  *  4. purgeOldNotifications             — xóa thông báo cũ hơn 7 ngày
  */
 export async function POST(request: NextRequest) {
@@ -72,22 +73,23 @@ export async function POST(request: NextRequest) {
     results.contractExpired = err instanceof Error ? err.message : String(err)
   }
 
-  // 2. Hợp đồng sắp hết hạn (30d / 7d)
-  try {
-    await syncExpiringContractWarnings(supabase)
-    results.contractExpiring = 'ok'
-  } catch (err) {
-    console.error('[cron] syncExpiringContractWarnings failed:', err)
-    results.contractExpiring = err instanceof Error ? err.message : String(err)
-  }
-
-  // 3. Hóa đơn quá hạn
+  // 2. Hóa đơn quá hạn
   try {
     await syncOverdueInvoiceNotifications(supabase)
     results.invoiceOverdue = 'ok'
   } catch (err) {
     console.error('[cron] syncOverdueInvoiceNotifications failed:', err)
     results.invoiceOverdue = err instanceof Error ? err.message : String(err)
+  }
+
+  // 3. Khóa tài khoản cư dân hết hạn hợp đồng + checkout đã xác nhận
+  try {
+    const { processed, results: lockResults } = await processExpiredCheckoutTenants(supabase)
+    const lockedCount = lockResults.filter((item) => item.action.startsWith('locked')).length
+    results.autoLockExpired = `ok (processed: ${processed}, locked: ${lockedCount})`
+  } catch (err) {
+    console.error('[cron] processExpiredCheckoutTenants failed:', err)
+    results.autoLockExpired = err instanceof Error ? err.message : String(err)
   }
 
   // 4. Dọn thông báo cũ (đã đọc > 7 ngày, chưa đọc > 30 ngày)

@@ -3,7 +3,6 @@ import { verifyRole } from '@/lib/rbac'
 import { createNotificationSchema, formatZodError } from '@/lib/validations'
 import { dispatchNotification } from '@/lib/notification_dispatch'
 import { syncOverdueInvoiceNotifications } from '@/lib/invoice-overdue-notification'
-import { syncExpiringContractWarnings } from '@/lib/contract-notification-sync'
 
 // Cache thời gian sync gần nhất để tránh chạy liên tục mỗi request
 const syncCooldownMs = 60 * 60 * 1000 // 1 giờ
@@ -64,14 +63,6 @@ export async function GET(request: NextRequest) {
         await syncOverdueInvoiceNotifications(supabase)
       } catch (e) {
         console.warn('[notifications GET] syncOverdueInvoiceNotifications warning:', e)
-      }
-    }
-
-    if (shouldSync('expiring_contracts')) {
-      try {
-        await syncExpiringContractWarnings(supabase)
-      } catch (e) {
-        console.warn('[notifications GET] syncExpiringContractWarnings warning:', e)
       }
     }
 

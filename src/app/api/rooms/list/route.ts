@@ -140,7 +140,14 @@ export async function GET(request: NextRequest) {
       const currentTenantCount = activeTenants.length
       const remainingSlots = Math.max(0, maxCapacity - currentTenantCount)
 
-      return {
+        // Normalize status: pending_checkout/cleaning không expose ra ngoài
+        // Dựa vào số tenant thực để xác định: còn người → occupied, hết → available
+        const rawStatus = room.status as string
+        const normalizedStatus = ['pending_checkout', 'cleaning'].includes(rawStatus)
+          ? (activeTenants.length > 0 ? 'occupied' : 'available')
+          : (activeTenants.length === 0 && rawStatus === 'occupied' ? 'available' : rawStatus)
+
+        return {
         id: room.id,
         roomCode: room.room_code,
         floor: room.floor,
@@ -148,7 +155,7 @@ export async function GET(request: NextRequest) {
         basePrice: room.base_price,
         electricPrice: room.electric_price,
         waterPrice: room.water_price,
-        status: activeTenants.length === 0 && ['occupied', 'pending_checkout'].includes(room.status) ? 'available' : room.status,
+        status: normalizedStatus,
         branch: room.branch_id,
         tenant,
         tenants,

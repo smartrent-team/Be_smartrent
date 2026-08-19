@@ -166,8 +166,8 @@ export async function syncExpiredContractNotifications(
 }
 
 /**
- * Cảnh báo hợp đồng sắp hết hạn (30 ngày và 7 ngày trước).
- * Chỉ gửi một lần mỗi mốc nhờ dedup theo (user_id, contract_id, type).
+ * @deprecated Tab Manager "Sắp hết hạn HĐ" đọc trực tiếp `/api/contracts/expiring`.
+ * Không còn gọi từ cron / GET notifications — giữ hàm để tránh mất logic nếu cần bật lại.
  */
 export async function syncExpiringContractWarnings(supabase: SupabaseClient) {
   const now = new Date()

@@ -1,2 +1,0 @@
-◇ injected env (14) from .env.local // tip: ⌘ override existing { override: true }
-{"message":"Invalid API key","hint":"Only the `service_role` API key can be used for this endpoint."}

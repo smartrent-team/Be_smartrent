@@ -1,0 +1,41 @@
+/**
+ * Next.js Instrumentation Hook
+ * Chạy tự động khi Next.js server khởi động (cả dev lẫn production).
+ * Dùng để kick off scheduler auto-lock hợp đồng hết hạn mỗi 2 phút.
+ *
+ * Docs: https://nextjs.org/docs/app/building-your-application/optimizing/instrumentation
+ */
+export async function register() {
+  // Chỉ chạy trên Node.js runtime (server-side), bỏ qua Edge runtime
+  if (process.env.NEXT_RUNTIME === 'nodejs') {
+    const { processExpiredCheckoutTenants } = await import('@/lib/auto-lock-expired')
+    const { createAdminClient } = await import('@/lib/supabase/admin')
+
+    const INTERVAL_MS = 2 * 60 * 1000 // 2 phút
+
+    async function runAutoLock() {
+      try {
+        const supabase = createAdminClient()
+        const { processed, results } = await processExpiredCheckoutTenants(supabase)
+
+        const locked = results.filter((r) => r.action.startsWith('locked')).length
+        const skipped = results.filter((r) => r.action === 'skipped').length
+        const blocked = results.filter((r) => r.action.startsWith('blocked')).length
+
+        console.log(
+          `[auto-lock] ${new Date().toLocaleTimeString('vi-VN')} — processed: ${processed} | locked: ${locked} | skipped: ${skipped} | blocked: ${blocked}`
+        )
+      } catch (err) {
+        console.error('[auto-lock] Lỗi quét hợp đồng:', err)
+      }
+    }
+
+    console.log(`[auto-lock] Instrumentation khởi động — quét mỗi ${INTERVAL_MS / 60000} phút`)
+
+    // Chạy ngay lập tức khi server start
+    await runAutoLock()
+
+    // Lặp lại mỗi 2 phút
+    setInterval(runAutoLock, INTERVAL_MS)
+  }
+}

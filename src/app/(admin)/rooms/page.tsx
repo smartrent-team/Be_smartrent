@@ -30,7 +30,7 @@ export default async function RoomsPage({ searchParams }: { searchParams: Promis
 
   let query = adminSupabase
     .from('rooms')
-    .select('*, branch:branches(name), tenants(id, move_out_date, user:users(full_name))')
+    .select('*, branch:branches(name), tenants(id, move_out_date, user:users(full_name, status))')
     .order('room_code', { ascending: true })
 
   if (status !== 'all') {

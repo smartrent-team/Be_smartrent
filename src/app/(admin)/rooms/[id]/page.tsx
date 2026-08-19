@@ -127,8 +127,13 @@ export default async function RoomDetailPage({ params }: { params: Promise<{ id:
               </div>
               <div>
                 <p className="text-sm text-muted-foreground">Trạng thái</p>
-                <Badge variant={room.status === 'available' ? 'outline' : 'default'} className={room.status === 'available' ? 'text-green-600' : 'bg-blue-600'}>
-                  {room.status === 'available' ? 'Trống' : room.status === 'occupied' ? 'Đã thuê' : 'Bảo trì'}
+                <Badge
+                  variant={room.status === 'available' ? 'outline' : room.status === 'maintenance' ? 'destructive' : 'default'}
+                  className={room.status === 'available' ? 'text-green-600' : room.status === 'maintenance' ? '' : 'bg-blue-600'}
+                >
+                  {room.status === 'available' ? 'Trống'
+                    : room.status === 'maintenance' ? 'Bảo trì'
+                    : 'Đã thuê'}
                 </Badge>
               </div>
               <div className="col-span-2 flex items-center gap-3 pt-1 border-t">

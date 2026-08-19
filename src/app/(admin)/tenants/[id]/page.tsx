@@ -217,7 +217,15 @@ export default async function TenantDetailPage({ params }: { params: Promise<{ i
                   </div>
                   <div className="mt-1 flex justify-between gap-3">
                     <span className="text-muted-foreground">Trạng thái</span>
-                    <span className="font-medium capitalize">{activeContractRaw?.status || '---'}</span>
+                    <span className="font-medium">
+                      {activeContractRaw?.status === 'active' ? 'Đang hiệu lực'
+                        : activeContractRaw?.status === 'expired' ? 'Đã hết hạn'
+                        : activeContractRaw?.status === 'terminated' ? 'Đã chấm dứt'
+                        : activeContractRaw?.status === 'cancelled' ? 'Đã hủy'
+                        : activeContractRaw?.status
+                          ? 'Đang ở'
+                          : '---'}
+                    </span>
                   </div>
                 </div>
               </div>

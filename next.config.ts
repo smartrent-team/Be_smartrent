@@ -8,6 +8,21 @@ const nextConfig: NextConfig = {
     "*.ngrok.io",
     "*.trycloudflare.com",
   ],
+  // Các package chỉ chạy trên Node.js — không bundle vào browser/edge
+  serverExternalPackages: [
+    'firebase-admin',
+    'firebase-admin/app',
+    'firebase-admin/messaging',
+    'google-auth-library',
+    'gcp-metadata',
+    'https-proxy-agent',
+    'agent-base',
+    'jwa',
+    'jws',
+    'node-fetch',
+    'node-domexception',
+    'fetch-blob',
+  ],
   images: {
     remotePatterns: [
       {
@@ -25,6 +40,7 @@ const nextConfig: NextConfig = {
     ];
   },
   experimental: {
+    instrumentationHook: true,
     optimizePackageImports: ['lucide-react', 'recharts', 'date-fns'],
   },
 };

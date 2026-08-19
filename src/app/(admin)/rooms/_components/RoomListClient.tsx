@@ -16,7 +16,7 @@ import { toast } from 'sonner'
 interface RoomTenant {
   id: number
   move_out_date: string | null
-  user?: { full_name: string } | null
+  user?: { full_name: string; status?: string | null } | null
 }
 
 export interface RoomRow {
@@ -175,14 +175,16 @@ export default function RoomListClient({ initialRooms }: { initialRooms: RoomRow
     return () => { supabase.removeChannel(channel) }
   }, [supabase, refresh])
 
-  const getStatusBadge = (status: string) => {
-    switch (status) {
+  const getStatusBadge = (status: string, activeTenantCount: number) => {
+    // pending_checkout không hiển thị riêng — dựa vào số tenant thực tế
+    const effectiveStatus = status === 'pending_checkout' || status === 'cleaning'
+      ? (activeTenantCount > 0 ? 'occupied' : 'available')
+      : status
+    switch (effectiveStatus) {
       case 'available':   return <Badge variant="outline" className="text-green-600">Trống</Badge>
       case 'occupied':    return <Badge variant="default" className="bg-blue-600">Đã thuê</Badge>
       case 'maintenance': return <Badge variant="destructive">Bảo trì</Badge>
-      case 'pending_checkout': return <Badge variant="outline" className="text-orange-600 border-orange-600">Chờ trả phòng</Badge>
-      case 'cleaning': return <Badge variant="outline" className="text-cyan-600 border-cyan-600">Đang dọn dẹp</Badge>
-      default:            return <Badge variant="secondary">{status}</Badge>
+      default:            return <Badge variant="secondary">{effectiveStatus}</Badge>
     }
   }
 
@@ -212,7 +214,9 @@ export default function RoomListClient({ initialRooms }: { initialRooms: RoomRow
           </TableHeader>
           <TableBody>
             {rooms.map((room) => {
-              const activeTenants = room.tenants?.filter(t => !t.move_out_date) ?? []
+              const activeTenants = room.tenants?.filter(
+                t => !t.move_out_date && !['locked', 'blocked', 'deleted'].includes(t.user?.status ?? '')
+              ) ?? []
               return (
                 <TableRow key={room.id}>
                   <TableCell className="font-medium">
@@ -235,7 +239,7 @@ export default function RoomListClient({ initialRooms }: { initialRooms: RoomRow
                       <span className="text-gray-400 text-xs">0 người</span>
                     )}
                   </TableCell>
-                  <TableCell>{getStatusBadge(room.status)}</TableCell>
+                  <TableCell>{getStatusBadge(room.status, activeTenants.length)}</TableCell>
                   <TableCell>
                     <TenantAvatarStack tenants={activeTenants} />
                   </TableCell>

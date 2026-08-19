@@ -100,14 +100,14 @@ export async function GET(request: NextRequest) {
     // ── 3. Active tenants ───────────────────────────────────────────────────
     const activeTenants = roomTenants?.filter(t => !t.move_out_date && !['locked', 'blocked', 'deleted'].includes(t.user?.status ?? '')) ?? []
     const tenantsListInfo = activeTenants.map(t => {
-      const activeContract = t.contracts?.find(c => ['active', 'pending_checkout', 'pending_liquidation'].includes(c.status))
+      const activeContract = t.contracts?.find(c => ['active'].includes(c.status))
       return {
         id:          t.id,
         name:        t.user?.full_name ?? 'Khách chưa có tên',
         phone:       t.user?.phone     ?? 'Chưa cập nhật',
         checkInDate: t.move_in_date,
         checkOutDate: t.move_out_date,
-        contractStatus: activeContract?.status ?? 'none',
+        contractStatus: activeContract ? 'active' : 'none',
         userStatus:  t.user?.status ?? 'active',
       }
     })
@@ -197,7 +197,7 @@ export async function GET(request: NextRequest) {
         fixedServiceCost: pricing?.fixedServiceCost ?? 0,
         fixedServices:    pricing?.fixedServices    ?? [],
         vehicleCount: room.vehicle_count ?? 0,
-        status:   activeTenants.length === 0 && ['occupied', 'pending_checkout'].includes(room.status) ? 'available' : room.status,
+        status: activeTenants.length === 0 && ['occupied', 'pending_checkout', 'cleaning'].includes(room.status) ? 'available' : (activeTenants.length > 0 && room.status === 'pending_checkout' ? 'occupied' : room.status),
         tenant:   tenantInfo,
         tenants:  tenantsListInfo,
         invoices: invoicesList,
