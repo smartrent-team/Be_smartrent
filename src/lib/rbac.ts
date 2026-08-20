@@ -23,14 +23,23 @@ export async function verifyRole() {
   // Khởi tạo Admin Client để bypass RLS (Do RLS sẽ bị khóa lại bằng USING (false))
   const adminSupabase = createAdminClient()
 
-  // 2. Lấy role và branch_id bằng adminSupabase để không bị RLS chặn
-  const { data: userProfile, error: profileError } = await adminSupabase
+  // 2. Lấy role và branch_id bằng adminSupabase để không bị RLS chặn (tìm theo email không phân biệt hoa thường hoặc theo phone)
+  let query = adminSupabase
     .from('users')
-    .select('id, role, branch_id, status')
-    .eq('email', user.email)
-    .single()
+    .select('id, role, branch_id, status, email, phone')
+
+  if (user.email && user.phone) {
+    query = query.or(`email.ilike.${user.email},phone.eq.${user.phone}`)
+  } else if (user.email) {
+    query = query.ilike('email', user.email)
+  } else if (user.phone) {
+    query = query.eq('phone', user.phone)
+  }
+
+  const { data: userProfile, error: profileError } = await query.maybeSingle()
 
   if (profileError || !userProfile) {
+    console.error('verifyRole Profile Error:', profileError?.message || 'Profile not found for email:', user.email, 'phone:', user.phone)
     return { error: 'Không tìm thấy hồ sơ', status: 403 }
   }
 

@@ -129,11 +129,15 @@ export default async function UtilitiesPage({ searchParams }: { searchParams: Pr
   }
 
   return (
-    <div className="flex flex-col gap-6 p-6">
+    <div className="flex flex-col gap-6 p-6 min-h-screen bg-slate-50/50">
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
-          <h1 className="text-3xl font-bold tracking-tight">Thống kê điện nước</h1>
-          <p className="text-muted-foreground mt-2">Theo dõi chỉ số và chi phí tiêu thụ điện nước của từng phòng.</p>
+          <h1 className="text-3xl font-extrabold tracking-tight bg-gradient-to-r from-teal-600 to-emerald-600 bg-clip-text text-transparent">
+            Thống kê Điện Nước
+          </h1>
+          <p className="text-muted-foreground mt-2 text-sm sm:text-base">
+            Theo dõi chỉ số và chi phí tiêu thụ điện nước của từng phòng theo kỳ.
+          </p>
         </div>
       </div>
       

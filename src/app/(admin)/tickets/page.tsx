@@ -38,11 +38,15 @@ export default async function TicketsPage() {
 
   const tickets = allTickets.filter((t) => t.issueType !== 'checkout_damage')
   return (
-    <div className="flex flex-col gap-6 p-6">
+    <div className="flex flex-col gap-6 p-6 min-h-screen bg-slate-50/50">
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
-          <h1 className="text-3xl font-bold tracking-tight">Yêu cầu bảo trì</h1>
-          <p className="text-muted-foreground mt-2">Theo dõi và xử lý các sự cố kỹ thuật từ khách thuê (Tự động cập nhật).</p>
+          <h1 className="text-3xl font-extrabold tracking-tight bg-gradient-to-r from-teal-600 to-emerald-600 bg-clip-text text-transparent">
+            Yêu cầu Bảo trì
+          </h1>
+          <p className="text-muted-foreground mt-2 text-sm sm:text-base">
+            Theo dõi và xử lý các sự cố kỹ thuật từ khách thuê (Tự động cập nhật).
+          </p>
         </div>
       </div>
       <TicketListClient initialTickets={tickets} />

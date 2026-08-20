@@ -1,25 +1,11 @@
-
-
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from '@/components/ui/table'
-import { Badge } from '@/components/ui/badge'
-import { buttonVariants } from '@/components/ui/button'
-import { Eye } from 'lucide-react'
-import Link from 'next/link'
 import { CreateRoomDialog } from './_components/CreateRoomDialog'
 import RoomListClient, { type RoomRow } from './_components/RoomListClient'
 
 export default async function RoomsPage({ searchParams }: { searchParams: Promise<{ [key: string]: string | string[] | undefined }> }) {
   const params = await searchParams
-  const status = params.status as string || 'all'
+  const status = (params.status as string) || 'all'
 
   // Verify auth
   const supabase = await createClient()
@@ -28,20 +14,15 @@ export default async function RoomsPage({ searchParams }: { searchParams: Promis
   // Dùng admin client để bypass RLS
   const adminSupabase = createAdminClient()
 
-  let query = adminSupabase
-    .from('rooms')
-    .select('*, branch:branches(name), tenants(id, move_out_date, user:users(full_name, status))')
-    .order('room_code', { ascending: true })
-
-  if (status !== 'all') {
-    query = query.eq('status', status)
-  }
-
+  // Fetch all rooms & branches in parallel
   const [
     { data: rooms, error },
     { data: rawBranches }
   ] = await Promise.all([
-    query,
+    adminSupabase
+      .from('rooms')
+      .select('*, branch:branches(id, name), tenants(id, move_out_date, user:users(full_name, status))')
+      .order('room_code', { ascending: true }),
     adminSupabase
       .from('branches')
       .select('id, name')
@@ -51,32 +32,20 @@ export default async function RoomsPage({ searchParams }: { searchParams: Promis
   const branches = rawBranches || []
 
   if (error) {
-    console.error(error)
-  }
-
-  const getStatusBadge = (status: string) => {
-    switch (status) {
-      case 'available':
-        return <Badge variant="outline" className="text-green-600">Trống</Badge>
-      case 'occupied':
-        return <Badge variant="default" className="bg-blue-600">Đã thuê</Badge>
-      case 'maintenance':
-        return <Badge variant="destructive">Bảo trì</Badge>
-      default:
-        return <Badge variant="secondary">{status}</Badge>
-    }
+    console.error('Lỗi tải danh sách phòng:', error)
   }
 
   interface RoomTenant {
     id: number
     move_out_date: string | null
-    user?: { full_name: string } | null
+    user?: { full_name: string; status?: string | null } | null
   }
 
   interface RoomData {
     id: number
     room_code: string
-    branch?: { name: string } | null
+    branch_id?: number | null
+    branch?: { id?: number; name: string } | null
     floor: number | null
     base_price: number
     status: string
@@ -86,44 +55,26 @@ export default async function RoomsPage({ searchParams }: { searchParams: Promis
   const roomsList = (rooms as unknown as RoomData[]) || []
 
   return (
-    <div className="flex flex-col gap-6 p-6">
+    <div className="flex flex-col gap-6 p-6 min-h-screen bg-slate-50/50">
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
-          <h1 className="text-3xl font-bold tracking-tight">Quản lý phòng</h1>
-          <p className="text-muted-foreground mt-2">Xem và quản lý tất cả các phòng trong hệ thống.</p>
+          <h1 className="text-3xl font-extrabold tracking-tight bg-gradient-to-r from-teal-600 to-emerald-600 bg-clip-text text-transparent">
+            Quản lý Phòng
+          </h1>
+          <p className="text-muted-foreground mt-2 text-sm sm:text-base">
+            Xem và quản lý cấu hình tất cả các phòng trong toàn bộ hệ thống chi nhánh.
+          </p>
         </div>
         
         <CreateRoomDialog branches={branches} />
       </div>
 
-      <div className="flex items-center gap-2 mb-2">
-        <Link 
-          href="?status=all" 
-          className={buttonVariants({ variant: status === 'all' ? 'default' : 'outline', size: 'sm' })}
-        >
-          Tất cả
-        </Link>
-        <Link 
-          href="?status=available" 
-          className={buttonVariants({ variant: status === 'available' ? 'default' : 'outline', size: 'sm' })}
-        >
-          Trống
-        </Link>
-        <Link 
-          href="?status=occupied" 
-          className={buttonVariants({ variant: status === 'occupied' ? 'default' : 'outline', size: 'sm' })}
-        >
-          Đã thuê
-        </Link>
-        <Link 
-          href="?status=maintenance" 
-          className={buttonVariants({ variant: status === 'maintenance' ? 'default' : 'outline', size: 'sm' })}
-        >
-          Bảo trì
-        </Link>
-      </div>
-      
-      <RoomListClient initialRooms={roomsList as RoomRow[]} />
+      {/* Main Room List with Advanced Client Filter & Realtime */}
+      <RoomListClient
+        initialRooms={roomsList as RoomRow[]}
+        branches={branches}
+        initialStatus={status}
+      />
     </div>
   )
 }

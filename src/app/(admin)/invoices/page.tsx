@@ -80,7 +80,7 @@ export default async function InvoicesPage({ searchParams }: { searchParams: Pro
   const { data: rooms } = await adminSupabase.from('rooms').select('id, room_code').order('room_code')
 
   return (
-    <div className="flex flex-col gap-6 p-6">
+    <div className="flex flex-col gap-6 p-6 min-h-screen bg-slate-50/50">
       {queryError && (
         <div className="p-4 mb-4 text-sm text-red-800 rounded-lg bg-red-50 border border-red-200" role="alert">
           <span className="font-semibold">Lỗi truy vấn cơ sở dữ liệu:</span> {queryError.message} (Mã: {queryError.code})
@@ -88,8 +88,12 @@ export default async function InvoicesPage({ searchParams }: { searchParams: Pro
       )}
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
-          <h1 className="text-3xl font-bold tracking-tight">Hoá đơn</h1>
-          <p className="text-muted-foreground mt-2">Quản lý thu phí, điện nước và thanh toán PayOS.</p>
+          <h1 className="text-3xl font-extrabold tracking-tight bg-gradient-to-r from-teal-600 to-emerald-600 bg-clip-text text-transparent">
+            Quản lý Hóa đơn
+          </h1>
+          <p className="text-muted-foreground mt-2 text-sm sm:text-base">
+            Quản lý thu phí, điện nước, công nợ và thanh toán PayOS.
+          </p>
         </div>
         
         <Sheet>

@@ -1,18 +1,9 @@
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from '@/components/ui/table'
 import { Card, CardContent } from '@/components/ui/card'
 import { CreateBranchDialog } from './_components/CreateBranchDialog'
-import { DeleteBranchButton } from './_components/DeleteBranchButton'
-import { EditBranchDialog } from './_components/EditBranchDialog'
-import { Building2, ShieldAlert, Home, UserCheck, Percent, Phone, MapPin, Users } from 'lucide-react'
+import BranchListClient, { type BranchWithStats } from './_components/BranchListClient'
+import { Building2, Home, Users } from 'lucide-react'
 
 export default async function BranchesPage() {
   // Verify auth
@@ -126,122 +117,8 @@ export default async function BranchesPage() {
         </Card>
       </div>
 
-      {/* Main content table */}
-      <div className="rounded-2xl border border-gray-100/80 bg-white shadow-sm overflow-hidden">
-        {branchStats.length === 0 ? (
-          <div className="flex flex-col items-center justify-center p-12 text-center">
-            <div className="rounded-full bg-slate-50 p-4 text-slate-400 mb-4">
-              <ShieldAlert className="h-8 w-8" />
-            </div>
-            <h3 className="text-lg font-semibold text-gray-700">Chưa có chi nhánh nào</h3>
-            <p className="text-muted-foreground text-sm max-w-sm mt-1">
-              Hãy nhấn nút &ldquo;Thêm chi nhánh&rdquo; phía trên để tạo chi nhánh đầu tiên.
-            </p>
-          </div>
-        ) : (
-          <div className="overflow-x-auto">
-            <Table>
-              <TableHeader className="bg-slate-50/70">
-                <TableRow>
-                  <TableHead className="w-[260px] font-semibold text-gray-600">Tên chi nhánh</TableHead>
-                  <TableHead className="w-[300px] font-semibold text-gray-600">Địa chỉ & Liên hệ</TableHead>
-                  <TableHead className="font-semibold text-gray-600">Manager phụ trách</TableHead>
-                  <TableHead className="font-semibold text-gray-600">Số phòng</TableHead>
-                  <TableHead className="font-semibold text-gray-600">Tỷ lệ lấp đầy</TableHead>
-                  <TableHead className="w-[100px] text-right font-semibold text-gray-600">Thao tác</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {branchStats.map((branch) => (
-                  <TableRow key={branch.id} className="hover:bg-slate-50/50 transition-colors duration-150">
-                    <TableCell className="font-medium text-gray-900 py-4">
-                      <div className="flex items-center gap-3">
-                        <div className="h-9 w-9 rounded-full bg-emerald-50 text-emerald-600 flex items-center justify-center font-bold text-sm shadow-inner uppercase">
-                          {branch.name.slice(0, 2)}
-                        </div>
-                        <div>
-                          <span className="block font-semibold text-base">{branch.name}</span>
-                          {branch.description && (
-                            <span className="block text-xs text-gray-400 font-normal mt-0.5 line-clamp-1">
-                              {branch.description}
-                            </span>
-                          )}
-                        </div>
-                      </div>
-                    </TableCell>
-                    <TableCell className="text-gray-600 py-4 text-sm">
-                      <div className="flex flex-col gap-1">
-                        {branch.address ? (
-                          <div className="flex items-start gap-1.5 text-gray-700">
-                            <MapPin className="h-3.5 w-3.5 text-gray-400 mt-0.5 shrink-0" />
-                            <span className="line-clamp-1">{branch.address}</span>
-                          </div>
-                        ) : (
-                          <span className="text-gray-400 italic">Chưa cập nhật địa chỉ</span>
-                        )}
-                        {branch.phone && (
-                          <div className="flex items-center gap-1.5 text-gray-500">
-                            <Phone className="h-3.5 w-3.5 text-gray-400 shrink-0" />
-                            <span>{branch.phone}</span>
-                          </div>
-                        )}
-                      </div>
-                    </TableCell>
-                    <TableCell className="py-4">
-                      {branch.managers.length > 0 ? (
-                        <div className="flex flex-col gap-1">
-                          {branch.managers.map((m: { id: string; full_name: string | null; phone: string | null; branch_id: number | null }) => (
-                            <div key={m.id} className="flex items-center gap-1.5">
-                              <UserCheck className="h-3.5 w-3.5 text-teal-600" />
-                              <span className="text-sm font-semibold text-teal-800">{m.full_name}</span>
-                            </div>
-                          ))}
-                        </div>
-                      ) : (
-                        <span className="text-sm text-gray-400 italic">Chưa có manager</span>
-                      )}
-                    </TableCell>
-                    <TableCell className="py-4">
-                      <div className="flex items-center gap-1">
-                        <span className="text-base font-bold text-gray-800">{branch.totalRooms}</span>
-                        <span className="text-xs text-gray-400">phòng</span>
-                      </div>
-                    </TableCell>
-                    <TableCell className="py-4">
-                      <div className="flex flex-col gap-1.5 w-24">
-                        <div className="flex items-center justify-between text-xs font-semibold">
-                          <span className="text-gray-700">{branch.occupancyRate}%</span>
-                          <span className="text-gray-400 font-normal">({branch.occupiedRooms}/{branch.totalRooms})</span>
-                        </div>
-                        <div className="h-2 w-full bg-gray-100 rounded-full overflow-hidden">
-                          <div
-                            className={`h-full rounded-full transition-all duration-500 ${
-                              branch.occupancyRate > 75
-                                ? 'bg-emerald-500'
-                                : branch.occupancyRate > 40
-                                ? 'bg-teal-500'
-                                : branch.occupancyRate > 0
-                                ? 'bg-amber-500'
-                                : 'bg-gray-300'
-                            }`}
-                            style={{ width: `${branch.occupancyRate}%` }}
-                          />
-                        </div>
-                      </div>
-                    </TableCell>
-                    <TableCell className="text-right py-4">
-                      <div className="flex items-center justify-end gap-1">
-                        <EditBranchDialog branch={branch} />
-                        <DeleteBranchButton id={branch.id} name={branch.name} />
-                      </div>
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          </div>
-        )}
-      </div>
+      {/* Main content with advanced filters */}
+      <BranchListClient initialBranches={branchStats} />
     </div>
   )
 }

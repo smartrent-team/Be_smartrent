@@ -24,7 +24,7 @@ function isContractExpired(endDate: string | null | undefined, todayKey: string)
  */
 async function lockTenantAndRelease(
   supabase: SupabaseClient,
-  dispatchNotification: (s: SupabaseClient, target: { userId: string }, payload: { title: string; body: string; type: string; relatedId?: string }) => Promise<void>,
+  dispatchNotification: (s: SupabaseClient, target: { userId: string }, payload: { title: string; body: string; type: string; relatedId?: string }) => Promise<unknown>,
   opts: {
     tenantId: number
     userId: string | null
@@ -168,7 +168,8 @@ export async function processExpiredCheckoutTenants(
     const tenantId = request.tenant_id as number
     if (processedTenantIds.has(tenantId)) continue
 
-    const contract = request.contracts as {
+    const rawContract = request.contracts
+    const contract = (Array.isArray(rawContract) ? rawContract[0] : rawContract) as {
       id: number
       tenant_id: number
       room_id: number
@@ -177,7 +178,8 @@ export async function processExpiredCheckoutTenants(
       status: string
     } | null
 
-    const tenant = request.tenants as {
+    const rawTenant = request.tenants
+    const tenant = (Array.isArray(rawTenant) ? rawTenant[0] : rawTenant) as {
       id: number
       user_id: string | null
       move_out_date: string | null
@@ -306,7 +308,8 @@ export async function processExpiredCheckoutTenants(
     const tenantId = contract.tenant_id as number
     if (!tenantId || processedTenantIds.has(tenantId)) continue
 
-    const tenant = contract.tenants as {
+    const rawTenant = contract.tenants
+    const tenant = (Array.isArray(rawTenant) ? rawTenant[0] : rawTenant) as {
       id: number
       user_id: string | null
       move_out_date: string | null

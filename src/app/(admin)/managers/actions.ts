@@ -24,8 +24,9 @@ export async function editManager(
     updateAuthData.phone = formattedPhone
     updateAuthData.phone_confirm = true
   }
+  const cleanEmail = data.email.trim().toLowerCase()
   if (data.email) {
-    updateAuthData.email = data.email.trim()
+    updateAuthData.email = cleanEmail
     updateAuthData.email_confirm = true
   }
   if (data.password && data.password.trim() !== '') {
@@ -37,7 +38,7 @@ export async function editManager(
 
   if (Object.keys(updateAuthData).length > 0 && userProfile) {
     const { data: authUsers } = await adminSupabase.auth.admin.listUsers()
-    const authUser = authUsers.users.find(u => (userProfile.phone && u.phone === userProfile.phone) || (userProfile.email && u.email === userProfile.email))
+    const authUser = authUsers.users.find(u => (userProfile.phone && u.phone === userProfile.phone) || (userProfile.email && u.email?.toLowerCase() === userProfile.email?.toLowerCase()))
     if (authUser) {
       const { error: authError } = await adminSupabase.auth.admin.updateUserById(authUser.id, updateAuthData)
       if (authError) {
@@ -53,7 +54,7 @@ export async function editManager(
     .update({
       full_name: data.fullName.trim(),
       phone: formattedPhone,
-      email: data.email.trim(),
+      email: cleanEmail,
       branch_id: data.branchId && data.branchId !== 'none' ? parseInt(data.branchId, 10) : null,
     })
     .eq('id', userIntId)

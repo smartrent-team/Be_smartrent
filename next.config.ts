@@ -40,7 +40,6 @@ const nextConfig: NextConfig = {
     ];
   },
   experimental: {
-    instrumentationHook: true,
     optimizePackageImports: ['lucide-react', 'recharts', 'date-fns'],
   },
 };

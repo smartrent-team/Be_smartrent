@@ -1,167 +1,149 @@
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { getLatestEffectiveContract } from '@/lib/contract-selection'
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from '@/components/ui/table'
-import { Badge } from '@/components/ui/badge'
-import { buttonVariants } from '@/components/ui/button'
-import { Phone, Mail, Eye } from 'lucide-react'
-import { Pagination } from '@/components/shared/Pagination'
-import Link from 'next/link'
-import { CreateTenantDialog } from './_components/CreateTenantDialog'
-import { EditTenantDialog } from './_components/EditTenantDialog'
-import { DeleteTenantButton } from './_components/DeleteTenantButton'
-import { LockTenantButton } from './_components/LockTenantButton'
+import TenantListClient, { type FormattedTenant } from './_components/TenantListClient'
 
-export default async function TenantsPage({ searchParams }: { searchParams: Promise<{ [key: string]: string | string[] | undefined }> }) {
-  const params = await searchParams
-  const page = parseInt(params.page as string || '1', 10)
-  const limit = 10
-  const from = (page - 1) * limit
-  const to = from + limit - 1
-
-  // Verify auth - chỉ cần đảm bảo đã đăng nhập
+export default async function TenantsPage() {
+  // Verify auth
   const supabase = await createClient()
   await supabase.auth.getUser()
 
-  // Dùng admin client để bypass RLS - đảm bảo super_admin thấy tất cả dữ liệu
+  // Dùng admin client để bypass RLS
   const adminSupabase = createAdminClient()
 
-  // 1. Fetch tenants & rooms in parallel
+  // 1. Fetch branches, rooms & tenants in parallel
   const [
-    { data: rawTenants, count },
-    { data: rawRooms }
+    { data: rawBranches },
+    { data: rawRooms },
+    { data: rawTenants },
   ] = await Promise.all([
     adminSupabase
-      .from('tenants')
-      .select('id, move_in_date, move_out_date, room_id, user_id, room:rooms(room_code, branch:branches(name)), user:users!inner(full_name, email, phone, status), contracts(id, deposit_amount, status, start_date, end_date)', { count: 'exact' })
-      .order('created_at', { ascending: false })
-      .range(from, to),
+      .from('branches')
+      .select('id, name')
+      .order('name', { ascending: true }),
+
     adminSupabase
       .from('rooms')
-      .select('id, room_code, base_price, status')
-      .order('room_code')
+      .select('id, room_code, base_price, status, branch_id')
+      .order('room_code', { ascending: true }),
+
+    adminSupabase
+      .from('tenants')
+      .select(`
+        id,
+        move_in_date,
+        move_out_date,
+        room_id,
+        user_id,
+        room:rooms(
+          id,
+          room_code,
+          branch_id,
+          branch:branches(id, name)
+        ),
+        user:users!inner(
+          id,
+          full_name,
+          email,
+          phone,
+          status
+        ),
+        contracts(
+          id,
+          deposit_amount,
+          status,
+          start_date,
+          end_date
+        )
+      `)
+      .order('created_at', { ascending: false }),
   ])
 
-  const totalPages = count ? Math.ceil(count / limit) : 0
+  const branches = rawBranches || []
   const allRooms = rawRooms || []
-  const availableRooms = allRooms.filter(r => r.status === 'available')
+  const availableRooms = allRooms.filter((r) => r.status === 'available')
 
   interface TenantData {
-    id: number;
-    user_id: number;  // integer FK đến public.users.id
-    room_id: number | null;
-    move_in_date: string;
-    move_out_date: string | null;
-    room?: { room_code: string; branch?: { name: string } | null };
-    user?: { full_name: string; email: string; phone: string; status: string | null };
-    contracts?: { id?: number | null; deposit_amount: number | null; status: string; start_date?: string | null; end_date?: string | null }[];
+    id: number
+    user_id: number
+    room_id: number | null
+    move_in_date: string | null
+    move_out_date: string | null
+    room?: {
+      id?: number
+      room_code?: string
+      branch_id?: number | null
+      branch?: { id?: number; name?: string } | { id?: number; name?: string }[] | null
+    } | {
+      id?: number
+      room_code?: string
+      branch_id?: number | null
+      branch?: { id?: number; name?: string } | { id?: number; name?: string }[] | null
+    }[] | null
+    user?: {
+      id?: number
+      full_name?: string
+      email?: string
+      phone?: string
+      status?: string | null
+    } | {
+      id?: number
+      full_name?: string
+      email?: string
+      phone?: string
+      status?: string | null
+    }[] | null
+    contracts?: {
+      id?: number | null
+      deposit_amount: number | null
+      status: string
+      start_date?: string | null
+      end_date?: string | null
+    }[]
   }
 
-  const tenants = ((rawTenants as unknown as TenantData[]) || []).map((t) => {
+  const tenants: FormattedTenant[] = ((rawTenants as unknown as TenantData[]) || []).map((t) => {
+    const rawRoom = Array.isArray(t.room) ? t.room[0] : t.room
+    const rawUser = Array.isArray(t.user) ? t.user[0] : t.user
+    const rawBranch = rawRoom?.branch
+      ? Array.isArray(rawRoom.branch)
+        ? rawRoom.branch[0]
+        : rawRoom.branch
+      : null
+
     const activeContract = getLatestEffectiveContract(t.contracts || [])
-    const userStatus = t.user?.status
-    const displayStatus: 'active' | 'locked' = userStatus === 'locked' || userStatus === 'blocked' ? 'locked' : 'active'
+    const userStatus = rawUser?.status
+    const displayStatus: 'active' | 'locked' =
+      userStatus === 'locked' || userStatus === 'blocked' ? 'locked' : 'active'
+
     return {
       id: t.id,
       userId: t.user_id,
       roomId: t.room_id,
       depositAmount: activeContract?.deposit_amount || 0,
-      name: t.user?.full_name || 'Khách chưa có tên',
-      phone: t.user?.phone || 'Chưa cập nhật',
-      email: t.user?.email || 'Chưa cập nhật',
-      room: t.room?.room_code || 'Trống',
-      branch: t.room?.branch?.name || 'Chưa phân chi nhánh',
+      name: rawUser?.full_name || 'Khách chưa có tên',
+      phone: rawUser?.phone || 'Chưa cập nhật',
+      email: rawUser?.email || 'Chưa cập nhật',
+      room: rawRoom?.room_code || 'Trống',
+      branch: rawBranch?.name || 'Chưa phân chi nhánh',
+      branchId: rawRoom?.branch_id || rawBranch?.id || null,
       status: displayStatus,
-      joinDate: t.move_in_date ? new Date(t.move_in_date).toLocaleDateString('vi-VN') : 'N/A',
+      joinDate: t.move_in_date
+        ? new Date(t.move_in_date).toLocaleDateString('vi-VN')
+        : 'N/A',
       rawMoveInDate: t.move_in_date,
       rawMoveOutDate: t.move_out_date,
     }
   })
 
   return (
-    <div className="flex flex-col gap-6 p-6">
-      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-        <div>
-          <h1 className="text-3xl font-bold tracking-tight">Khách thuê</h1>
-          <p className="text-muted-foreground mt-2">Quản lý thông tin và hợp đồng của khách thuê.</p>
-        </div>
-        
-        <CreateTenantDialog rooms={availableRooms} />
-      </div>
-      
-      <div className="rounded-md border bg-white shadow-sm">
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead>Khách hàng</TableHead>
-              <TableHead>Liên hệ</TableHead>
-              <TableHead>Phòng</TableHead>
-              <TableHead>Chi nhánh</TableHead>
-              <TableHead>Ngày vào ở</TableHead>
-              <TableHead>Trạng thái</TableHead>
-              <TableHead className="w-[140px] text-right">Thao tác</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {tenants.length > 0 ? (
-              tenants.map((tenant) => (
-                <TableRow key={tenant.id}>
-                  <TableCell className="font-medium">{tenant.name}</TableCell>
-                  <TableCell>
-                    <div className="flex flex-col gap-1 text-sm text-muted-foreground">
-                      <span className="flex items-center gap-1"><Phone className="h-3 w-3"/> {tenant.phone}</span>
-                      <span className="flex items-center gap-1"><Mail className="h-3 w-3"/> {tenant.email}</span>
-                    </div>
-                  </TableCell>
-                  <TableCell>Phòng {tenant.room}</TableCell>
-                  <TableCell className="font-semibold text-emerald-800">{tenant.branch}</TableCell>
-                  <TableCell>{tenant.joinDate}</TableCell>
-                  <TableCell>
-                    {tenant.status === 'active' && (
-                      <Badge className="bg-green-100 text-green-800 hover:bg-green-200">Đang ở</Badge>
-                    )}
-                    {tenant.status === 'locked' && (
-                      <Badge className="bg-red-100 text-red-700 hover:bg-red-200">Khóa</Badge>
-                    )}
-                  </TableCell>
-                  <TableCell className="text-right">
-                    <div className="flex items-center justify-end gap-1">
-                      <Link
-                        href={`/tenants/${tenant.id}`}
-                        className={buttonVariants({ variant: 'ghost', size: 'icon' }) + " text-teal-600 hover:text-teal-700 hover:bg-teal-50/50 rounded-lg h-9 w-9 flex items-center justify-center"}
-                        title="Xem chi tiết"
-                      >
-                        <Eye className="h-4 w-4" />
-                      </Link>
-                      <EditTenantDialog tenant={tenant} rooms={allRooms} />
-                      <LockTenantButton userId={tenant.userId} tenantName={tenant.name} />
-                      <DeleteTenantButton id={tenant.id} userId={tenant.userId} name={tenant.name} />
-                    </div>
-                  </TableCell>
-                </TableRow>
-              ))
-            ) : (
-              <TableRow>
-                <TableCell colSpan={6} className="text-center h-32 text-muted-foreground py-10">
-                  <div className="flex flex-col items-center justify-center gap-2">
-                    <span className="text-lg font-semibold text-slate-500">Chưa có khách thuê nào</span>
-                    <span className="text-xs max-w-xs text-slate-400">Hãy thêm khách thuê mới hoặc liên kết họ vào phòng để bắt đầu quản lý.</span>
-                  </div>
-                </TableCell>
-              </TableRow>
-            )}
-          </TableBody>
-        </Table>
-      </div>
-
-      <Pagination totalPages={totalPages} currentPage={page} />
+    <div className="flex flex-col gap-6 p-6 min-h-screen bg-slate-50/50">
+      <TenantListClient
+        initialTenants={tenants}
+        branches={branches}
+        allRooms={allRooms}
+        availableRooms={availableRooms}
+      />
     </div>
   )
 }
