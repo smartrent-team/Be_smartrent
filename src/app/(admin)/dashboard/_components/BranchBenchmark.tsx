@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import {
   BarChart,
   Bar,
@@ -97,6 +97,12 @@ function BenchmarkTooltip({
 
 export function BranchBenchmark({ branches }: { branches: BranchBenchmarkItem[] }) {
   const [activeMetricKey, setActiveMetricKey] = useState<BenchmarkMetric>('revenue')
+  const [isMounted, setIsMounted] = useState(false)
+
+  useEffect(() => {
+    setIsMounted(true)
+  }, [])
+
   const metric = METRICS.find((m) => m.key === activeMetricKey)!
 
   const sortedData = [...branches].sort((a, b) => {
@@ -152,58 +158,62 @@ export function BranchBenchmark({ branches }: { branches: BranchBenchmarkItem[] 
         ) : (
           <>
             <div className="h-[260px] w-full min-w-0">
-              <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0}>
-                <BarChart
-                  data={sortedData}
-                  margin={{ top: 10, right: 10, left: 10, bottom: sortedData.length > 5 ? 40 : 10 }}
-                  barCategoryGap="25%"
-                >
-                  <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" vertical={false} />
-                  <XAxis
-                    dataKey="name"
-                    tick={{ fontSize: 11, fill: '#64748b' }}
-                    axisLine={{ stroke: '#e2e8f0' }}
-                    tickLine={false}
-                    interval={0}
-                    angle={sortedData.length > 5 ? -25 : 0}
-                    textAnchor={sortedData.length > 5 ? 'end' : 'middle'}
-                  />
-                  <YAxis
-                    tick={{ fontSize: 11, fill: '#94a3b8' }}
-                    axisLine={false}
-                    tickLine={false}
-                    tickFormatter={metric.formatter}
-                    width={50}
-                  />
-                  <Tooltip content={<BenchmarkTooltip metric={metric} />} />
-                  <Bar
-                    dataKey={activeMetricKey}
-                    radius={[6, 6, 0, 0]}
-                    maxBarSize={48}
-                    animationDuration={500}
+              {isMounted ? (
+                <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0}>
+                  <BarChart
+                    data={sortedData}
+                    margin={{ top: 10, right: 10, left: 10, bottom: sortedData.length > 5 ? 40 : 10 }}
+                    barCategoryGap="25%"
                   >
-                    {sortedData.map((entry, index) => {
-                      const val = entry[activeMetricKey]
-                      let fillColor = metric.color
+                    <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" vertical={false} />
+                    <XAxis
+                      dataKey="name"
+                      tick={{ fontSize: 11, fill: '#64748b' }}
+                      axisLine={{ stroke: '#e2e8f0' }}
+                      tickLine={false}
+                      interval={0}
+                      angle={sortedData.length > 5 ? -25 : 0}
+                      textAnchor={sortedData.length > 5 ? 'end' : 'middle'}
+                    />
+                    <YAxis
+                      tick={{ fontSize: 11, fill: '#94a3b8' }}
+                      axisLine={false}
+                      tickLine={false}
+                      tickFormatter={metric.formatter}
+                      width={50}
+                    />
+                    <Tooltip content={<BenchmarkTooltip metric={metric} />} />
+                    <Bar
+                      dataKey={activeMetricKey}
+                      radius={[6, 6, 0, 0]}
+                      maxBarSize={48}
+                      animationDuration={500}
+                    >
+                      {sortedData.map((entry, index) => {
+                        const val = entry[activeMetricKey]
+                        let fillColor = metric.color
 
-                      if (activeMetricKey === 'badDebt') {
-                        fillColor = val === maxVal ? '#ef4444' : val === minVal ? '#10b981' : '#f87171'
-                      } else {
-                        const ratio = maxVal > minVal ? (val - minVal) / (maxVal - minVal) : 1
-                        const opacity = 0.45 + ratio * 0.55
-                        return (
-                          <Cell
-                            key={`cell-${index}`}
-                            fill={fillColor}
-                            fillOpacity={opacity}
-                          />
-                        )
-                      }
-                      return <Cell key={`cell-${index}`} fill={fillColor} />
-                    })}
-                  </Bar>
-                </BarChart>
-              </ResponsiveContainer>
+                        if (activeMetricKey === 'badDebt') {
+                          fillColor = val === maxVal ? '#ef4444' : val === minVal ? '#10b981' : '#f87171'
+                        } else {
+                          const ratio = maxVal > minVal ? (val - minVal) / (maxVal - minVal) : 1
+                          const opacity = 0.45 + ratio * 0.55
+                          return (
+                            <Cell
+                              key={`cell-${index}`}
+                              fill={fillColor}
+                              fillOpacity={opacity}
+                            />
+                          )
+                        }
+                        return <Cell key={`cell-${index}`} fill={fillColor} />
+                      })}
+                    </Bar>
+                  </BarChart>
+                </ResponsiveContainer>
+              ) : (
+                <div className="h-full w-full" />
+              )}
             </div>
 
             {/* Quick Insight Footers */}

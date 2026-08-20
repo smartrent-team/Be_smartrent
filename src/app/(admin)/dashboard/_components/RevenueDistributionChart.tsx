@@ -1,5 +1,6 @@
 'use client'
 
+import { useState, useEffect } from 'react'
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip } from 'recharts'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { PieChart as PieIcon } from 'lucide-react'
@@ -48,6 +49,12 @@ function DonutTooltip({
 }
 
 export function RevenueDistributionChart({ breakdown }: { breakdown: RevenueBreakdown }) {
+  const [isMounted, setIsMounted] = useState(false)
+
+  useEffect(() => {
+    setIsMounted(true)
+  }, [])
+
   const chartData = [
     { key: 'roomPrice', name: LABELS.roomPrice, value: breakdown.roomPrice, color: COLORS.roomPrice },
     { key: 'electricCost', name: LABELS.electricCost, value: breakdown.electricCost, color: COLORS.electricCost },
@@ -77,26 +84,30 @@ export function RevenueDistributionChart({ breakdown }: { breakdown: RevenueBrea
           <div className="grid grid-cols-1 sm:grid-cols-2 items-center gap-4 h-[280px]">
             {/* Donut Chart */}
             <div className="relative h-[220px] w-full min-w-0 flex items-center justify-center">
-              <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0}>
-                <PieChart>
-                  <Tooltip content={<DonutTooltip />} />
-                  <Pie
-                    data={chartData}
-                    dataKey="value"
-                    nameKey="name"
-                    cx="50%"
-                    cy="50%"
-                    innerRadius={55}
-                    outerRadius={85}
-                    paddingAngle={3}
-                    stroke="none"
-                  >
-                    {chartData.map((entry) => (
-                      <Cell key={entry.key} fill={entry.color} />
-                    ))}
-                  </Pie>
-                </PieChart>
-              </ResponsiveContainer>
+              {isMounted ? (
+                <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0}>
+                  <PieChart>
+                    <Tooltip content={<DonutTooltip />} />
+                    <Pie
+                      data={chartData}
+                      dataKey="value"
+                      nameKey="name"
+                      cx="50%"
+                      cy="50%"
+                      innerRadius={55}
+                      outerRadius={85}
+                      paddingAngle={3}
+                      stroke="none"
+                    >
+                      {chartData.map((entry) => (
+                        <Cell key={entry.key} fill={entry.color} />
+                      ))}
+                    </Pie>
+                  </PieChart>
+                </ResponsiveContainer>
+              ) : (
+                <div className="h-full w-full" />
+              )}
 
               {/* Center Text */}
               <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">

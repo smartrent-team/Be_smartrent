@@ -1,5 +1,6 @@
 'use client'
 
+import { useState, useEffect } from 'react'
 import {
   Area,
   Line,
@@ -79,6 +80,12 @@ function TrendTooltip({
 }
 
 export function RevenueTrendChart({ data }: { data: MonthTrendData[] }) {
+  const [isMounted, setIsMounted] = useState(false)
+
+  useEffect(() => {
+    setIsMounted(true)
+  }, [])
+
   const totalPeriodRevenue = data.reduce((s, m) => s + m.revenue, 0)
   const avgOccupancy = data.length > 0
     ? Math.round(data.reduce((s, m) => s + m.occupancyRate, 0) / data.length)
@@ -109,73 +116,77 @@ export function RevenueTrendChart({ data }: { data: MonthTrendData[] }) {
           </div>
         ) : (
           <div className="h-[280px] w-full min-w-0">
-            <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0}>
-              <ComposedChart data={data} margin={{ top: 15, right: 10, left: 10, bottom: 5 }}>
-                <defs>
-                  <linearGradient id="revenueGradient" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor="#10b981" stopOpacity={0.4} />
-                    <stop offset="95%" stopColor="#10b981" stopOpacity={0.0} />
-                  </linearGradient>
-                </defs>
+            {isMounted ? (
+              <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0}>
+                <ComposedChart data={data} margin={{ top: 15, right: 10, left: 10, bottom: 5 }}>
+                  <defs>
+                    <linearGradient id="revenueGradient" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="5%" stopColor="#10b981" stopOpacity={0.4} />
+                      <stop offset="95%" stopColor="#10b981" stopOpacity={0.0} />
+                    </linearGradient>
+                  </defs>
 
-                <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" vertical={false} />
+                  <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" vertical={false} />
 
-                <XAxis
-                  dataKey="month"
-                  tick={{ fontSize: 12, fill: '#64748b' }}
-                  axisLine={{ stroke: '#e2e8f0' }}
-                  tickLine={false}
-                />
+                  <XAxis
+                    dataKey="month"
+                    tick={{ fontSize: 12, fill: '#64748b' }}
+                    axisLine={{ stroke: '#e2e8f0' }}
+                    tickLine={false}
+                  />
 
-                <YAxis
-                  yAxisId="rev"
-                  tick={{ fontSize: 11, fill: '#94a3b8' }}
-                  axisLine={false}
-                  tickLine={false}
-                  tickFormatter={(v) => `${(v / 1_000_000).toFixed(0)}M`}
-                  width={45}
-                />
+                  <YAxis
+                    yAxisId="rev"
+                    tick={{ fontSize: 11, fill: '#94a3b8' }}
+                    axisLine={false}
+                    tickLine={false}
+                    tickFormatter={(v) => `${(v / 1_000_000).toFixed(0)}M`}
+                    width={45}
+                  />
 
-                <YAxis
-                  yAxisId="occ"
-                  orientation="right"
-                  domain={[0, 100]}
-                  tick={{ fontSize: 11, fill: '#94a3b8' }}
-                  axisLine={false}
-                  tickLine={false}
-                  tickFormatter={(v) => `${v}%`}
-                  width={35}
-                />
+                  <YAxis
+                    yAxisId="occ"
+                    orientation="right"
+                    domain={[0, 100]}
+                    tick={{ fontSize: 11, fill: '#94a3b8' }}
+                    axisLine={false}
+                    tickLine={false}
+                    tickFormatter={(v) => `${v}%`}
+                    width={35}
+                  />
 
-                <Tooltip content={<TrendTooltip />} />
+                  <Tooltip content={<TrendTooltip />} />
 
-                <Legend
-                  verticalAlign="top"
-                  align="right"
-                  wrapperStyle={{ fontSize: 12, paddingBottom: 8 }}
-                  formatter={(val) => (val === 'revenue' ? 'Doanh thu thực' : 'Tỷ lệ lấp đầy')}
-                />
+                  <Legend
+                    verticalAlign="top"
+                    align="right"
+                    wrapperStyle={{ fontSize: 12, paddingBottom: 8 }}
+                    formatter={(val) => (val === 'revenue' ? 'Doanh thu thực' : 'Tỷ lệ lấp đầy')}
+                  />
 
-                <Area
-                  yAxisId="rev"
-                  type="monotone"
-                  dataKey="revenue"
-                  stroke="#10b981"
-                  strokeWidth={2.5}
-                  fill="url(#revenueGradient)"
-                />
+                  <Area
+                    yAxisId="rev"
+                    type="monotone"
+                    dataKey="revenue"
+                    stroke="#10b981"
+                    strokeWidth={2.5}
+                    fill="url(#revenueGradient)"
+                  />
 
-                <Line
-                  yAxisId="occ"
-                  type="monotone"
-                  dataKey="occupancyRate"
-                  stroke="#6366f1"
-                  strokeWidth={2.5}
-                  dot={{ r: 4, fill: '#6366f1', strokeWidth: 2, stroke: '#ffffff' }}
-                  activeDot={{ r: 6, fill: '#4f46e5', strokeWidth: 2, stroke: '#ffffff' }}
-                />
-              </ComposedChart>
-            </ResponsiveContainer>
+                  <Line
+                    yAxisId="occ"
+                    type="monotone"
+                    dataKey="occupancyRate"
+                    stroke="#6366f1"
+                    strokeWidth={2.5}
+                    dot={{ r: 4, fill: '#6366f1', strokeWidth: 2, stroke: '#ffffff' }}
+                    activeDot={{ r: 6, fill: '#4f46e5', strokeWidth: 2, stroke: '#ffffff' }}
+                  />
+                </ComposedChart>
+              </ResponsiveContainer>
+            ) : (
+              <div className="h-full w-full" />
+            )}
           </div>
         )}
       </CardContent>
