@@ -64,57 +64,59 @@ export function ChainOverviewChart({ data }: { data: ChainOverviewData[] }) {
           Chưa có dữ liệu
         </div>
       ) : (
-        <ResponsiveContainer width="100%" height={300}>
-          <ComposedChart data={data} margin={{ top: 10, right: 10, left: 10, bottom: 5 }}>
-            <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" vertical={false} />
-            <XAxis
-              dataKey="month"
-              tick={{ fontSize: 12, fill: '#6b7280' }}
-              axisLine={false}
-              tickLine={false}
-            />
-            <YAxis
-              yAxisId="left"
-              tick={{ fontSize: 11, fill: '#9ca3af' }}
-              axisLine={false}
-              tickLine={false}
-              tickFormatter={(v) => `${(v / 1_000_000).toFixed(0)}M`}
-              width={50}
-            />
-            <YAxis
-              yAxisId="right"
-              orientation="right"
-              tick={{ fontSize: 11, fill: '#9ca3af' }}
-              axisLine={false}
-              tickLine={false}
-              tickFormatter={(v) => `${v}%`}
-              domain={[0, 100]}
-              width={40}
-            />
-            <Tooltip content={<ChainTooltip />} />
-            <Legend
-              wrapperStyle={{ fontSize: 12, paddingTop: 8 }}
-              formatter={(value) => (value === 'revenue' ? 'Doanh thu' : 'Tỷ lệ lấp đầy')}
-            />
-            <Bar
-              yAxisId="left"
-              dataKey="revenue"
-              fill="#10b981"
-              radius={[6, 6, 0, 0]}
-              maxBarSize={44}
-              fillOpacity={0.85}
-            />
-            <Line
-              yAxisId="right"
-              type="monotone"
-              dataKey="occupancyRate"
-              stroke="#6366f1"
-              strokeWidth={2.5}
-              dot={{ r: 4, fill: '#6366f1', strokeWidth: 2, stroke: '#fff' }}
-              activeDot={{ r: 6, fill: '#6366f1', strokeWidth: 2, stroke: '#fff' }}
-            />
-          </ComposedChart>
-        </ResponsiveContainer>
+        <div className="w-full min-w-0 h-[300px]">
+          <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0}>
+            <ComposedChart data={data} margin={{ top: 10, right: 10, left: 10, bottom: 5 }}>
+              <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" vertical={false} />
+              <XAxis
+                dataKey="month"
+                tick={{ fontSize: 12, fill: '#6b7280' }}
+                axisLine={false}
+                tickLine={false}
+              />
+              <YAxis
+                yAxisId="left"
+                tick={{ fontSize: 11, fill: '#9ca3af' }}
+                axisLine={false}
+                tickLine={false}
+                tickFormatter={(v) => `${(v / 1_000_000).toFixed(0)}M`}
+                width={50}
+              />
+              <YAxis
+                yAxisId="right"
+                orientation="right"
+                tick={{ fontSize: 11, fill: '#9ca3af' }}
+                axisLine={false}
+                tickLine={false}
+                tickFormatter={(v) => `${v}%`}
+                domain={[0, 100]}
+                width={40}
+              />
+              <Tooltip content={<ChainTooltip />} />
+              <Legend
+                wrapperStyle={{ fontSize: 12, paddingTop: 8 }}
+                formatter={(value) => (value === 'revenue' ? 'Doanh thu' : 'Tỷ lệ lấp đầy')}
+              />
+              <Bar
+                yAxisId="left"
+                dataKey="revenue"
+                fill="#10b981"
+                radius={[6, 6, 0, 0]}
+                maxBarSize={44}
+                fillOpacity={0.85}
+              />
+              <Line
+                yAxisId="right"
+                type="monotone"
+                dataKey="occupancyRate"
+                stroke="#6366f1"
+                strokeWidth={2.5}
+                dot={{ r: 4, fill: '#6366f1', strokeWidth: 2, stroke: '#fff' }}
+                activeDot={{ r: 6, fill: '#6366f1', strokeWidth: 2, stroke: '#fff' }}
+              />
+            </ComposedChart>
+          </ResponsiveContainer>
+        </div>
       )}
     </div>
   )

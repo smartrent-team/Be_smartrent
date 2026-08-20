@@ -149,55 +149,57 @@ export default function BranchComparisonCharts({ data }: { data: BranchKPI[] }) 
           Chưa có dữ liệu chi nhánh
         </div>
       ) : (
-        <ResponsiveContainer width="100%" height={320}>
-          <BarChart data={sortedData} margin={{ top: 10, right: 10, left: 10, bottom: 5 }} barCategoryGap="20%">
-            <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" vertical={false} />
-            <XAxis
-              dataKey="name"
-              tick={{ fontSize: 12, fill: '#6b7280' }}
-              axisLine={false}
-              tickLine={false}
-              interval={0}
-              angle={sortedData.length > 6 ? -30 : 0}
-              textAnchor={sortedData.length > 6 ? 'end' : 'middle'}
-              height={sortedData.length > 6 ? 60 : 30}
-            />
-            <YAxis
-              tick={{ fontSize: 11, fill: '#9ca3af' }}
-              axisLine={false}
-              tickLine={false}
-              tickFormatter={tab.formatter}
-              width={55}
-            />
-            <Tooltip
-              content={<ChartTooltip tab={tab} />}
-              cursor={{ fill: `${tab.color}08` }}
-            />
-            <Bar dataKey={activeTab} radius={[8, 8, 0, 0]} maxBarSize={56} animationDuration={600}>
-              {sortedData.map((entry, index) => {
-                const val = entry[activeTab]
-                // For badDebt: highest = worst (red), lowest = best (green)
-                // For others: highest = best (strong color), lowest = lighter
-                let fillColor = tab.color
-                if (activeTab === 'badDebt') {
-                  fillColor = val === maxVal ? '#ef4444' : val === minVal ? '#86efac' : '#fca5a5'
-                } else {
-                  const ratio = maxVal > minVal ? (val - minVal) / (maxVal - minVal) : 1
-                  const opacity = 0.4 + ratio * 0.6
-                  fillColor = tab.color
-                  return (
-                    <Cell
-                      key={`cell-${index}`}
-                      fill={fillColor}
-                      fillOpacity={opacity}
-                    />
-                  )
-                }
-                return <Cell key={`cell-${index}`} fill={fillColor} />
-              })}
-            </Bar>
-          </BarChart>
-        </ResponsiveContainer>
+        <div className="w-full min-w-0 h-[320px]">
+          <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0}>
+            <BarChart data={sortedData} margin={{ top: 10, right: 10, left: 10, bottom: 5 }} barCategoryGap="20%">
+              <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" vertical={false} />
+              <XAxis
+                dataKey="name"
+                tick={{ fontSize: 12, fill: '#6b7280' }}
+                axisLine={false}
+                tickLine={false}
+                interval={0}
+                angle={sortedData.length > 6 ? -30 : 0}
+                textAnchor={sortedData.length > 6 ? 'end' : 'middle'}
+                height={sortedData.length > 6 ? 60 : 30}
+              />
+              <YAxis
+                tick={{ fontSize: 11, fill: '#9ca3af' }}
+                axisLine={false}
+                tickLine={false}
+                tickFormatter={tab.formatter}
+                width={55}
+              />
+              <Tooltip
+                content={<ChartTooltip tab={tab} />}
+                cursor={{ fill: `${tab.color}08` }}
+              />
+              <Bar dataKey={activeTab} radius={[8, 8, 0, 0]} maxBarSize={56} animationDuration={600}>
+                {sortedData.map((entry, index) => {
+                  const val = entry[activeTab]
+                  // For badDebt: highest = worst (red), lowest = best (green)
+                  // For others: highest = best (strong color), lowest = lighter
+                  let fillColor = tab.color
+                  if (activeTab === 'badDebt') {
+                    fillColor = val === maxVal ? '#ef4444' : val === minVal ? '#86efac' : '#fca5a5'
+                  } else {
+                    const ratio = maxVal > minVal ? (val - minVal) / (maxVal - minVal) : 1
+                    const opacity = 0.4 + ratio * 0.6
+                    fillColor = tab.color
+                    return (
+                      <Cell
+                        key={`cell-${index}`}
+                        fill={fillColor}
+                        fillOpacity={opacity}
+                      />
+                    )
+                  }
+                  return <Cell key={`cell-${index}`} fill={fillColor} />
+                })}
+              </Bar>
+            </BarChart>
+          </ResponsiveContainer>
+        </div>
       )}
     </div>
   )

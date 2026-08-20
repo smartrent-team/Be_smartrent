@@ -151,8 +151,8 @@ export function BranchBenchmark({ branches }: { branches: BranchBenchmarkItem[] 
           </div>
         ) : (
           <>
-            <div className="h-[260px] w-full">
-              <ResponsiveContainer width="100%" height="100%">
+            <div className="h-[260px] w-full min-w-0">
+              <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0}>
                 <BarChart
                   data={sortedData}
                   margin={{ top: 10, right: 10, left: 10, bottom: sortedData.length > 5 ? 40 : 10 }}

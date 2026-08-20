@@ -76,8 +76,8 @@ export function RevenueDistributionChart({ breakdown }: { breakdown: RevenueBrea
         ) : (
           <div className="grid grid-cols-1 sm:grid-cols-2 items-center gap-4 h-[280px]">
             {/* Donut Chart */}
-            <div className="relative h-[220px] w-full flex items-center justify-center">
-              <ResponsiveContainer width="100%" height="100%">
+            <div className="relative h-[220px] w-full min-w-0 flex items-center justify-center">
+              <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0}>
                 <PieChart>
                   <Tooltip content={<DonutTooltip />} />
                   <Pie
