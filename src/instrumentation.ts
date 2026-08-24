@@ -1,7 +1,7 @@
 /**
  * Next.js Instrumentation Hook
  * Chạy tự động khi Next.js server khởi động (cả dev lẫn production).
- * Dùng để kick off scheduler auto-lock hợp đồng hết hạn mỗi 2 phút.
+ * Dùng để kick off scheduler auto-lock hợp đồng hết hạn mỗi 1 phút.
  *
  * Docs: https://nextjs.org/docs/app/building-your-application/optimizing/instrumentation
  */
@@ -11,7 +11,7 @@ export async function register() {
     const { processExpiredCheckoutTenants } = await import('@/lib/auto-lock-expired')
     const { createAdminClient } = await import('@/lib/supabase/admin')
 
-    const INTERVAL_MS = 2 * 60 * 1000 // 2 phút
+    const INTERVAL_MS = 1 * 60 * 1000 // 1 phút
 
     async function runAutoLock() {
       try {
@@ -35,7 +35,7 @@ export async function register() {
     // Chạy ngay lập tức khi server start
     await runAutoLock()
 
-    // Lặp lại mỗi 2 phút
+    // Lặp lại mỗi 1 phút
     setInterval(runAutoLock, INTERVAL_MS)
   }
 }
