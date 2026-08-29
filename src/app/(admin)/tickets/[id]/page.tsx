@@ -2,7 +2,7 @@ import { notFound } from 'next/navigation'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
-import { ArrowLeft, User, Phone, MapPin, AlertTriangle } from 'lucide-react'
+import { ArrowLeft, User, Phone, MapPin, AlertTriangle, Building } from 'lucide-react'
 import Link from 'next/link'
 import { buttonVariants } from '@/components/ui/button'
 import StatusUpdater from './StatusUpdater'
@@ -12,12 +12,12 @@ export default async function TicketDetailPage({ params }: { params: Promise<{ i
   const { id } = await params
   const adminSupabase = createAdminClient()
 
-  // Lấy chi tiết ticket kèm thông tin phòng và khách thuê
+  // Lấy chi tiết ticket kèm thông tin phòng, chi nhánh và khách thuê
   const { data: ticket, error } = await adminSupabase
     .from('maintenance_tickets')
     .select(`
       *,
-      rooms (room_code, branch_id),
+      rooms (room_code, branch_id, branch:branches(id, name, address)),
       tenants (
         users (full_name, phone)
       )
@@ -29,7 +29,23 @@ export default async function TicketDetailPage({ params }: { params: Promise<{ i
     notFound()
   }
 
+  // Lấy thông tin quản lý chi nhánh
+  const branchId = ticket.rooms?.branch_id
+  let branchManager: { full_name: string; phone: string } | null = null
+  if (branchId) {
+    const { data: manager } = await adminSupabase
+      .from('users')
+      .select('full_name, phone')
+      .eq('role', 'manager')
+      .eq('branch_id', branchId)
+      .limit(1)
+      .maybeSingle()
+    branchManager = manager
+  }
+
   const roomCode = ticket.rooms?.room_code || 'Không xác định'
+  const branchInfo = ticket.rooms?.branch
+  const branchName = branchInfo?.name || 'Chưa xác định'
   const tenantUser = ticket.tenants?.users
   const fullName = tenantUser?.full_name || 'Khách thuê (Chưa cập nhật tên)'
   const phone = tenantUser?.phone || 'Chưa cập nhật SĐT'
@@ -50,7 +66,7 @@ export default async function TicketDetailPage({ params }: { params: Promise<{ i
           <Link href="/tickets" className={buttonVariants({ variant: 'ghost', size: 'icon' })}>
             <ArrowLeft className="h-5 w-5" />
           </Link>
-          <h1 className="text-3xl font-bold tracking-tight">Chi tiết báo hỏng #{ticket.id}</h1>
+          <h1 className="text-3xl font-bold tracking-tight">Chi tiết báo hỏng</h1>
         </div>
         <div className="flex items-center gap-3">
           <EditTicketDialog 
@@ -77,6 +93,10 @@ export default async function TicketDetailPage({ params }: { params: Promise<{ i
               <div className="flex items-center gap-2">
                 <span className="font-semibold text-muted-foreground w-24">Phòng:</span>
                 <Badge variant="outline" className="text-sm"><MapPin className="mr-1 h-3 w-3" /> P.{roomCode}</Badge>
+              </div>
+              <div className="flex items-center gap-2">
+                <span className="font-semibold text-muted-foreground w-24">Chi nhánh:</span>
+                <Badge variant="outline" className="text-sm bg-blue-50 text-blue-700 border-blue-200"><Building className="mr-1 h-3 w-3" /> {branchName}</Badge>
               </div>
               <div className="flex items-center gap-2">
                 <span className="font-semibold text-muted-foreground w-24">Ưu tiên:</span>
@@ -135,6 +155,60 @@ export default async function TicketDetailPage({ params }: { params: Promise<{ i
                   <Phone className="h-4 w-4" /> Gọi ngay
                 </a>
               </div>
+            </CardContent>
+          </Card>
+
+          {/* Thông tin chi nhánh & quản lý */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-lg">Chi nhánh & Quản lý</CardTitle>
+              <CardDescription>
+                Thông tin chi nhánh và quản lý phụ trách.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="flex items-center gap-3">
+                <div className="p-2 bg-indigo-100 text-indigo-700 rounded-full">
+                  <Building className="h-4 w-4" />
+                </div>
+                <div>
+                  <p className="text-sm font-medium">{branchName}</p>
+                  {branchInfo?.address && (
+                    <p className="text-xs text-muted-foreground">{branchInfo.address}</p>
+                  )}
+                </div>
+              </div>
+              {branchManager ? (
+                <>
+                  <div className="flex items-center gap-3">
+                    <div className="p-2 bg-teal-100 text-teal-700 rounded-full">
+                      <User className="h-4 w-4" />
+                    </div>
+                    <div>
+                      <p className="text-sm font-medium">{branchManager.full_name}</p>
+                      <p className="text-xs text-muted-foreground">Quản lý chi nhánh</p>
+                    </div>
+                  </div>
+                  {branchManager.phone && (
+                    <div className="flex items-center gap-3">
+                      <div className="p-2 bg-green-100 text-green-700 rounded-full">
+                        <Phone className="h-4 w-4" />
+                      </div>
+                      <div>
+                        <p className="text-sm font-medium">{branchManager.phone}</p>
+                        <p className="text-xs text-muted-foreground">SĐT quản lý</p>
+                      </div>
+                    </div>
+                  )}
+                  <div className="pt-4 flex gap-2">
+                    <a href={`tel:${branchManager.phone}`} className={buttonVariants({ variant: 'outline', className: 'w-full gap-2' })}>
+                      <Phone className="h-4 w-4" /> Gọi quản lý
+                    </a>
+                  </div>
+                </>
+              ) : (
+                <p className="text-sm text-muted-foreground">Chưa có quản lý được gán cho chi nhánh này.</p>
+              )}
             </CardContent>
           </Card>
 

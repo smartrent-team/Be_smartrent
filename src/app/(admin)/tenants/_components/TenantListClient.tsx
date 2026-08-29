@@ -349,7 +349,6 @@ export default function TenantListClient({
                 <TableRow key={tenant.id} className="hover:bg-slate-50/60 transition-colors">
                   <TableCell>
                     <div className="font-semibold text-slate-900">{tenant.name}</div>
-                    <div className="text-[11px] text-slate-400">ID: #{tenant.id}</div>
                   </TableCell>
                   <TableCell>
                     <div className="flex flex-col gap-1 text-xs text-slate-600">

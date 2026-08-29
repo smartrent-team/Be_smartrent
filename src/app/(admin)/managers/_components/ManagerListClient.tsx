@@ -289,9 +289,6 @@ export default function ManagerListClient({
                           </div>
                           <div>
                             <span className="block font-semibold">{manager.full_name || 'Chưa đặt tên'}</span>
-                            <span className="text-[10px] text-gray-400 flex items-center gap-1 mt-0.5">
-                              <Clock className="h-2.5 w-2.5" /> ID: {String(manager.id).slice(0, 8)}...
-                            </span>
                           </div>
                         </div>
                       </TableCell>

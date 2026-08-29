@@ -11,7 +11,7 @@ export async function register() {
     const { processExpiredCheckoutTenants } = await import('@/lib/auto-lock-expired')
     const { createAdminClient } = await import('@/lib/supabase/admin')
 
-    const INTERVAL_MS = 1 * 60 * 1000 // 1 phút
+    const INTERVAL_MS = 30 * 1000 // 30 giây
 
     async function runAutoLock() {
       try {
@@ -21,10 +21,20 @@ export async function register() {
         const locked = results.filter((r) => r.action.startsWith('locked')).length
         const skipped = results.filter((r) => r.action === 'skipped').length
         const blocked = results.filter((r) => r.action.startsWith('blocked')).length
+        const errors = results.filter((r) => r.action === 'error').length
 
-        console.log(
-          `[auto-lock] ${new Date().toLocaleTimeString('vi-VN')} — processed: ${processed} | locked: ${locked} | skipped: ${skipped} | blocked: ${blocked}`
-        )
+        // Chỉ in log khi có thay đổi (locked), có lỗi (errors) hoặc bị chặn (blocked)
+        if (locked > 0 || errors > 0 || blocked > 0) {
+          console.log(
+            `[auto-lock] ${new Date().toLocaleTimeString('vi-VN')} — processed: ${processed} | locked: ${locked} | skipped: ${skipped} | blocked: ${blocked} | errors: ${errors}`
+          )
+          
+          for (const r of results) {
+            if (r.action === 'skipped' || r.action.startsWith('blocked') || r.action === 'error') {
+              console.log(`[auto-lock] ⚠ contractId=${r.contractId} tenantId=${r.tenantId} action="${r.action}" reason="${r.reason ?? 'N/A'}"`)
+            }
+          }
+        }
       } catch (err) {
         console.error('[auto-lock] Lỗi quét hợp đồng:', err)
       }

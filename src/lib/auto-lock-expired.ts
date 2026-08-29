@@ -1,6 +1,17 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { toVietnamDateKey } from '@/lib/date-utils'
 
+// Scope-level console filter to suppress debug logs and reduce console noise
+const console = {
+  ...globalThis.console,
+  log: (...args: any[]) => {
+    if (typeof args[0] === 'string' && args[0].startsWith('[auto-lock-debug]')) {
+      return
+    }
+    globalThis.console.log(...args)
+  }
+}
+
 export type AutoLockResult = {
   contractId: number
   tenantId: number
@@ -13,9 +24,28 @@ function todayVietnamDateKey(): string {
 }
 
 function isContractExpired(endDate: string | null | undefined, todayKey: string): boolean {
+  if (!endDate) {
+    console.log(`[auto-lock-debug] isContractExpired: endDate is null/undefined → NOT expired`)
+    return false
+  }
+
+  // Chiến lược 1: Nếu end_date là dạng date-only (YYYY-MM-DD), so sánh trực tiếp
+  const dateOnlyMatch = String(endDate).match(/^(\d{4}-\d{2}-\d{2})$/)
+  if (dateOnlyMatch) {
+    const expired = dateOnlyMatch[1] <= todayKey
+    console.log(`[auto-lock-debug] isContractExpired (date-only): endDate="${endDate}" → endKey="${dateOnlyMatch[1]}", todayKey="${todayKey}" → ${expired ? 'EXPIRED ✓' : 'NOT expired ✗'}`)
+    return expired
+  }
+
+  // Chiến lược 2: Parse ISO timestamp → chuyển sang VN timezone
   const endKey = toVietnamDateKey(endDate)
-  if (!endKey) return false
-  return endKey <= todayKey
+  if (!endKey) {
+    console.log(`[auto-lock-debug] isContractExpired: endDate="${endDate}" → toVietnamDateKey returned null → NOT expired`)
+    return false
+  }
+  const expired = endKey <= todayKey
+  console.log(`[auto-lock-debug] isContractExpired (ISO): endDate="${endDate}" → endKey="${endKey}", todayKey="${todayKey}" → ${expired ? 'EXPIRED ✓' : 'NOT expired ✗'}`)
+  return expired
 }
 
 /**
@@ -125,6 +155,7 @@ export async function processExpiredCheckoutTenants(
 ): Promise<{ processed: number; results: AutoLockResult[] }> {
   const todayKey = todayVietnamDateKey()
   const results: AutoLockResult[] = []
+  console.log(`[auto-lock-debug] === BẮT ĐẦU QUÉT === todayKey="${todayKey}"`)
 
   const { data: checkoutRequests, error: reqErr } = await supabase
     .from('checkout_requests')
@@ -157,6 +188,8 @@ export async function processExpiredCheckoutTenants(
     throw reqErr
   }
 
+  console.log(`[auto-lock-debug] Phần 1: Tìm thấy ${checkoutRequests?.length ?? 0} checkout_requests (confirmed/invoiced/pending_settlement)`)
+
   const { dispatchNotification } = await import('@/lib/notification_dispatch')
   const processedTenantIds = new Set<number>()
 
@@ -166,7 +199,10 @@ export async function processExpiredCheckoutTenants(
 
   for (const request of checkoutRequests ?? []) {
     const tenantId = request.tenant_id as number
-    if (processedTenantIds.has(tenantId)) continue
+    if (processedTenantIds.has(tenantId)) {
+      console.log(`[auto-lock-debug] Phần 1: tenant ${tenantId} đã xử lý rồi, bỏ qua`)
+      continue
+    }
 
     const rawContract = request.contracts
     const contract = (Array.isArray(rawContract) ? rawContract[0] : rawContract) as {
@@ -187,21 +223,38 @@ export async function processExpiredCheckoutTenants(
       users: { status: string } | { status: string }[] | null
     } | null
 
+    console.log(`[auto-lock-debug] Phần 1: checkout_request #${request.id} | tenant=${tenantId} | req_status=${request.status} | contract_id=${request.contract_id}`)
+    console.log(`[auto-lock-debug]   contract: ${contract ? `id=${contract.id}, end_date="${contract.end_date}", status="${contract.status}"` : 'NULL'}`)
+    console.log(`[auto-lock-debug]   tenant: ${tenant ? `id=${tenant.id}, user_id=${tenant.user_id}, move_out_date=${tenant.move_out_date}, room_id=${tenant.room_id}` : 'NULL'}`)
+
     if (!contract || !tenant) {
-      results.push({ contractId: request.contract_id, tenantId, action: 'skipped', reason: 'Thiếu dữ liệu hợp đồng hoặc cư dân' })
+      console.log(`[auto-lock-debug]   → SKIP: Thiếu dữ liệu (contract=${!!contract}, tenant=${!!tenant})`)
+      results.push({ contractId: request.contract_id, tenantId, action: 'skipped', reason: `Thiếu dữ liệu: contract=${!!contract}, tenant=${!!tenant}` })
       continue
     }
 
-    if (tenant.move_out_date) { processedTenantIds.add(tenantId); continue }
+    if (tenant.move_out_date) {
+      console.log(`[auto-lock-debug]   → SKIP (silent): Đã có move_out_date="${tenant.move_out_date}"`)
+      processedTenantIds.add(tenantId)
+      continue
+    }
 
     const userStatus = Array.isArray(tenant.users) ? tenant.users[0]?.status : tenant.users?.status
-    if (userStatus === 'locked' || userStatus === 'blocked') { processedTenantIds.add(tenantId); continue }
+    console.log(`[auto-lock-debug]   user_status="${userStatus}"`)
 
-    if (!isContractExpired(contract.end_date, todayKey)) {
-      results.push({ contractId: contract.id, tenantId, action: 'skipped', reason: 'Hợp đồng chưa hết hạn' })
+    if (userStatus === 'locked' || userStatus === 'blocked') {
+      console.log(`[auto-lock-debug]   → SKIP (silent): User đã bị ${userStatus}`)
+      processedTenantIds.add(tenantId)
       continue
     }
 
+    if (!isContractExpired(contract.end_date, todayKey)) {
+      console.log(`[auto-lock-debug]   → SKIP: Hợp đồng chưa hết hạn`)
+      results.push({ contractId: contract.id, tenantId, action: 'skipped', reason: `Hợp đồng chưa hết hạn: end_date="${contract.end_date}", todayKey="${todayKey}"` })
+      continue
+    }
+
+    console.log(`[auto-lock-debug]   → Hợp đồng HẾT HẠN, tiến hành xử lý...`)
     processedTenantIds.add(tenantId)
 
     const roomId = contract.room_id ?? tenant.room_id
@@ -304,9 +357,18 @@ export async function processExpiredCheckoutTenants(
     console.error('[auto-lock-expired] Lỗi truy vấn expired contracts:', expiredErr)
   }
 
+  console.log(`[auto-lock-debug] Phần 2: Tìm thấy ${expiredContracts?.length ?? 0} contracts hết hạn (active/pending_checkout, end_date <= "${todayKey}")`)
+
   for (const contract of expiredContracts ?? []) {
     const tenantId = contract.tenant_id as number
-    if (!tenantId || processedTenantIds.has(tenantId)) continue
+    if (!tenantId) {
+      console.log(`[auto-lock-debug] Phần 2: contract #${contract.id} không có tenant_id, bỏ qua`)
+      continue
+    }
+    if (processedTenantIds.has(tenantId)) {
+      console.log(`[auto-lock-debug] Phần 2: tenant ${tenantId} (contract #${contract.id}) đã xử lý ở Phần 1, bỏ qua`)
+      continue
+    }
 
     const rawTenant = contract.tenants
     const tenant = (Array.isArray(rawTenant) ? rawTenant[0] : rawTenant) as {
@@ -317,11 +379,29 @@ export async function processExpiredCheckoutTenants(
       users: { status: string } | { status: string }[] | null
     } | null
 
-    if (!tenant) continue
-    if (tenant.move_out_date) { processedTenantIds.add(tenantId); continue }
+    console.log(`[auto-lock-debug] Phần 2: contract #${contract.id} | tenant=${tenantId} | end_date="${contract.end_date}" | status="${contract.status}"`)
+    console.log(`[auto-lock-debug]   tenant: ${tenant ? `id=${tenant.id}, user_id=${tenant.user_id}, move_out_date=${tenant.move_out_date}` : 'NULL'}`)
+
+    if (!tenant) {
+      console.log(`[auto-lock-debug]   → SKIP: tenant data is NULL`)
+      continue
+    }
+    if (tenant.move_out_date) {
+      console.log(`[auto-lock-debug]   → SKIP: Đã có move_out_date="${tenant.move_out_date}"`)
+      processedTenantIds.add(tenantId)
+      continue
+    }
 
     const userStatus = Array.isArray(tenant.users) ? tenant.users[0]?.status : tenant.users?.status
-    if (userStatus === 'locked' || userStatus === 'blocked') { processedTenantIds.add(tenantId); continue }
+    console.log(`[auto-lock-debug]   user_status="${userStatus}"`)
+
+    if (userStatus === 'locked' || userStatus === 'blocked') {
+      console.log(`[auto-lock-debug]   → SKIP: User đã bị ${userStatus}`)
+      processedTenantIds.add(tenantId)
+      continue
+    }
+
+    console.log(`[auto-lock-debug]   → Hợp đồng HẾT HẠN (no request), tiến hành khóa...`)
 
     processedTenantIds.add(tenantId)
 
@@ -352,5 +432,6 @@ export async function processExpiredCheckoutTenants(
     }
   }
 
+  console.log(`[auto-lock-debug] === KẾT THÚC QUÉT === processed=${results.length}, results:`, JSON.stringify(results, null, 2))
   return { processed: results.length, results }
 }

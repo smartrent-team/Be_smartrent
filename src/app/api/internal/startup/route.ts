@@ -17,9 +17,12 @@ async function runAutoLock() {
     const skipped = results.filter((r) => r.action === 'skipped').length
     const blocked = results.filter((r) => r.action.startsWith('blocked')).length
 
-    console.log(
-      `[auto-lock] ${new Date().toLocaleTimeString('vi-VN')} — processed: ${processed} | locked: ${locked} | skipped: ${skipped} | blocked: ${blocked}`
-    )
+    // Chỉ log khi có thay đổi thực tế hoặc sự cố
+    if (locked > 0 || blocked > 0) {
+      console.log(
+        `[auto-lock] ${new Date().toLocaleTimeString('vi-VN')} — processed: ${processed} | locked: ${locked} | skipped: ${skipped} | blocked: ${blocked}`
+      )
+    }
   } catch (err) {
     console.error('[auto-lock] Lỗi quét hợp đồng:', err)
   }

@@ -8,8 +8,6 @@ import {
 } from 'lucide-react'
 
 import { DashboardKPIs, type KPIStats } from './DashboardKPIs'
-import { RevenueTrendChart, type MonthTrendData } from './RevenueTrendChart'
-import { RevenueDistributionChart, type RevenueBreakdown } from './RevenueDistributionChart'
 import { RoomStatusDistribution, type RoomDistributionData } from './RoomStatusDistribution'
 import { BranchBenchmark, type BranchBenchmarkItem } from './BranchBenchmark'
 import { SmartAlertsCenter, type ExpiringContractItem, type UrgentTicketItem } from './SmartAlertsCenter'
@@ -523,19 +521,6 @@ export default function DashboardClientView({
 
       {/* ═══ 2. Trạng thái & Phân bổ Phòng (Nằm trên biểu đồ doanh thu) ═══ */}
       <RoomStatusDistribution data={roomDistributionData} />
-
-      {/* ═══ 3. Xu hướng Doanh thu & Cơ cấu Nguồn thu ═══ */}
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-        {/* Left: Revenue Trend (7 cols) */}
-        <div className="lg:col-span-7">
-          <RevenueTrendChart data={trendData} />
-        </div>
-
-        {/* Right: Revenue Breakdown Donut (5 cols) */}
-        <div className="lg:col-span-5">
-          <RevenueDistributionChart breakdown={revenueBreakdown} />
-        </div>
-      </div>
 
       {/* ═══ 4. So sánh Hiệu suất giữa các Tòa nhà ═══ */}
       <BranchBenchmark branches={branchBenchmarks} />

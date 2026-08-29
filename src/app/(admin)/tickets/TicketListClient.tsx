@@ -12,8 +12,16 @@ import {
 } from '@/components/ui/table'
 import { Badge } from '@/components/ui/badge'
 import { Button, buttonVariants } from '@/components/ui/button'
-import { Check, Eye, DollarSign, CheckCircle2, Wrench, AlertCircle } from 'lucide-react'
+import { Check, Eye, DollarSign, CheckCircle2, Wrench, AlertCircle, Filter, X } from 'lucide-react'
 import { toast } from 'sonner'
+import { Input } from '@/components/ui/input'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
 import { createClient } from '@/lib/supabase/client'
 import { resolveTicket } from './actions'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -22,6 +30,7 @@ type Ticket = {
   id: number
   roomId?: number
   room: string
+  branch?: string
   title: string
   date: string
   priority: string
@@ -112,22 +121,95 @@ export default function TicketListClient({ initialTickets }: { initialTickets: T
     }
   }
 
-  const resolvedTickets = tickets.filter((t) => t.status === 'resolved')
+  const [branchFilter, setBranchFilter] = useState<string>('Tất cả chi nhánh')
+  const [dateFilter, setDateFilter] = useState<string>('')
+
+  // Lọc tickets
+  const filteredTickets = tickets.filter(ticket => {
+    let match = true
+    if (branchFilter !== 'Tất cả chi nhánh' && ticket.branch !== branchFilter) {
+      match = false
+    }
+    if (dateFilter) {
+      const filterDateObj = new Date(dateFilter)
+      const filterDateStr = filterDateObj.toLocaleDateString('vi-VN')
+      if (ticket.date !== filterDateStr) {
+        match = false
+      }
+    }
+    return match
+  })
+
+  const uniqueBranches = Array.from(new Set(tickets.map(t => t.branch).filter(Boolean))) as string[]
+
+  const resolvedTickets = filteredTickets.filter((t) => t.status === 'resolved')
   const totalCost = resolvedTickets.reduce((sum, t) => sum + (t.repairCost || 0), 0)
   const averageCost = resolvedTickets.length > 0 
     ? Math.round(totalCost / resolvedTickets.length) 
     : 0
   const ticketsWithCostCount = resolvedTickets.filter((t) => (t.repairCost || 0) > 0).length
-  const pendingTicketsCount = tickets.filter((t) => t.status === 'pending').length
-  const inProgressTicketsCount = tickets.filter((t) => t.status === 'in-progress').length
+  const pendingTicketsCount = filteredTickets.filter((t) => t.status === 'pending').length
+  const inProgressTicketsCount = filteredTickets.filter((t) => t.status === 'in-progress').length
 
   return (
-    <div className="flex flex-col gap-8">
+    <div className="flex flex-col gap-6 p-6 min-h-screen bg-slate-50/50">
+      {/* Header & Bộ lọc */}
+      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+        <div>
+          <h1 className="text-3xl font-extrabold tracking-tight bg-gradient-to-r from-teal-600 to-emerald-600 bg-clip-text text-transparent">
+            Yêu cầu Bảo trì
+          </h1>
+          <p className="text-muted-foreground mt-2 text-sm sm:text-base">
+            Theo dõi và xử lý các sự cố kỹ thuật từ khách thuê (Tự động cập nhật).
+          </p>
+        </div>
+
+        {/* ── Bộ lọc ─────────────────────────────────────────────── */}
+        <div className="flex flex-wrap items-center gap-2 w-full md:w-auto md:justify-end">
+          <div className="w-full sm:w-[220px]">
+            <Select value={branchFilter} onValueChange={setBranchFilter}>
+              <SelectTrigger className="bg-white h-9.5 border-slate-200 w-full rounded-xl">
+                <SelectValue placeholder="Tất cả chi nhánh" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="Tất cả chi nhánh">Tất cả chi nhánh</SelectItem>
+                {uniqueBranches.map(branch => (
+                  <SelectItem key={branch} value={branch}>{branch}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          
+          <div className="w-full sm:w-[180px]">
+            <Input 
+              type="date" 
+              className="bg-white h-9.5 border-slate-200 text-slate-700 w-full rounded-xl"
+              value={dateFilter} 
+              onChange={(e) => setDateFilter(e.target.value)} 
+            />
+          </div>
+          
+          {(branchFilter !== 'Tất cả chi nhánh' || dateFilter !== '') && (
+            <Button 
+              variant="ghost" 
+              className="text-slate-500 hover:text-slate-800 hover:bg-slate-100 h-9.5 px-3 rounded-xl gap-2 text-xs"
+              onClick={() => {
+                setBranchFilter('Tất cả chi nhánh')
+                setDateFilter('')
+              }}
+            >
+              <X className="h-4 w-4" /> Bỏ lọc
+            </Button>
+          )}
+        </div>
+      </div>
+
       <div className="rounded-md border bg-white shadow-sm">
         <Table>
           <TableHeader>
             <TableRow>
               <TableHead className="w-[100px]">Phòng</TableHead>
+              <TableHead>Chi nhánh</TableHead>
               <TableHead>Vấn đề</TableHead>
               <TableHead>Ngày báo</TableHead>
               <TableHead>Mức độ</TableHead>
@@ -137,12 +219,14 @@ export default function TicketListClient({ initialTickets }: { initialTickets: T
             </TableRow>
           </TableHeader>
           <TableBody>
-            {tickets.length > 0 ? (
-              tickets.map((ticket) => (
+            {filteredTickets.length > 0 ? (
+              filteredTickets.map((ticket) => (
                 <TableRow key={ticket.id}>
                   <TableCell className="font-medium">
                     {ticket.room && ticket.room !== 'Chung' && ticket.room !== '...' ? `P.${ticket.room}` : ticket.room}
-                    {ticket.roomId && <span className="text-xs text-muted-foreground ml-2">(ID: {ticket.roomId})</span>}
+                  </TableCell>
+                  <TableCell className="text-sm text-gray-600">
+                    {ticket.branch || '—'}
                   </TableCell>
                   <TableCell className="max-w-[300px] truncate" title={ticket.title}>{ticket.title}</TableCell>
                   <TableCell>{ticket.date}</TableCell>
@@ -171,7 +255,7 @@ export default function TicketListClient({ initialTickets }: { initialTickets: T
               ))
             ) : (
               <TableRow>
-                <TableCell colSpan={7} className="text-center h-24 text-muted-foreground">
+                <TableCell colSpan={8} className="text-center h-24 text-muted-foreground">
                   Chưa có yêu cầu sửa chữa nào.
                 </TableCell>
               </TableRow>

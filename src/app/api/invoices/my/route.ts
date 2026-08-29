@@ -79,7 +79,7 @@ export async function GET() {
       supabase
         .from('invoices')
         .select(select)
-        .or(`tenant_id.eq.${tenant.id},room_id.eq.${tenant.room_id}`)
+        .eq('tenant_id', tenant.id)
         .order('issued_at', { ascending: false })
 
     let { data: invoices, error } = await invoiceQuery(invoiceSelectWithPayment)

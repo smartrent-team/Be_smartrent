@@ -97,8 +97,7 @@ export default async function RoomDetailPage({ params }: { params: Promise<{ id:
           </Link>
           <div>
             <h1 className="text-3xl font-bold tracking-tight">
-              Phòng {room.room_code} 
-              <span className="text-lg font-normal text-muted-foreground ml-2">(ID: {room.id})</span>
+              Phòng {room.room_code}
             </h1>
             <p className="text-muted-foreground mt-1">Thông tin chi tiết và lịch sử phòng.</p>
           </div>
@@ -171,7 +170,6 @@ export default async function RoomDetailPage({ params }: { params: Promise<{ id:
                     <div>
                       <p className="font-medium">
                         {t.user?.full_name}
-                        <span className="text-xs text-muted-foreground font-normal ml-2">(ID: {t.id})</span>
                       </p>
                       <p className="text-sm text-muted-foreground">{t.user?.phone || 'Không có sđt'}</p>
                     </div>
