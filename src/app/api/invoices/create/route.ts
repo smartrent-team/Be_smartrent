@@ -96,24 +96,52 @@ export async function POST(request: NextRequest) {
         : 0
 
     // ── 5. Chi phí sửa chữa ──────────────────────────────────────────────────
-    // Nếu mobile truyền repairCost thì dùng luôn (đã được preview trước).
-    // Nếu không, tự fetch tổng repair_cost từ các ticket resolved + chưa được tính vào HĐ.
+    // Chỉ lấy ticket resolved chưa tính vào HĐ thuộc lượt thuê hiện tại của cư dân
+    const { data: activeTenantsForRepair } = await supabase
+      .from('tenants')
+      .select('id, move_in_date')
+      .eq('room_id', Number(roomId))
+      .is('move_out_date', null)
+
+    const activeTenantIds = (activeTenantsForRepair ?? []).map((t) => t.id)
+    const validMoveInDates = (activeTenantsForRepair ?? [])
+      .map((t) => t.move_in_date)
+      .filter((d): d is string => Boolean(d))
+    const earliestMoveInDate = validMoveInDates.length > 0
+      ? validMoveInDates.reduce((min, d) => (d < min ? d : min))
+      : null
+
+    const { data: resolvedTickets } = await supabase
+      .from('maintenance_tickets')
+      .select('id, repair_cost, tenant_id, created_at')
+      .eq('room_id', Number(roomId))
+      .eq('status', 'resolved')
+      .not('repair_cost', 'is', null)
+      .gt('repair_cost', 0)
+      .is('invoice_id', null)
+
+    const validTickets = (resolvedTickets ?? []).filter((t) => {
+      if (t.tenant_id != null) {
+        return activeTenantIds.includes(t.tenant_id)
+      }
+      if (earliestMoveInDate != null && t.created_at) {
+        const ticketTime = new Date(t.created_at).getTime()
+        const moveInTime = new Date(earliestMoveInDate).getTime()
+        if (!isNaN(ticketTime) && !isNaN(moveInTime)) {
+          return ticketTime >= moveInTime
+        }
+      }
+      return false
+    })
+
+    const validTicketIds = validTickets.map((t) => t.id)
+
     let finalRepairCost = 0
     if (repairCost !== undefined) {
       finalRepairCost = Math.max(0, Number(repairCost))
     } else {
-      const { data: resolvedTickets } = await supabase
-        .from('maintenance_tickets')
-        .select('id, repair_cost')
-        .eq('room_id', Number(roomId))
-        .eq('status', 'resolved')
-        .not('repair_cost', 'is', null)
-        .gt('repair_cost', 0)
-        // Chỉ lấy ticket chưa được tính vào hóa đơn nào (invoice_id IS NULL)
-        .is('invoice_id', null)
-
-      if (resolvedTickets && resolvedTickets.length > 0) {
-        finalRepairCost = resolvedTickets.reduce(
+      if (validTickets.length > 0) {
+        finalRepairCost = validTickets.reduce(
           (sum: number, t: { repair_cost: number }) => sum + (t.repair_cost || 0),
           0
         )
@@ -144,15 +172,11 @@ export async function POST(request: NextRequest) {
     }
 
     // ── 7. Đánh dấu tickets đã được tính vào hóa đơn này ────────────────────
-    if (finalRepairCost > 0 && result.invoiceId) {
+    if (finalRepairCost > 0 && result.invoiceId && validTicketIds.length > 0) {
       await supabase
         .from('maintenance_tickets')
         .update({ invoice_id: result.invoiceId })
-        .eq('room_id', Number(roomId))
-        .eq('status', 'resolved')
-        .not('repair_cost', 'is', null)
-        .gt('repair_cost', 0)
-        .is('invoice_id', null)
+        .in('id', validTicketIds)
     }
 
     return NextResponse.json({

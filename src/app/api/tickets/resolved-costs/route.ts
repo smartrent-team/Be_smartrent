@@ -46,9 +46,24 @@ export async function GET(request: NextRequest) {
       }
     }
 
+    // Lấy cư dân đang ở trong phòng (chưa chuyển đi)
+    const { data: activeTenants } = await supabase
+      .from('tenants')
+      .select('id, move_in_date')
+      .eq('room_id', Number(roomId))
+      .is('move_out_date', null)
+
+    const activeTenantIds = (activeTenants ?? []).map((t) => t.id)
+    const validMoveInDates = (activeTenants ?? [])
+      .map((t) => t.move_in_date)
+      .filter((d): d is string => Boolean(d))
+    const earliestMoveInDate = validMoveInDates.length > 0
+      ? validMoveInDates.reduce((min, d) => (d < min ? d : min))
+      : null
+
     const { data: tickets, error } = await supabase
       .from('maintenance_tickets')
-      .select('id, title, repair_cost, created_at, status')
+      .select('id, title, repair_cost, created_at, status, tenant_id')
       .eq('room_id', Number(roomId))
       .eq('status', 'resolved')
       .not('repair_cost', 'is', null)
@@ -58,7 +73,22 @@ export async function GET(request: NextRequest) {
 
     if (error) throw error
 
-    const docs = (tickets ?? []).map((t) => ({
+    // Lọc ticket: chỉ lấy ticket thuộc lượt thuê hiện tại
+    const validTickets = (tickets ?? []).filter((t) => {
+      if (t.tenant_id != null) {
+        return activeTenantIds.includes(t.tenant_id)
+      }
+      if (earliestMoveInDate != null && t.created_at) {
+        const ticketTime = new Date(t.created_at).getTime()
+        const moveInTime = new Date(earliestMoveInDate).getTime()
+        if (!isNaN(ticketTime) && !isNaN(moveInTime)) {
+          return ticketTime >= moveInTime
+        }
+      }
+      return false
+    })
+
+    const docs = validTickets.map((t) => ({
       id:         t.id,
       title:      t.title,
       repairCost: t.repair_cost,
