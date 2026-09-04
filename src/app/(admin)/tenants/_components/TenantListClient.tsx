@@ -21,7 +21,6 @@ import {
   RotateCcw,
   Users,
   Building,
-  DoorOpen,
   Calendar,
   CheckCircle2,
   Lock,
@@ -155,8 +154,7 @@ export default function TenantListClient({
     const total = initialTenants.length
     const active = initialTenants.filter((t) => t.status === 'active').length
     const locked = initialTenants.filter((t) => t.status === 'locked').length
-    const hasRoom = initialTenants.filter((t) => t.room && t.room !== 'Trống').length
-    return { total, active, locked, hasRoom }
+    return { total, active, locked }
   }, [initialTenants])
 
   return (
@@ -176,7 +174,7 @@ export default function TenantListClient({
       </div>
 
       {/* ═══ Quick Overview Stats ═══ */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
         <div className="p-3.5 rounded-2xl bg-white border border-slate-200/80 shadow-sm flex items-center gap-3">
           <div className="p-2 rounded-xl bg-indigo-50 text-indigo-600 shrink-0">
             <Users className="w-5 h-5" />
@@ -204,16 +202,6 @@ export default function TenantListClient({
           <div>
             <p className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider">Bị khóa</p>
             <p className="text-xl font-bold text-rose-600">{stats.locked}</p>
-          </div>
-        </div>
-
-        <div className="p-3.5 rounded-2xl bg-white border border-slate-200/80 shadow-sm flex items-center gap-3">
-          <div className="p-2 rounded-xl bg-teal-50 text-teal-600 shrink-0">
-            <DoorOpen className="w-5 h-5" />
-          </div>
-          <div>
-            <p className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider">Đã gán phòng</p>
-            <p className="text-xl font-bold text-teal-600">{stats.hasRoom}</p>
           </div>
         </div>
       </div>
