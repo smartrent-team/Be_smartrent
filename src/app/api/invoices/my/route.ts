@@ -75,12 +75,15 @@ export async function GET() {
         rooms ( room_code, branch:branches ( name ) )
       `
 
-    const invoiceQuery = (select: string) =>
-      supabase
-        .from('invoices')
-        .select(select)
-        .eq('tenant_id', tenant.id)
-        .order('issued_at', { ascending: false })
+    const invoiceQuery = (select: string) => {
+      let q = supabase.from('invoices').select(select)
+      if (tenant.room_id) {
+        q = q.eq('room_id', tenant.room_id)
+      } else {
+        q = q.eq('tenant_id', tenant.id)
+      }
+      return q.order('issued_at', { ascending: false })
+    }
 
     let { data: invoices, error } = await invoiceQuery(invoiceSelectWithPayment)
 

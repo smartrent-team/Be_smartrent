@@ -216,12 +216,12 @@ export async function resendInvoiceNotification(
 
     const { data: invoice, error } = await supabase
       .from('invoices')
-      .select('id, invoice_code, total_amount, tenant_id, room:rooms(room_code), tenant:tenants(user:users(full_name))')
+      .select('id, invoice_code, total_amount, tenant_id, room_id, room:rooms(room_code), tenant:tenants(user:users(full_name))')
       .eq('id', resolvedId)
       .single()
 
-    if (error || !invoice || !invoice.tenant_id) {
-      throw new Error('Không tìm thấy hóa đơn hoặc người thuê')
+    if (error || !invoice) {
+      throw new Error('Không tìm thấy hóa đơn')
     }
 
     const roomData = invoice.room as unknown
@@ -230,25 +230,40 @@ export async function resendInvoiceNotification(
       : (roomData as { room_code?: string } | null)
     const roomCode = roomObj?.room_code || '?'
 
-    const { data: tenantUser } = await supabase
-      .from('tenants')
-      .select('user_id')
-      .eq('id', invoice.tenant_id)
-      .single()
+    // Gửi thông báo cho TẤT CẢ cư dân đang ở trong phòng (nếu room_id có), hoặc theo tenant_id
+    let recipients: Array<{ id: number; user_id: string | null }> = []
 
-    if (tenantUser?.user_id) {
-      await dispatchNotification(
-        supabase,
-        {
-          userId: tenantUser.user_id,
-          tenantId: invoice.tenant_id,
-        },
-        {
-          title: 'Hóa đơn mới',
-          body: `Phòng ${roomCode} có hóa đơn tháng này. Tổng tiền: ${Number(invoice.total_amount).toLocaleString('vi-VN')}đ. Vui lòng thanh toán!`,
-          type: 'invoice',
-        }
-      )
+    if (invoice.room_id) {
+      const { data: roomTenants } = await supabase
+        .from('tenants')
+        .select('id, user_id')
+        .eq('room_id', invoice.room_id)
+        .is('move_out_date', null)
+      recipients = roomTenants ?? []
+    } else if (invoice.tenant_id) {
+      const { data: singleTenant } = await supabase
+        .from('tenants')
+        .select('id, user_id')
+        .eq('id', invoice.tenant_id)
+        .single()
+      if (singleTenant) recipients = [singleTenant]
+    }
+
+    for (const t of recipients) {
+      if (t.user_id) {
+        await dispatchNotification(
+          supabase,
+          {
+            userId: t.user_id,
+            tenantId: t.id,
+          },
+          {
+            title: 'Hóa đơn mới',
+            body: `Phòng ${roomCode} có hóa đơn tháng này. Tổng tiền: ${Number(invoice.total_amount).toLocaleString('vi-VN')}đ. Vui lòng thanh toán!`,
+            type: 'invoice',
+          }
+        )
+      }
     }
 
     return { success: true }
